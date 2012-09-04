@@ -84,11 +84,11 @@ read_variable (const char *name, efi_variable_t *var)
 
 efi_status_t
 write_variable (const char *filename, efi_variable_t *var)
-{       
+{
 	int fd;
 	size_t writesize;
 	char buffer[PATH_MAX+40];
-        
+
 	if (!filename || !var)
 		return EFI_INVALID_PARAMETER;
 	memset (buffer, 0, sizeof(buffer));
@@ -106,9 +106,9 @@ write_variable (const char *filename, efi_variable_t *var)
 	return EFI_SUCCESS;
 }
 
-int     
+int
 variable_to_name (efi_variable_t *var, char *name)
-{       
+{
 	char *p = name;
 	efichar_to_char (p, var->VariableName, PATH_MAX);
 	p += strlen (p);
