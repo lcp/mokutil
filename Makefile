@@ -1,13 +1,13 @@
-CC=gcc
-CFLAG=-g
+CC = gcc
+CFLAGS = -g
 
 all: mokutil
 
-efilib: efilib.c
-	$(CC) $(CFLAG) -c efilib.c
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
-mokutil: efilib mokutil.c
-	$(CC) $(CFLAG) efilib.o mokutil.c -o mokutil
+mokutil: efilib.o mokutil.o
+	$(CC) $(CFLAGS) efilib.o mokutil.o -o $@
 
 clean:
 	rm -f mokutil *.o
