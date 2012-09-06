@@ -10,9 +10,6 @@
 #define SHIM_LOCK_GUID \
 EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 0x23)
 
-#define MOK_NEW  "MokNew"
-#define MOK_MGMT "MokMgmt"
-
 #define COMMAND_SHOW   (0x01<<0)
 #define COMMAND_HIDE   (0x01<<1)
 #define COMMAND_ENROLL (0x01<<2)
