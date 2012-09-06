@@ -190,22 +190,22 @@ main (int argc, char *argv[])
 	while (command != 0) {
 		if (command & COMMAND_SHOW) {
 			if (show_mok_shell () < 0)
-				break;
+				return -1;
 			command &= ~COMMAND_SHOW;
 
 		} else if (command & COMMAND_HIDE) {
 			if (test_and_delete_var ("MokMgmt") < 0)
-				break;
+				return -1;
 			command &= ~COMMAND_HIDE;
 
 		} else if (command & COMMAND_ENROLL) {
 			if (enroll_mok (filename) < 0)
-				break;
+				return -1;
 			command &= ~COMMAND_ENROLL;
 
 		} else if (command & COMMAND_REVOKE) {
 			if (test_and_delete_var ("MokNew") < 0)
-				break;
+				return -1;
 			command &= ~COMMAND_REVOKE;
 
 		} else {
