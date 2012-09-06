@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.68])
 AC_INIT([mokutil], [0.0.1], [glin@suse.com])
-AM_INIT_AUTOMAKE
+AM_INIT_AUTOMAKE([1.11 -Wno-portability tar-ustar dist-xz no-dist-gzip])
 AC_CONFIG_SRCDIR([src/mokutil.c])
 AC_CONFIG_HEADERS([config.h])
 
