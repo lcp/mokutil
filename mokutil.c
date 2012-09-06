@@ -19,17 +19,48 @@ static void
 print_help ()
 {
 	printf("Usage:\n");
-	printf("  mokutil --show-shell\n");
-	printf("  mokutil --hide-shell\n");
-	printf("  mokutil --enroll <der file>\n");
-	printf("  mokutil --revoke\n");
+	printf("Show the management shell in shim:\n");
+	printf("  mokutil --show-shell\n\n");
+	printf("Don't show the management shell in shim:\n");
+	printf("  mokutil --hide-shell\n\n");
+	printf("Import the key to be enrolled:\n");
+	printf("  mokutil --enroll <der file>\n\n");
+	printf("Revoke the key to be enrolled:\n");
+	printf("  mokutil --revoke\n\n");
+}
+
+static int
+test_and_delete_var (char *var_name)
+{
+	efi_variable_t var, testvar;
+	char name[PATH_MAX];
+
+	memset (&var, 0, sizeof(var));
+	efichar_from_char (var.VariableName, var_name,
+			   sizeof(var.VariableName));
+
+	var.VendorGuid = SHIM_LOCK_GUID;
+	var.Status = EFI_SUCCESS;
+	var.Attributes = EFI_VARIABLE_NON_VOLATILE
+			 | EFI_VARIABLE_BOOTSERVICE_ACCESS
+			 | EFI_VARIABLE_RUNTIME_ACCESS;
+
+	variable_to_name (&var, name);
+
+	if (read_variable (name, &testvar) == EFI_SUCCESS) {
+		if (delete_variable (&var) != EFI_SUCCESS) {
+			printf ("Failed to unset %s\n", var_name);
+			return -1;
+		}
+	}
+
+	return 0;
 }
 
 static int
 show_mok_shell ()
 {
 	efi_variable_t var;
-	efi_status_t status;
 
 	memset (&var, 0, sizeof(var));
 	var.Data[0] = 1;
@@ -43,39 +74,9 @@ show_mok_shell ()
 			 | EFI_VARIABLE_BOOTSERVICE_ACCESS
 			 | EFI_VARIABLE_RUNTIME_ACCESS;
 
-	status = create_or_edit_variable (&var);
-	if (status != EFI_SUCCESS) {
-		printf ("Failed to show the shell\n");
+	if (create_or_edit_variable (&var) != EFI_SUCCESS) {
+		printf ("Failed to set MokMgmt\n");
 		return -1;
-	}
-
-	return 0;
-}
-
-static int
-hide_mok_shell ()
-{
-	efi_variable_t var, testvar;
-	efi_status_t status;
-	char name[PATH_MAX];
-
-	memset (&var, 0, sizeof(var));
-	efichar_from_char (var.VariableName, "MokMgmt",
-			   sizeof(var.VariableName));
-
-	var.VendorGuid = SHIM_LOCK_GUID;
-	var.Status = EFI_SUCCESS;
-	var.Attributes = EFI_VARIABLE_NON_VOLATILE
-			 | EFI_VARIABLE_BOOTSERVICE_ACCESS
-			 | EFI_VARIABLE_RUNTIME_ACCESS;
-
-	variable_to_name (&var, name);
-
-	if (read_variable (name, &testvar) == EFI_SUCCESS) {
-		if (status = delete_variable (&var) != EFI_SUCCESS) {
-			printf ("Failed to revoke the key\n");
-			return -1;
-		}
 	}
 
 	return 0;
@@ -85,10 +86,10 @@ static int
 enroll_mok (char *filename)
 {
 	efi_variable_t var;
-	efi_status_t status;
-	int i, fd = -1;
+	int fd = -1;
 	struct stat buf;
 	ssize_t read_size;
+	int ret = -1;
 
 	if (!filename) {
 		printf ("Invalid filename\n");
@@ -98,24 +99,24 @@ enroll_mok (char *filename)
 	fd = open (filename, O_RDONLY);
 	if (fd == -1) {
 		printf ("Failed to open %s\n", filename);
-		return -1;
+		goto error;
 	}
 
 	if (fstat (fd, &buf) != 0) {
 		printf ("Failed to get file stat\n");
-		return -1;
+		goto error;
 	}
 
 	/* the current data limit in kernel is 1024 */
 	if (buf.st_size > 1024) {
 		printf ("The file is larger than 1024 bytes\n");
-		return -1;
+		goto error;
 	}
 
 	read_size = read (fd, var.Data, buf.st_size);
 	if (read_size < 0 || read_size != buf.st_size) {
 		printf ("Failed to read %s\n", filename);
-		return -1;
+		goto error;
 	}
 	var.DataSize = read_size;
 
@@ -128,54 +129,23 @@ enroll_mok (char *filename)
 			 | EFI_VARIABLE_BOOTSERVICE_ACCESS
 			 | EFI_VARIABLE_RUNTIME_ACCESS;
 
-	status = create_or_edit_variable (&var);
-	if (status != EFI_SUCCESS) {
-		printf ("Failed to enroll the key\n");
-		return -1;
+	if (create_or_edit_variable (&var) != EFI_SUCCESS) {
+		printf ("Failed to import the key\n");
+		goto error;
 	}
 
-	return 0;
-}
+	ret = 0;
+error:
+	close (fd);
 
-static int
-revoke_mok ()
-{
-	efi_variable_t var, testvar;
-	efi_status_t status;
-	char name[PATH_MAX];
-
-	memset (&var, 0, sizeof(var));
-	efichar_from_char (var.VariableName, "MokNew",
-			   sizeof(var.VariableName));
-
-	var.VendorGuid = SHIM_LOCK_GUID;
-	var.Status = EFI_SUCCESS;
-	var.Attributes = EFI_VARIABLE_NON_VOLATILE
-			 | EFI_VARIABLE_BOOTSERVICE_ACCESS
-			 | EFI_VARIABLE_RUNTIME_ACCESS;
-
-	variable_to_name (&var, name);
-
-	if (read_variable (name, &testvar) == EFI_SUCCESS) {
-		if (status = delete_variable (&var) != EFI_SUCCESS) {
-			printf ("Failed to revoke the key\n");
-			return -1;
-		}
-	}
-
-	return 0;
+	return ret;
 }
 
 int
 main (int argc, char *argv[])
 {
-	efi_variable_t var;
-	efi_status_t status;
 	char *filename;
-	int i, fd = -1;
-	struct stat buf;
-	ssize_t read_size;
-	int command = 0;
+	int i, command = 0;
 
 	if (argc < 2) {
 		print_help ();
@@ -224,7 +194,7 @@ main (int argc, char *argv[])
 			command &= ~COMMAND_SHOW;
 
 		} else if (command & COMMAND_HIDE) {
-			if (hide_mok_shell () < 0)
+			if (test_and_delete_var ("MokMgmt") < 0)
 				break;
 			command &= ~COMMAND_HIDE;
 
@@ -234,7 +204,7 @@ main (int argc, char *argv[])
 			command &= ~COMMAND_ENROLL;
 
 		} else if (command & COMMAND_REVOKE) {
-			if (revoke_mok () < 0)
+			if (test_and_delete_var ("MokNew") < 0)
 				break;
 			command &= ~COMMAND_REVOKE;
 
@@ -243,9 +213,6 @@ main (int argc, char *argv[])
 			break;
 		}
 	}
-
-	if (fd > 0)
-		close (fd);
 
 	return 0;
 }
