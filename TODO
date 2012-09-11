@@ -2,3 +2,6 @@
 * Show the detail of the DER file when enrolling
 * Add an option to slience the output
 * Show the current value of MokMgmt and MokNew
+* Request the user to input a password before enrolling
+* Read the list from a volatile RT variable of shim
+* Migrate to UEFI filesystem when it's ready to break the 1KB limitation
