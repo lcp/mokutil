@@ -5,27 +5,42 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <termios.h>
+
+#include <openssl/sha.h>
+
 #include "efi.h"
 
 #define SHIM_LOCK_GUID \
 EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 0x23)
 
-#define COMMAND_SHOW   (0x01<<0)
-#define COMMAND_HIDE   (0x01<<1)
-#define COMMAND_ENROLL (0x01<<2)
-#define COMMAND_REVOKE (0x01<<3)
+#define PASSWORD_MAX 16
+#define PASSWORD_MIN 8
+
+enum Command {
+	COMMAND_LIST_ENROLLED,
+	COMMAND_LIST_NEW,
+	COMMAND_ENROLL,
+	COMMAND_DELETE,
+	COMMAND_ERASE,
+	COMMAND_REVOKE,
+};
 
 static void
 print_help ()
 {
 	printf("Usage:\n");
-	printf("Show the management shell in shim:\n");
-	printf("  mokutil --show-shell\n\n");
-	printf("Don't show the management shell in shim:\n");
-	printf("  mokutil --hide-shell\n\n");
-	printf("Import the key to be enrolled:\n");
+	printf("List the enrolled keys:\n");
+	printf("  mokutil --list-enrolled\n\n");
+	printf("List the keys to be enrolled:\n");
+	printf("  mokutil --list-new\n\n");
+	printf("Import a new key:\n");
 	printf("  mokutil --enroll <der file>\n\n");
-	printf("Revoke the key to be enrolled:\n");
+	printf("Delete a key:\n");
+	printf("  mokutil --delete <key number>\n\n");
+	printf("Erase all keys\n");
+	printf("  mokutil --erase\n\n");
+	printf("Revoke the request:\n");
 	printf("  mokutil --revoke\n\n");
 }
 
@@ -58,26 +73,95 @@ test_and_delete_var (char *var_name)
 }
 
 static int
-show_mok_shell ()
+read_hidden_line (char **line, size_t *n)
 {
-	efi_variable_t var;
+	struct termios old, new;
+	int nread;
 
-	memset (&var, 0, sizeof(var));
-	var.Data[0] = 1;
-	var.DataSize = 1;
-	efichar_from_char (var.VariableName, "MokMgmt",
-			   sizeof(var.VariableName));
+	/* Turn echoing off and fail if we can't. */
+	if (tcgetattr (fileno (stdin), &old) != 0)
+		return -1;
 
-	var.VendorGuid = SHIM_LOCK_GUID;
-	var.Status = EFI_SUCCESS;
-	var.Attributes = EFI_VARIABLE_NON_VOLATILE
-			 | EFI_VARIABLE_BOOTSERVICE_ACCESS
-			 | EFI_VARIABLE_RUNTIME_ACCESS;
+	new = old;
+	new.c_lflag &= ~ECHO;
 
-	if (create_or_edit_variable (&var) != EFI_SUCCESS) {
-		printf ("Failed to set MokMgmt\n");
+	if (tcsetattr (fileno (stdin), TCSAFLUSH, &new) != 0)
+		return -1;
+
+	/* Read the password. */
+	nread = getline (line, n, stdin);
+
+	/* Restore terminal. */
+	(void) tcsetattr (fileno (stdin), TCSAFLUSH, &old);
+
+	/* Remove the newline */
+	(*line)[nread-1] = '\0';
+
+	return nread-1;
+}
+
+static int
+get_password (char **password, int *len)
+{
+	char *password_1, *password_2;
+	int len_1, len_2;
+	size_t n;
+
+	password_1 = password_2 = NULL;
+
+	printf ("input password (%d~%d characters): ",
+		PASSWORD_MIN, PASSWORD_MAX);
+	len_1 = read_hidden_line (&password_1, &n);
+	printf ("\n");
+
+	if (len_1 > PASSWORD_MAX || len_1 < PASSWORD_MIN) {
+		free (password_1);
+		printf ("password should be %d~%d characters\n",
+			PASSWORD_MIN, PASSWORD_MAX);
 		return -1;
 	}
+
+	printf ("input password again: ",
+		PASSWORD_MIN, PASSWORD_MAX);
+	len_2 = read_hidden_line (&password_2, &n);
+	printf ("\n");
+
+	if (len_1 != len_2 || strcmp (password_1, password_2) != 0) {
+		free (password_1);
+		free (password_2);
+		printf ("password didn't match");
+		return -1;
+	}
+
+	*password = password_1;
+	*len = len_1;
+
+	free (password_2);
+
+	return 0;
+}
+
+static int
+generate_auth (void *new_list, int list_len, char *password, int pw_len,
+	       uint8_t *auth)
+{
+	efi_char16_t efichar_pass[PASSWORD_MAX];
+	unsigned long efichar_len;
+	SHA256_CTX ctx;
+
+	if (!new_list || !password || !auth)
+		return -1;
+
+	efichar_len = efichar_from_char (efichar_pass, password,
+					 PASSWORD_MAX * sizeof(efi_char16_t));
+
+	SHA256_Init (&ctx);
+
+	SHA256_Update (&ctx, new_list, list_len);
+
+	SHA256_Update (&ctx, efichar_pass, efichar_len);
+
+	SHA256_Final (auth, &ctx);
 
 	return 0;
 }
@@ -86,6 +170,11 @@ static int
 enroll_mok (char *filename)
 {
 	efi_variable_t var;
+	uint8_t auth[SHA256_DIGEST_LENGTH];
+	char *password = NULL;
+	int len;
+	uint32_t mok_num;
+	uint8_t *ptr;
 	int fd = -1;
 	struct stat buf;
 	ssize_t read_size;
@@ -113,13 +202,24 @@ enroll_mok (char *filename)
 		goto error;
 	}
 
-	read_size = read (fd, var.Data, buf.st_size);
+	ptr = var.Data;
+	mok_num = 1;
+	memcpy ((void *)ptr, (void *)&mok_num, sizeof(mok_num));
+	ptr += sizeof(mok_num);
+	read_size = read (fd, ptr, buf.st_size);
 	if (read_size < 0 || read_size != buf.st_size) {
 		printf ("Failed to read %s\n", filename);
 		goto error;
 	}
-	var.DataSize = read_size;
+	var.DataSize = read_size + sizeof(mok_num);
 
+	if (get_password (&password, &len) < 0) {
+		goto error;
+	}
+
+	generate_auth (var.Data, var.DataSize, password, len, auth);
+
+	/* Write MokNew*/
 	efichar_from_char (var.VariableName, "MokNew",
 			   sizeof(var.VariableName));
 
@@ -134,9 +234,28 @@ enroll_mok (char *filename)
 		goto error;
 	}
 
+	/* Write MokAuth */
+	memcpy (var.Data, auth, SHA256_DIGEST_LENGTH);
+	var.DataSize = SHA256_DIGEST_LENGTH;
+	efichar_from_char (var.VariableName, "MokAuth",
+			   sizeof(var.VariableName));
+
+	var.VendorGuid = SHIM_LOCK_GUID;
+	var.Status = EFI_SUCCESS;
+	var.Attributes = EFI_VARIABLE_NON_VOLATILE
+			 | EFI_VARIABLE_BOOTSERVICE_ACCESS
+			 | EFI_VARIABLE_RUNTIME_ACCESS;
+
+	if (create_or_edit_variable (&var) != EFI_SUCCESS) {
+		printf ("Failed to write MokAuth\n");
+		goto error;
+	}
+
 	ret = 0;
 error:
 	close (fd);
+	if (password)
+		free (password);
 
 	return ret;
 }
@@ -145,73 +264,89 @@ int
 main (int argc, char *argv[])
 {
 	char *filename;
-	int i, command = 0;
+	int command;
+	long delete;
 
 	if (argc < 2) {
 		print_help ();
 		return 0;
 	}
 
-	for (i = 1; i < argc; i++) {
-		if (strcmp (argv[i], "-s") == 0 ||
-		    strcmp (argv[i], "--show-shell") == 0) {
-			command |= COMMAND_SHOW;
-		} else if (strcmp (argv[i], "-h") == 0 ||
-		           strcmp (argv[i], "--hide-shell") == 0) {
-			command |= COMMAND_HIDE;
-		} else if (strcmp (argv[i], "-e") == 0 ||
-		           strcmp (argv[i], "--enroll") == 0) {
-			if (i+1 >= argc) {
-				print_help ();
-				return -1;
-			}
-			filename = argv[++i];
-			command |= COMMAND_ENROLL;
-		} else if (strcmp (argv[i], "-r") == 0 ||
-		           strcmp (argv[i], "--revoke") == 0) {
-			command |= COMMAND_REVOKE;
-		} else {
-			printf ("Unknown argument: %s\n\n", argv[i]);
+	if (strcmp (argv[1], "-h") == 0 ||
+	    strcmp (argv[1], "--help") == 0) {
+
+		print_help ();
+		return 0;
+
+	} else if (strcmp (argv[1], "-le") == 0 ||
+	           strcmp (argv[1], "--list-enrolled") == 0) {
+
+		command = COMMAND_LIST_ENROLLED;
+
+	} else if (strcmp (argv[1], "-ln") == 0 ||
+	           strcmp (argv[1], "--list-new") == 0) {
+
+		command = COMMAND_LIST_NEW;
+
+	} else if (strcmp (argv[1], "-e") == 0 ||
+	           strcmp (argv[1], "--enroll") == 0) {
+
+		/* TODO allow multiple files to be enrolled at one time */
+		if (argc < 3) {
 			print_help ();
 			return -1;
 		}
-	}
+		filename = argv[2];
+		command = COMMAND_ENROLL;
 
-	if ((command & COMMAND_SHOW) && (command & COMMAND_HIDE)) {
-		command &= ~COMMAND_SHOW;
-		command &= ~COMMAND_HIDE;
-	}
+	} else if (strcmp (argv[1], "-d") == 0 ||
+	           strcmp (argv[1], "--delete") == 0) {
 
-	if ((command & COMMAND_ENROLL) && (command & COMMAND_REVOKE)) {
-		command &= ~COMMAND_ENROLL;
-		command &= ~COMMAND_REVOKE;
-	}
-
-	while (command != 0) {
-		if (command & COMMAND_SHOW) {
-			if (show_mok_shell () < 0)
-				return -1;
-			command &= ~COMMAND_SHOW;
-
-		} else if (command & COMMAND_HIDE) {
-			if (test_and_delete_var ("MokMgmt") < 0)
-				return -1;
-			command &= ~COMMAND_HIDE;
-
-		} else if (command & COMMAND_ENROLL) {
-			if (enroll_mok (filename) < 0)
-				return -1;
-			command &= ~COMMAND_ENROLL;
-
-		} else if (command & COMMAND_REVOKE) {
-			if (test_and_delete_var ("MokNew") < 0)
-				return -1;
-			command &= ~COMMAND_REVOKE;
-
-		} else {
-			printf ("Unknown command\n");
-			break;
+		if (argc < 3) {
+			print_help ();
+			return -1;
 		}
+		delete = atoi(argv[2]);
+		command = COMMAND_DELETE;
+
+	} else if (strcmp (argv[1], "-e") == 0 ||
+	           strcmp (argv[1], "--erase") == 0) {
+
+		command = COMMAND_ERASE;
+
+	} else if (strcmp (argv[1], "-r") == 0 ||
+	           strcmp (argv[1], "--revoke") == 0) {
+
+		command = COMMAND_REVOKE;
+
+	} else {
+		printf ("Unknown argument: %s\n\n", argv[1]);
+		print_help ();
+		return -1;
+	}
+
+	switch (command) {
+		case COMMAND_LIST_ENROLLED:
+			/* TODO list MokListRT */
+			break;
+		case COMMAND_LIST_NEW:
+			/* TODO list MokNew */
+			break;
+		case COMMAND_ENROLL:
+			break;
+		case COMMAND_DELETE:
+			/* TODO search the key in MokListRT and MokNew
+			   and create a new MokNew */
+			break;
+		case COMMAND_ERASE:
+			/* TODO create an empty MokNew */
+			break;
+		case COMMAND_REVOKE:
+			/* TODO delete MokNew and MokAuth */
+			break;
+		default:
+			fprintf (stderr, "Unknown command\n");
+			break;
 	}
 
 	return 0;

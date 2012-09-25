@@ -29,6 +29,8 @@ AC_TYPE_UINT8_T
 # Checks for library functions.
 AC_CHECK_FUNCS([memset])
 
+PKG_CHECK_MODULES(OPENSSL, [openssl >= 0.9.8])
+
 AC_CONFIG_FILES([Makefile
                  src/Makefile])
 AC_OUTPUT
