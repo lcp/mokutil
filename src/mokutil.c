@@ -333,6 +333,7 @@ main (int argc, char *argv[])
 			/* TODO list MokNew */
 			break;
 		case COMMAND_ENROLL:
+			enroll_mok (filename);
 			break;
 		case COMMAND_DELETE:
 			/* TODO search the key in MokListRT and MokNew
