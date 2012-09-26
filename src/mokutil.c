@@ -129,7 +129,7 @@ get_password (char **password, int *len)
 	if (len_1 != len_2 || strcmp (password_1, password_2) != 0) {
 		free (password_1);
 		free (password_2);
-		printf ("password didn't match");
+		printf ("password didn't match\n");
 		return -1;
 	}
 
