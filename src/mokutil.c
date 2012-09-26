@@ -172,7 +172,7 @@ enroll_mok (char *filename)
 	efi_variable_t var;
 	uint8_t auth[SHA256_DIGEST_LENGTH];
 	char *password = NULL;
-	int len;
+	int len, fail;
 	uint32_t mok_num;
 	uint8_t *ptr;
 	int fd = -1;
@@ -213,8 +213,13 @@ enroll_mok (char *filename)
 	}
 	var.DataSize = read_size + sizeof(mok_num);
 
-	if (get_password (&password, &len) < 0) {
-		goto error;
+	fail = 0;
+	while (fail < 3 && get_password (&password, &len) < 0)
+		fail++;
+
+	if (fail >= 3) {
+		fprintf (stderr, "Abort\n");
+		return -1;
 	}
 
 	generate_auth (var.Data, var.DataSize, password, len, auth);
