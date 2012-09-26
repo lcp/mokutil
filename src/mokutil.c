@@ -153,7 +153,7 @@ generate_auth (void *new_list, int list_len, char *password, int pw_len,
 		return -1;
 
 	efichar_len = efichar_from_char (efichar_pass, password,
-					 PASSWORD_MAX * sizeof(efi_char16_t));
+					 (PASSWORD_MAX+1)*sizeof(efi_char16_t));
 
 	SHA256_Init (&ctx);
 
