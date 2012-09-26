@@ -173,7 +173,7 @@ enroll_mok (char *filename)
 	uint8_t auth[SHA256_DIGEST_LENGTH];
 	char *password = NULL;
 	int len, fail;
-	uint32_t mok_num;
+	uint32_t mok_num, key_size;
 	uint8_t *ptr;
 	int fd = -1;
 	struct stat buf;
@@ -206,12 +206,15 @@ enroll_mok (char *filename)
 	mok_num = 1;
 	memcpy ((void *)ptr, (void *)&mok_num, sizeof(mok_num));
 	ptr += sizeof(mok_num);
+	key_size = buf.st_size;
+	memcpy ((void *)ptr, (void *)&key_size, sizeof(key_size));
+	ptr += sizeof(key_size);
 	read_size = read (fd, ptr, buf.st_size);
 	if (read_size < 0 || read_size != buf.st_size) {
 		printf ("Failed to read %s\n", filename);
 		goto error;
 	}
-	var.DataSize = read_size + sizeof(mok_num);
+	var.DataSize = read_size + sizeof(mok_num) + sizeof(key_size);
 
 	fail = 0;
 	while (fail < 3 && get_password (&password, &len) < 0)
