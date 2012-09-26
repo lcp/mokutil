@@ -145,7 +145,7 @@ static int
 generate_auth (void *new_list, int list_len, char *password, int pw_len,
 	       uint8_t *auth)
 {
-	efi_char16_t efichar_pass[PASSWORD_MAX];
+	efi_char16_t efichar_pass[PASSWORD_MAX+1];
 	unsigned long efichar_len;
 	SHA256_CTX ctx;
 
