@@ -64,7 +64,7 @@ test_and_delete_var (char *var_name)
 
 	if (read_variable (name, &testvar) == EFI_SUCCESS) {
 		if (delete_variable (&var) != EFI_SUCCESS) {
-			printf ("Failed to unset %s\n", var_name);
+			fprintf (stderr, "Failed to unset %s\n", var_name);
 			return -1;
 		}
 	}
@@ -116,8 +116,8 @@ get_password (char **password, int *len)
 
 	if (len_1 > PASSWORD_MAX || len_1 < PASSWORD_MIN) {
 		free (password_1);
-		printf ("password should be %d~%d characters\n",
-			PASSWORD_MIN, PASSWORD_MAX);
+		fprintf (stderr, "password should be %d~%d characters\n",
+			 PASSWORD_MIN, PASSWORD_MAX);
 		return -1;
 	}
 
@@ -129,7 +129,7 @@ get_password (char **password, int *len)
 	if (len_1 != len_2 || strcmp (password_1, password_2) != 0) {
 		free (password_1);
 		free (password_2);
-		printf ("password didn't match\n");
+		fprintf (stderr, "password doesn't match\n");
 		return -1;
 	}
 
@@ -381,7 +381,7 @@ main (int argc, char *argv[])
 		command = COMMAND_REVOKE;
 
 	} else {
-		printf ("Unknown argument: %s\n\n", argv[1]);
+		fprintf (stderr, "Unknown argument: %s\n\n", argv[1]);
 		print_help ();
 		return -1;
 	}
