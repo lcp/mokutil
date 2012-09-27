@@ -167,65 +167,26 @@ generate_auth (void *new_list, int list_len, char *password, int pw_len,
 }
 
 static int
-enroll_mok (char *filename)
+update_request (void *new_list, int list_len)
 {
 	efi_variable_t var;
 	uint8_t auth[SHA256_DIGEST_LENGTH];
 	char *password = NULL;
-	int len, fail;
-	uint32_t mok_num, key_size;
-	uint8_t *ptr;
-	int fd = -1;
-	struct stat buf;
-	ssize_t read_size;
+	int pw_len, fail = 0;
 	int ret = -1;
 
-	if (!filename) {
-		printf ("Invalid filename\n");
-		return -1;
-	}
-
-	fd = open (filename, O_RDONLY);
-	if (fd == -1) {
-		printf ("Failed to open %s\n", filename);
-		goto error;
-	}
-
-	if (fstat (fd, &buf) != 0) {
-		printf ("Failed to get file stat\n");
-		goto error;
-	}
-
-	/* the current data limit in kernel is 1024 */
-	if (buf.st_size > 1024) {
-		printf ("The file is larger than 1024 bytes\n");
-		goto error;
-	}
-
-	ptr = var.Data;
-	mok_num = 1;
-	memcpy ((void *)ptr, (void *)&mok_num, sizeof(mok_num));
-	ptr += sizeof(mok_num);
-	key_size = buf.st_size;
-	memcpy ((void *)ptr, (void *)&key_size, sizeof(key_size));
-	ptr += sizeof(key_size);
-	read_size = read (fd, ptr, buf.st_size);
-	if (read_size < 0 || read_size != buf.st_size) {
-		printf ("Failed to read %s\n", filename);
-		goto error;
-	}
-	var.DataSize = read_size + sizeof(mok_num) + sizeof(key_size);
-
-	fail = 0;
-	while (fail < 3 && get_password (&password, &len) < 0)
+	while (fail < 3 && get_password (&password, &pw_len) < 0)
 		fail++;
 
 	if (fail >= 3) {
 		fprintf (stderr, "Abort\n");
-		return -1;
+		goto error;
 	}
 
-	generate_auth (var.Data, var.DataSize, password, len, auth);
+	generate_auth (new_list, list_len, password, pw_len, auth);
+
+	memcpy (var.Data, new_list, list_len);
+	var.DataSize = list_len;
 
 	/* Write MokNew*/
 	efichar_from_char (var.VariableName, "MokNew",
@@ -238,7 +199,7 @@ enroll_mok (char *filename)
 			 | EFI_VARIABLE_RUNTIME_ACCESS;
 
 	if (create_or_edit_variable (&var) != EFI_SUCCESS) {
-		printf ("Failed to import the key\n");
+		fprintf (stderr, "Failed to enroll new keys\n");
 		goto error;
 	}
 
@@ -255,17 +216,95 @@ enroll_mok (char *filename)
 			 | EFI_VARIABLE_RUNTIME_ACCESS;
 
 	if (create_or_edit_variable (&var) != EFI_SUCCESS) {
-		printf ("Failed to write MokAuth\n");
+		fprintf (stderr, "Failed to write MokAuth\n");
+		/* TODO delete MokNew */
+		goto error;
+	}
+
+	ret = 0;
+error:
+	if (password)
+		free (password);
+	return ret;
+}
+
+static int
+enroll_mok (char *filename)
+{
+	void *new_list = NULL, *ptr;
+	int list_len, extra;
+	uint32_t mok_num, key_size;
+	int fd = -1;
+	struct stat buf;
+	ssize_t read_size;
+	int ret = -1;
+
+	if (!filename) {
+		fprintf (stderr, "Invalid filename\n");
+		return -1;
+	}
+
+	fd = open (filename, O_RDONLY);
+	if (fd == -1) {
+		fprintf (stderr, "Failed to open %s\n", filename);
+		goto error;
+	}
+
+	if (fstat (fd, &buf) != 0) {
+		fprintf (stderr, "Failed to get file stat\n");
+		goto error;
+	}
+
+	/* the current data limit in kernel is 1024 */
+	if (buf.st_size > 1024) {
+		fprintf (stderr, "The file is larger than 1024 bytes\n");
+		goto error;
+	}
+
+	mok_num = 1;
+	extra = sizeof(mok_num) + mok_num*sizeof(key_size);
+	new_list = malloc (buf.st_size + extra);
+	if (new_list == NULL) {
+		goto error;
+	}
+
+	ptr = new_list;
+	memcpy ((void *)ptr, (void *)&mok_num, sizeof(mok_num));
+	ptr += sizeof(mok_num);
+	key_size = buf.st_size;
+	memcpy ((void *)ptr, (void *)&key_size, sizeof(key_size));
+	ptr += sizeof(key_size);
+	read_size = read (fd, ptr, buf.st_size);
+	if (read_size < 0 || read_size != buf.st_size) {
+		fprintf (stderr, "Failed to read %s\n", filename);
+		goto error;
+	}
+	list_len = read_size + sizeof(mok_num) + sizeof(key_size);
+
+	if (update_request (new_list, list_len) < 0) {
 		goto error;
 	}
 
 	ret = 0;
 error:
 	close (fd);
-	if (password)
-		free (password);
+	if (new_list)
+		free (new_list);
 
 	return ret;
+}
+
+static int
+erase_all ()
+{
+	uint32_t mok_num = 0;
+
+	if (update_request (&mok_num, sizeof(mok_num))) {
+		fprintf (stderr, "Failed to issue an erase operation\n");
+		return -1;
+	}
+
+	return 0;
 }
 
 int
@@ -348,7 +387,7 @@ main (int argc, char *argv[])
 			   and create a new MokNew */
 			break;
 		case COMMAND_ERASE:
-			/* TODO create an empty MokNew */
+			erase_all();
 			break;
 		case COMMAND_REVOKE:
 			/* TODO delete MokNew and MokAuth */
