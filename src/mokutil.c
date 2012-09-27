@@ -217,7 +217,7 @@ update_request (void *new_list, int list_len)
 
 	if (create_or_edit_variable (&var) != EFI_SUCCESS) {
 		fprintf (stderr, "Failed to write MokAuth\n");
-		/* TODO delete MokNew */
+		test_and_delete_var ("MokNew");
 		goto error;
 	}
 
