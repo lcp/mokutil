@@ -307,6 +307,20 @@ erase_all ()
 	return 0;
 }
 
+static int
+revoke_request ()
+{
+	/* TODO request the old password? */
+
+	if (test_and_delete_var ("MokNew") < 0)
+		return -1;
+
+	if (test_and_delete_var ("MokAuth") < 0)
+		return -1;
+
+	return 0;
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -390,7 +404,7 @@ main (int argc, char *argv[])
 			erase_all();
 			break;
 		case COMMAND_REVOKE:
-			/* TODO delete MokNew and MokAuth */
+			revoke_request ();
 			break;
 		default:
 			fprintf (stderr, "Unknown command\n");
