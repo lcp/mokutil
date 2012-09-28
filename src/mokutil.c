@@ -8,6 +8,7 @@
 #include <termios.h>
 
 #include <openssl/sha.h>
+#include <openssl/x509.h>
 
 #include "efi.h"
 
@@ -16,6 +17,11 @@ EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 
 
 #define PASSWORD_MAX 16
 #define PASSWORD_MIN 8
+
+typedef struct {
+	uint32_t mok_size;
+	void    *mok;
+} MokListNode;
 
 enum Command {
 	COMMAND_LIST_ENROLLED,
@@ -71,6 +77,157 @@ test_and_delete_var (char *var_name)
 
 	return 0;
 }
+
+static MokListNode*
+build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
+{
+	MokListNode *list;
+	long long remain = data_size;
+	uint32_t num, i;
+	void *ptr;
+
+	if (data_size < sizeof(uint32_t))
+		return NULL;
+
+	memcpy (&num, data, sizeof(uint32_t));
+
+	if (num == 0)
+		return NULL;
+
+	remain -= sizeof(uint32_t);
+	if (remain <= 0) {
+		fprintf(stderr, "the list was corrupted\n");
+		return NULL;
+	}
+
+	ptr = data + sizeof(uint32_t);
+
+	list = malloc(sizeof(MokListNode) * num);
+
+	if (!list) {
+		fprintf(stderr, "Unable to allocate MOK list\n");
+		return NULL;
+	}
+
+	for (i = 0; i < num; i++) {
+		memcpy (&list[i].mok_size, ptr, sizeof(uint32_t));
+		remain -= sizeof(uint32_t) + list[i].mok_size;
+
+		if (remain < 0) {
+			fprintf(stderr, "the list was corrupted\n");
+			free (list);
+			return NULL;
+		}
+
+		ptr += sizeof(uint32_t);
+		list[i].mok = ptr;
+		ptr += list[i].mok_size;
+	}
+
+	*mok_num = num;
+
+	return list;
+}
+
+static int
+print_x509 (char *cert, int cert_size)
+{
+	X509 *X509cert;
+	BIO *cert_bio = BIO_new (BIO_s_mem ());
+
+	BIO_write (cert_bio, cert, cert_size);
+	if (cert_bio == NULL) {
+		fprintf (stderr, "Failed to write BIO\n");
+		return -1;
+	}
+
+	X509cert = d2i_X509_bio (cert_bio, NULL);
+	if (X509cert == NULL) {
+		fprintf (stderr, "Invalid X509 certificate\n");
+		return -1;
+	}
+
+	X509_print_fp (stdout, X509cert);
+
+	BIO_free (cert_bio);
+
+	return 0;
+}
+
+static int
+list_keys (efi_variable_t *var)
+{
+	uint32_t mok_num;
+	MokListNode *list;
+	int i;
+
+	list = build_mok_list (var->Data, var->DataSize, &mok_num);
+	if (list == NULL) {
+		return -1;
+	}
+
+	for (i = 0; i < mok_num; i++) {
+		printf ("[key %d]\n", i+1);
+		print_x509 ((char *)list[i].mok, list[i].mok_size);
+		if (i < mok_num - 1)
+			printf ("\n");
+	}
+
+	return 0;
+}
+
+static int
+list_enrolled_keys ()
+{
+	efi_variable_t var;
+	char name[PATH_MAX];
+
+	memset (&var, 0, sizeof(var));
+	efichar_from_char (var.VariableName, "MokListRT",
+			   sizeof(var.VariableName));
+
+	var.VendorGuid = SHIM_LOCK_GUID;
+	var.Status = EFI_SUCCESS;
+	var.Attributes = EFI_VARIABLE_NON_VOLATILE
+			 | EFI_VARIABLE_BOOTSERVICE_ACCESS
+			 | EFI_VARIABLE_RUNTIME_ACCESS;
+
+	variable_to_name (&var, name);
+
+	if (read_variable (name, &var) != EFI_SUCCESS) {
+		fprintf (stderr, "Failed to read MokListRT\n");
+		return -1;
+	}
+
+	return list_keys (&var);
+}
+
+static int
+list_new_keys ()
+{
+	efi_variable_t var;
+	char name[PATH_MAX];
+
+	memset (&var, 0, sizeof(var));
+	efichar_from_char (var.VariableName, "MokNew",
+			   sizeof(var.VariableName));
+
+	var.VendorGuid = SHIM_LOCK_GUID;
+	var.Status = EFI_SUCCESS;
+	var.Attributes = EFI_VARIABLE_NON_VOLATILE
+			 | EFI_VARIABLE_BOOTSERVICE_ACCESS
+			 | EFI_VARIABLE_RUNTIME_ACCESS;
+
+	variable_to_name (&var, name);
+
+	if (read_variable (name, &var) != EFI_SUCCESS) {
+		fprintf (stderr, "Failed to read MokNew\n");
+		return -1;
+	}
+
+	return list_keys (&var);
+}
+
 
 static int
 read_hidden_line (char **line, size_t *n)
@@ -388,10 +545,10 @@ main (int argc, char *argv[])
 
 	switch (command) {
 		case COMMAND_LIST_ENROLLED:
-			/* TODO list MokListRT */
+			list_enrolled_keys ();
 			break;
 		case COMMAND_LIST_NEW:
-			/* TODO list MokNew */
+			list_new_keys ();
 			break;
 		case COMMAND_ENROLL:
 			enroll_mok (filename);
