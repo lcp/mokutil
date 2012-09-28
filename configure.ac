@@ -26,6 +26,57 @@ AC_TYPE_UINT32_T
 AC_TYPE_UINT64_T
 AC_TYPE_UINT8_T
 
+#### gcc warning flags
+dnl ---------------------------------------------------------------------------
+dnl - Use strict options (default enabled for devs, disabled in releases)
+dnl ---------------------------------------------------------------------------
+dnl if .git directory is present, considering we are working in the repository
+if test -d ".git"; then
+	default_strict=yes
+else
+	default_strict=no
+fi
+
+AC_ARG_ENABLE(strict, AS_HELP_STRING([--enable-strict],[Enable strict compilation options]), enable_strict=$enableval,
+		enable_strict=$default_strict)
+if test x$enable_strict != xno; then
+	if test "$GCC" = "yes"; then
+		WARNINGFLAGS_C="$WARNINGFLAGS_C -Werror"
+	fi
+fi
+
+if test "$GCC" = "yes"; then
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wall"
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wcast-align -Wno-uninitialized"
+#	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wmissing-declarations"
+#	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wredundant-decls"
+#	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wpointer-arith"
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wcast-align"
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wwrite-strings"
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Winit-self"
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wreturn-type"
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wformat-nonliteral"
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wformat-security"
+#	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wmissing-include-dirs"
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wmissing-format-attribute"
+#	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wclobbered"
+#	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wempty-body"
+#	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wignored-qualifiers"
+#	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wsign-compare"
+#	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wtype-limits"
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wuninitialized"
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Waggregate-return"
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wdeclaration-after-statement"
+#	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wshadow"
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wno-strict-aliasing"
+#	WARNINGFLAGS_C="$WARNINGFLAGS_C -Winline"
+#	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wmissing-parameter-type"
+#	WARNINGFLAGS_C="$WARNINGFLAGS_C -Woverride-init"
+else
+	WARNINGFLAGS_C=""
+fi
+AC_SUBST(WARNINGFLAGS_C)
+
 # Checks for library functions.
 AC_CHECK_FUNCS([memset])
 
