@@ -53,6 +53,10 @@
 #define EFI_VARIABLE_NON_VOLATILE 0x0000000000000001
 #define EFI_VARIABLE_BOOTSERVICE_ACCESS 0x0000000000000002
 #define EFI_VARIABLE_RUNTIME_ACCESS 0x0000000000000004
+#define EFI_VARIABLE_HARDWARE_ERROR_RECORD 0x0000000000000008
+#define EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS 0x0000000000000010
+#define EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS 0x0000000000000020
+#define EFI_VARIABLE_APPEND_WRITE       0x0000000000000040
 
 
 typedef struct {
@@ -95,12 +99,11 @@ typedef uint8_t  efi_bool_t;
 typedef uint16_t efi_char16_t;		/* UNICODE character */
 
 typedef struct _efi_variable_t {
-        efi_char16_t  VariableName[1024/sizeof(efi_char16_t)];
+        const char   *VariableName;
         efi_guid_t    VendorGuid;
         unsigned long DataSize;
-        uint8_t          Data[1024];
-	efi_status_t  Status;
-        uint32_t         Attributes;
+        uint8_t      *Data;
+        uint32_t      Attributes;
 } __attribute__((packed)) efi_variable_t;
 
 
@@ -351,11 +354,10 @@ struct efivar_kernel_calls {
 /* Exported functions */
 extern char * efi_guid_unparse(efi_guid_t *guid, char *out);
 
-extern efi_status_t read_variable(const char *name, efi_variable_t *var);
-extern efi_status_t edit_variable(efi_variable_t *var);
-extern efi_status_t create_variable(efi_variable_t *var);
-extern efi_status_t delete_variable(efi_variable_t *var);
-extern efi_status_t create_or_edit_variable(efi_variable_t *var);
+extern efi_status_t test_variable (efi_variable_t *var);
+extern efi_status_t read_variable (const char *name, efi_variable_t *var);
+extern efi_status_t edit_variable (efi_variable_t *var);
+extern efi_status_t delete_variable (efi_variable_t *var);
 
 extern int efichar_strlen (const efi_char16_t *p, int max);
 extern unsigned long efichar_from_char (efi_char16_t *dest, const char *src, size_t dest_len);

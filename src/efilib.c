@@ -4,9 +4,10 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "efi.h"
 
-#define SYSFS_DIR_EFI_VARS "/sys/firmware/efi/vars"
+#define SYSFS_DIR_EFI_VARS "/sys/firmware/efi/efivars"
 
 char *
 efi_guid_unparse (efi_guid_t *guid, char *out)
@@ -57,52 +58,111 @@ efichar_to_char (char *dest, const efi_char16_t *src, size_t dest_len)
 }
 
 efi_status_t
+test_variable (efi_variable_t *var)
+{
+	char name[PATH_MAX];
+	char filename[PATH_MAX];
+	struct stat buf;
+
+	if (!var->VariableName) {
+		return EFI_INVALID_PARAMETER;
+	}
+
+	variable_to_name(var, name);
+
+	snprintf (filename, PATH_MAX-1, "%s/%s", SYSFS_DIR_EFI_VARS, name);
+
+	if (stat (filename, &buf) == 0)
+		return EFI_SUCCESS;
+
+	return EFI_NOT_FOUND;
+}
+
+efi_status_t
 read_variable (const char *name, efi_variable_t *var)
 {
 	char filename[PATH_MAX];
 	int fd;
-	size_t readsize;
-	char buffer[PATH_MAX+40];
+	struct stat buf;
+	size_t readsize, datasize;
+	void *buffer;
 
 	if (!name || !var)
 		return EFI_INVALID_PARAMETER;
-	memset (buffer, 0, sizeof(buffer));
 
-	snprintf (filename, PATH_MAX-1, "%s/%s/raw_var", SYSFS_DIR_EFI_VARS, name);
+	snprintf (filename, PATH_MAX-1, "%s/%s", SYSFS_DIR_EFI_VARS, name);
 	fd = open (filename, O_RDONLY);
 	if (fd == -1) {
 		return EFI_NOT_FOUND;
 	}
-	readsize = read (fd, var, sizeof(*var));
-	if (readsize != sizeof(*var)) {
+
+	if (fstat (fd, &buf) != 0) {
+		return EFI_INVALID_PARAMETER;
+	}
+
+	readsize = read (fd, &var->Attributes, sizeof(uint32_t));
+	if (readsize != sizeof(uint32_t)) {
 		close (fd);
 		return EFI_INVALID_PARAMETER;
 	}
+
+	datasize = buf.st_size - sizeof(uint32_t);
+
+	buffer = malloc (datasize);
+	if (buffer == NULL) {
+		close (fd);
+		return EFI_OUT_OF_RESOURCES;
+	}
+
+	readsize = read (fd, buffer, datasize);
+	if (readsize != datasize) {
+		close (fd);
+		free (buffer);
+		return EFI_INVALID_PARAMETER;
+	}
+	var->Data = buffer;
+	var->DataSize = datasize;
+
 	close (fd);
-	return var->Status;
+	return EFI_SUCCESS;
 }
 
 efi_status_t
 write_variable (const char *filename, efi_variable_t *var)
 {
-	int fd;
+	int fd, flag;
+	mode_t mode;
 	size_t writesize;
-	char buffer[PATH_MAX+40];
+	void *buffer;
+	unsigned long total;
 
 	if (!filename || !var)
 		return EFI_INVALID_PARAMETER;
-	memset (buffer, 0, sizeof(buffer));
 
-	fd = open (filename, O_WRONLY);
+	buffer = malloc (var->DataSize + sizeof(uint32_t));
+	if (buffer == NULL) {
+		return EFI_OUT_OF_RESOURCES;
+	}
+
+	memcpy (buffer, &var->Attributes, sizeof(uint32_t));
+	memcpy (buffer + sizeof(uint32_t), var->Data, var->DataSize);
+	total = var->DataSize + sizeof(uint32_t);
+
+	flag = O_WRONLY | O_CREAT;
+	mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+	fd = open (filename, flag, mode);
 	if (fd == -1) {
+		free (buffer);
 		return EFI_INVALID_PARAMETER;
 	}
-	writesize = write (fd, var, sizeof(*var));
-	if (writesize != sizeof(*var)) {
+	writesize = write (fd, buffer, total);
+	if (writesize != total) {
 		close (fd);
+		free (buffer);
 		return EFI_INVALID_PARAMETER;
 	}
 	close (fd);
+	free (buffer);
 	return EFI_SUCCESS;
 }
 
@@ -110,7 +170,11 @@ int
 variable_to_name (efi_variable_t *var, char *name)
 {
 	char *p = name;
-	efichar_to_char (p, var->VariableName, PATH_MAX);
+
+	if (!var->VariableName)
+		return -1;
+
+	strcpy (p, var->VariableName);
 	p += strlen (p);
 	p += sprintf (p, "-");
 	efi_guid_unparse (&var->VendorGuid, p);
@@ -127,41 +191,24 @@ edit_variable (efi_variable_t *var)
 
 	variable_to_name(var, name);
 
-	snprintf(filename, PATH_MAX-1, "%s/%s/raw_var", SYSFS_DIR_EFI_VARS, name);
-	return write_variable (filename, var);
-}
-
-efi_status_t
-create_variable (efi_variable_t *var)
-{
-	char filename[PATH_MAX];
-	if (!var)
-		return EFI_INVALID_PARAMETER;
-	snprintf (filename, PATH_MAX-1, "%s/%s", SYSFS_DIR_EFI_VARS, "new_var");
+	snprintf(filename, PATH_MAX-1, "%s/%s", SYSFS_DIR_EFI_VARS, name);
 	return write_variable (filename, var);
 }
 
 efi_status_t
 delete_variable(efi_variable_t *var)
 {
+	char name[PATH_MAX];
 	char filename[PATH_MAX];
 	if (!var)
 		return EFI_INVALID_PARAMETER;
-	snprintf(filename, PATH_MAX-1, "%s/%s", SYSFS_DIR_EFI_VARS,"del_var");
-	return write_variable(filename, var);
-}
 
-efi_status_t
-create_or_edit_variable (efi_variable_t *var)
-{
-	efi_variable_t testvar;
-	char name[PATH_MAX];
+	variable_to_name(var, name);
 
-	memcpy (&testvar, var, sizeof(*var));
-	variable_to_name (var, name);
+	snprintf(filename, PATH_MAX-1, "%s/%s", SYSFS_DIR_EFI_VARS, name);
 
-	if (read_variable (name, &testvar) == EFI_SUCCESS)
-		return edit_variable (var);
-	else
-		return create_variable (var);
+	if (unlink (filename) == 0)
+		return EFI_SUCCESS;
+
+	return EFI_OUT_OF_RESOURCES;
 }

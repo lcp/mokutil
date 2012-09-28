@@ -50,22 +50,14 @@ print_help ()
 static int
 test_and_delete_var (const char *var_name)
 {
-	efi_variable_t var, testvar;
-	char name[PATH_MAX];
+	efi_variable_t var;
 
 	memset (&var, 0, sizeof(var));
-	efichar_from_char (var.VariableName, var_name,
-			   sizeof(var.VariableName));
+	var.VariableName = var_name;
 
 	var.VendorGuid = SHIM_LOCK_GUID;
-	var.Status = EFI_SUCCESS;
-	var.Attributes = EFI_VARIABLE_NON_VOLATILE
-			 | EFI_VARIABLE_BOOTSERVICE_ACCESS
-			 | EFI_VARIABLE_RUNTIME_ACCESS;
 
-	variable_to_name (&var, name);
-
-	if (read_variable (name, &testvar) == EFI_SUCCESS) {
+	if (test_variable (&var) == EFI_SUCCESS) {
 		if (delete_variable (&var) != EFI_SUCCESS) {
 			fprintf (stderr, "Failed to unset %s\n", var_name);
 			return -1;
@@ -178,16 +170,12 @@ list_enrolled_keys ()
 {
 	efi_variable_t var;
 	char name[PATH_MAX];
+	int ret;
 
 	memset (&var, 0, sizeof(var));
-	efichar_from_char (var.VariableName, "MokListRT",
-			   sizeof(var.VariableName));
+	var.VariableName = "MokListRT";
 
 	var.VendorGuid = SHIM_LOCK_GUID;
-	var.Status = EFI_SUCCESS;
-	var.Attributes = EFI_VARIABLE_NON_VOLATILE
-			 | EFI_VARIABLE_BOOTSERVICE_ACCESS
-			 | EFI_VARIABLE_RUNTIME_ACCESS;
 
 	variable_to_name (&var, name);
 
@@ -196,7 +184,10 @@ list_enrolled_keys ()
 		return -1;
 	}
 
-	return list_keys (&var);
+	ret = list_keys (&var);
+	free (var.Data);
+
+	return ret;
 }
 
 static int
@@ -204,16 +195,12 @@ list_new_keys ()
 {
 	efi_variable_t var;
 	char name[PATH_MAX];
+	int ret;
 
 	memset (&var, 0, sizeof(var));
-	efichar_from_char (var.VariableName, "MokNew",
-			   sizeof(var.VariableName));
+	var.VariableName = "MokNew";
 
 	var.VendorGuid = SHIM_LOCK_GUID;
-	var.Status = EFI_SUCCESS;
-	var.Attributes = EFI_VARIABLE_NON_VOLATILE
-			 | EFI_VARIABLE_BOOTSERVICE_ACCESS
-			 | EFI_VARIABLE_RUNTIME_ACCESS;
 
 	variable_to_name (&var, name);
 
@@ -222,9 +209,11 @@ list_new_keys ()
 		return -1;
 	}
 
-	return list_keys (&var);
-}
+	ret = list_keys (&var);
+	free (var.Data);
 
+	return ret;
+}
 
 static int
 read_hidden_line (char **line, size_t *n)
@@ -338,37 +327,32 @@ update_request (void *new_list, int list_len)
 
 	generate_auth (new_list, list_len, password, pw_len, auth);
 
-	memcpy (var.Data, new_list, list_len);
-	var.DataSize = list_len;
-
 	/* Write MokNew*/
-	efichar_from_char (var.VariableName, "MokNew",
-			   sizeof(var.VariableName));
+	var.Data = new_list;
+	var.DataSize = list_len;
+	var.VariableName = "MokNew";
 
 	var.VendorGuid = SHIM_LOCK_GUID;
-	var.Status = EFI_SUCCESS;
 	var.Attributes = EFI_VARIABLE_NON_VOLATILE
 			 | EFI_VARIABLE_BOOTSERVICE_ACCESS
 			 | EFI_VARIABLE_RUNTIME_ACCESS;
 
-	if (create_or_edit_variable (&var) != EFI_SUCCESS) {
+	if (edit_variable (&var) != EFI_SUCCESS) {
 		fprintf (stderr, "Failed to enroll new keys\n");
 		goto error;
 	}
 
 	/* Write MokAuth */
-	memcpy (var.Data, auth, SHA256_DIGEST_LENGTH);
+	var.Data = auth;
 	var.DataSize = SHA256_DIGEST_LENGTH;
-	efichar_from_char (var.VariableName, "MokAuth",
-			   sizeof(var.VariableName));
+	var.VariableName = "MokAuth";
 
 	var.VendorGuid = SHIM_LOCK_GUID;
-	var.Status = EFI_SUCCESS;
 	var.Attributes = EFI_VARIABLE_NON_VOLATILE
 			 | EFI_VARIABLE_BOOTSERVICE_ACCESS
 			 | EFI_VARIABLE_RUNTIME_ACCESS;
 
-	if (create_or_edit_variable (&var) != EFI_SUCCESS) {
+	if (edit_variable (&var) != EFI_SUCCESS) {
 		fprintf (stderr, "Failed to write MokAuth\n");
 		test_and_delete_var ("MokNew");
 		goto error;
