@@ -28,7 +28,6 @@ enum Command {
 	COMMAND_LIST_NEW,
 	COMMAND_ENROLL,
 	COMMAND_DELETE,
-	COMMAND_ERASE,
 	COMMAND_REVOKE,
 };
 
@@ -42,10 +41,8 @@ print_help ()
 	printf("  mokutil --list-new\n\n");
 	printf("Import a new key:\n");
 	printf("  mokutil --enroll <der file>\n\n");
-	printf("Delete a key:\n");
-	printf("  mokutil --delete <key number>\n\n");
-	printf("Erase all keys\n");
-	printf("  mokutil --erase\n\n");
+	printf("Request to delete all keys\n");
+	printf("  mokutil --delete-all\n\n");
 	printf("Revoke the request:\n");
 	printf("  mokutil --revoke\n\n");
 }
@@ -452,12 +449,12 @@ error:
 }
 
 static int
-erase_all ()
+delete_all ()
 {
 	uint32_t mok_num = 0;
 
 	if (update_request (&mok_num, sizeof(mok_num))) {
-		fprintf (stderr, "Failed to issue an erase operation\n");
+		fprintf (stderr, "Failed to issue an delete request\n");
 		return -1;
 	}
 
@@ -483,7 +480,6 @@ main (int argc, char *argv[])
 {
 	char *filename;
 	int command;
-	long delete;
 
 	if (argc < 2) {
 		print_help ();
@@ -517,20 +513,10 @@ main (int argc, char *argv[])
 		filename = argv[2];
 		command = COMMAND_ENROLL;
 
-	} else if (strcmp (argv[1], "-d") == 0 ||
-	           strcmp (argv[1], "--delete") == 0) {
+	} else if (strcmp (argv[1], "-D") == 0 ||
+	           strcmp (argv[1], "--delete-all") == 0) {
 
-		if (argc < 3) {
-			print_help ();
-			return -1;
-		}
-		delete = atoi(argv[2]);
 		command = COMMAND_DELETE;
-
-	} else if (strcmp (argv[1], "-e") == 0 ||
-	           strcmp (argv[1], "--erase") == 0) {
-
-		command = COMMAND_ERASE;
 
 	} else if (strcmp (argv[1], "-r") == 0 ||
 	           strcmp (argv[1], "--revoke") == 0) {
@@ -554,11 +540,7 @@ main (int argc, char *argv[])
 			enroll_mok (filename);
 			break;
 		case COMMAND_DELETE:
-			/* TODO search the key in MokListRT and MokNew
-			   and create a new MokNew */
-			break;
-		case COMMAND_ERASE:
-			erase_all();
+			delete_all ();
 			break;
 		case COMMAND_REVOKE:
 			revoke_request ();
