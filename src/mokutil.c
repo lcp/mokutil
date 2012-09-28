@@ -48,7 +48,7 @@ print_help ()
 }
 
 static int
-test_and_delete_var (char *var_name)
+test_and_delete_var (const char *var_name)
 {
 	efi_variable_t var, testvar;
 	char name[PATH_MAX];
@@ -275,8 +275,7 @@ get_password (char **password, int *len)
 		return -1;
 	}
 
-	printf ("input password again: ",
-		PASSWORD_MIN, PASSWORD_MAX);
+	printf ("input password again: ");
 	len_2 = read_hidden_line (&password_2, &n);
 	printf ("\n");
 
