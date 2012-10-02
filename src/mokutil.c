@@ -27,6 +27,7 @@ enum Command {
 	COMMAND_LIST_ENROLLED,
 	COMMAND_LIST_NEW,
 	COMMAND_ENROLL,
+	COMMAND_IMPORT,
 	COMMAND_DELETE,
 	COMMAND_REVOKE,
 };
@@ -39,8 +40,10 @@ print_help ()
 	printf("  mokutil --list-enrolled\n\n");
 	printf("List the keys to be enrolled:\n");
 	printf("  mokutil --list-new\n\n");
-	printf("Import a new key:\n");
+	printf("Enroll a new key:\n");
 	printf("  mokutil --enroll <der file>\n\n");
+	printf("Import keys:\n");
+	printf("  mokutil --import <der file>...\n\n");
 	printf("Request to delete all keys\n");
 	printf("  mokutil --delete-all\n\n");
 	printf("Revoke the request:\n");
@@ -432,6 +435,82 @@ error:
 }
 
 static int
+import_moks (char **files, uint32_t total)
+{
+	void *new_list = NULL;
+	void *ptr;
+	struct stat buf;
+	unsigned long list_size;
+	uint32_t *sizes = NULL;
+	int fd = -1;
+	ssize_t read_size;
+	int i, ret = -1;
+
+	if (!files)
+		return -1;
+
+	/* sizeof(MokNum) */
+	list_size = sizeof(uint32_t);
+	sizes = malloc (total * sizeof(uint32_t));
+
+	for (i = 0; i < total; i++) {
+		if (stat (files[i], &buf) != 0) {
+			fprintf (stderr, "Failed to get file status, %s\n",
+			         files[i]);
+			goto error;
+		}
+
+		sizes[i] = buf.st_size;
+		/* sizeof(MokSize) + sizeof(Mok) */
+		list_size += sizeof(uint32_t) + buf.st_size;
+	}
+
+	new_list = malloc (list_size);
+	if (!new_list) {
+		fprintf (stderr, "Failed to allocate space for MokNew\n");
+		goto error;
+	}
+	ptr = new_list;
+
+	/* MokNum */
+	memcpy (ptr, &total, sizeof(uint32_t));
+	ptr += sizeof(uint32_t);
+
+	for (i = 0; i < total; i++) {
+		/* MokSize */
+		memcpy (ptr, &sizes[i], sizeof(uint32_t));
+		ptr += sizeof(uint32_t);
+
+		fd = open (files[i], O_RDONLY);
+		if (fd == -1) {
+			fprintf (stderr, "Failed to open %s\n", files[i]);
+			goto error;
+		}
+
+		/* Mok */
+		read_size = read (fd, ptr, sizes[i]);
+		if (read_size < 0 || read_size != sizes[i]) {
+			fprintf (stderr, "Failed to read %s\n", files[i]);
+			goto error;
+		}
+		ptr += sizes[i];
+	}
+
+	if (update_request (new_list, list_size) < 0) {
+		goto error;
+	}
+
+	ret = 0;
+error:
+	if (sizes)
+		free (sizes);
+	if (new_list)
+		free (new_list);
+
+	return ret;
+}
+
+static int
 delete_all ()
 {
 	uint32_t mok_num = 0;
@@ -462,6 +541,8 @@ int
 main (int argc, char *argv[])
 {
 	char *filename;
+	char **files = NULL;
+	int i, total;
 	int command;
 
 	if (argc < 2) {
@@ -488,13 +569,32 @@ main (int argc, char *argv[])
 	} else if (strcmp (argv[1], "-e") == 0 ||
 	           strcmp (argv[1], "--enroll") == 0) {
 
-		/* TODO allow multiple files to be enrolled at one time */
 		if (argc < 3) {
 			print_help ();
 			return -1;
 		}
 		filename = argv[2];
 		command = COMMAND_ENROLL;
+
+	} else if (strcmp (argv[1], "-i") == 0 ||
+	           strcmp (argv[1], "--import") == 0) {
+
+		if (argc < 3) {
+			print_help ();
+			return -1;
+		}
+		total = argc - 2;
+
+		files = malloc (total * sizeof(char *));
+		if (!files) {
+			fprintf (stderr, "Failed to allocate file list\n");
+			return -1;
+		}
+
+		for (i = 0; i < total; i++)
+			files[i] = argv[i+2];
+
+		command = COMMAND_IMPORT;
 
 	} else if (strcmp (argv[1], "-D") == 0 ||
 	           strcmp (argv[1], "--delete-all") == 0) {
@@ -522,6 +622,9 @@ main (int argc, char *argv[])
 		case COMMAND_ENROLL:
 			enroll_mok (filename);
 			break;
+		case COMMAND_IMPORT:
+			import_moks (files, total);
+			break;
 		case COMMAND_DELETE:
 			delete_all ();
 			break;
@@ -532,6 +635,9 @@ main (int argc, char *argv[])
 			fprintf (stderr, "Unknown command\n");
 			break;
 	}
+
+	if (files)
+		free (files);
 
 	return 0;
 }
