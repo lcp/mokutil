@@ -1,8 +1,10 @@
 * Validate the DER file
 * Show the detail of the DER file when enrolling (?)
-* Add an option to slience the output
-* Show the current value of MokNew and MokListRT
-* Request the user to input a password before enrolling (80%)
-* Read the list from a volatile RT variable
+* Add an option to slience the output (?)
+* Show the current value of MokNew and MokListRT [DONE]
+* Request the user to input a password before enrolling [DONE]
+* Read the list from a volatile RT variable [DONE]
 * Migrate to UEFI filesystem when it's ready to break the 1KB limitation
+  + wait for the kernel change
 * Export keys in MokListRT
+* Append one key to MokList/MokNew (?)
