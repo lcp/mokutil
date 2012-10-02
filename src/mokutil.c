@@ -395,12 +395,6 @@ enroll_mok (char *filename)
 		goto error;
 	}
 
-	/* the current data limit in kernel is 1024 */
-	if (buf.st_size > 1024) {
-		fprintf (stderr, "The file is larger than 1024 bytes\n");
-		goto error;
-	}
-
 	mok_num = 1;
 	extra = sizeof(mok_num) + mok_num*sizeof(key_size);
 	new_list = malloc (buf.st_size + extra);
