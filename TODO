@@ -1,4 +1,4 @@
-* Validate the DER file
+* Validate the DER file [DONE]
 * Show the detail of the DER file when enrolling (?)
 * Add an option to slience the output (?)
 * Show the current value of MokNew and MokListRT [DONE]

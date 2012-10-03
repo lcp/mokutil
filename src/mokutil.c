@@ -381,6 +381,29 @@ error:
 }
 
 static int
+is_valid_cert (void *cert, uint32_t cert_size)
+{
+	X509 *X509cert;
+	BIO *cert_bio;
+
+	cert_bio = BIO_new (BIO_s_mem ());
+	BIO_write (cert_bio, cert, cert_size);
+	if (cert_bio == NULL) {
+		return 0;
+	}
+
+	X509cert = d2i_X509_bio (cert_bio, NULL);
+	if (X509cert == NULL) {
+		BIO_free (cert_bio);
+		return 0;
+	}
+
+	BIO_free (cert_bio);
+
+	return 1;
+}
+
+static int
 enroll_mok (char *filename)
 {
 	void *new_list = NULL, *ptr;
@@ -425,6 +448,11 @@ enroll_mok (char *filename)
 		fprintf (stderr, "Failed to read %s\n", filename);
 		goto error;
 	}
+	if (!is_valid_cert (ptr, read_size)) {
+		fprintf (stderr, "Warning!!! %s is not a valid x509 certificate in DER format\n",
+		         filename);
+	}
+
 	list_len = read_size + sizeof(mok_num) + sizeof(key_size);
 
 	if (update_request (new_list, list_len) < 0) {
@@ -498,6 +526,10 @@ import_moks (char **files, uint32_t total)
 		if (read_size < 0 || read_size != sizes[i]) {
 			fprintf (stderr, "Failed to read %s\n", files[i]);
 			goto error;
+		}
+		if (!is_valid_cert (ptr, read_size)) {
+			fprintf (stderr, "Warning!!! %s is not a valid x509 certificate in DER format\n",
+			         files[i]);
 		}
 		ptr += sizes[i];
 	}
