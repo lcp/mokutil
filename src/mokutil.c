@@ -125,8 +125,12 @@ static int
 print_x509 (char *cert, int cert_size)
 {
 	X509 *X509cert;
-	BIO *cert_bio = BIO_new (BIO_s_mem ());
+	BIO *cert_bio;
+	SHA_CTX ctx;
+	uint8_t fingerprint[SHA_DIGEST_LENGTH];
+	int i;
 
+	cert_bio = BIO_new (BIO_s_mem ());
 	BIO_write (cert_bio, cert, cert_size);
 	if (cert_bio == NULL) {
 		fprintf (stderr, "Failed to write BIO\n");
@@ -139,6 +143,17 @@ print_x509 (char *cert, int cert_size)
 		return -1;
 	}
 
+	SHA1_Init (&ctx);
+	SHA1_Update (&ctx, cert, cert_size);
+	SHA1_Final (fingerprint, &ctx);
+
+	printf ("SHA1 Fingerprint: ");
+	for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
+		printf ("%02x", fingerprint[i]);
+		if (i < SHA_DIGEST_LENGTH - 1)
+			printf (":");
+	}
+	printf ("\n");
 	X509_print_fp (stdout, X509cert);
 
 	BIO_free (cert_bio);
