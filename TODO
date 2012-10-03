@@ -6,5 +6,5 @@
 * Read the list from a volatile RT variable [DONE]
 * Migrate to UEFI filesystem when it's ready to break the 1KB limitation
   + wait for the kernel change
-* Export keys in MokListRT
+* Export keys in MokListRT [DONE]
 * Append one key to MokList/MokNew (?)

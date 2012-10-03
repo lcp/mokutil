@@ -30,6 +30,7 @@ enum Command {
 	COMMAND_IMPORT,
 	COMMAND_DELETE,
 	COMMAND_REVOKE,
+	COMMAND_EXPORT,
 };
 
 static void
@@ -48,6 +49,8 @@ print_help ()
 	printf("  mokutil --delete-all\n\n");
 	printf("Revoke the request:\n");
 	printf("  mokutil --revoke\n\n");
+	printf("Export enrolled keys to files:\n");
+	printf("  mokutil --export\n\n");
 }
 
 static int
@@ -546,6 +549,63 @@ revoke_request ()
 	return 0;
 }
 
+static int
+export_moks ()
+{
+	efi_variable_t var;
+	char name[PATH_MAX];
+	char filename[PATH_MAX];
+	uint32_t mok_num;
+	MokListNode *list;
+	int i, fd;
+	mode_t mode;
+	ssize_t write_size;
+	int ret = -1;
+
+	memset (&var, 0, sizeof(var));
+	var.VariableName = "MokListRT";
+
+	var.VendorGuid = SHIM_LOCK_GUID;
+
+	variable_to_name (&var, name);
+
+	if (read_variable (name, &var) != EFI_SUCCESS) {
+		fprintf (stderr, "Failed to read MokListRT\n");
+		return -1;
+	}
+
+	list = build_mok_list (var.Data, var.DataSize, &mok_num);
+	if (list == NULL) {
+		return -1;
+	}
+
+	/* mode 644 */
+	mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+	for (i = 0; i < mok_num; i++) {
+		snprintf (filename, PATH_MAX, "MOK-%04d.der", i+1);
+		fd = open (filename, O_CREAT | O_WRONLY, mode);
+		if (fd == -1) {
+			fprintf (stderr, "Failed to open %s\n", filename);
+			goto error;
+		}
+
+		write_size = write (fd, list[i].mok, list[i].mok_size);
+		if (write_size != list[i].mok_size) {
+			fprintf (stderr, "Failed to write %s\n", filename);
+			close (fd);
+			goto error;
+		}
+
+		close (fd);
+	}
+
+	ret = 0;
+error:
+	free (var.Data);
+
+	return ret;
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -615,6 +675,11 @@ main (int argc, char *argv[])
 
 		command = COMMAND_REVOKE;
 
+	} else if (strcmp (argv[1], "-x") == 0 ||
+	           strcmp (argv[1], "--export") == 0) {
+
+		command = COMMAND_EXPORT;
+
 	} else {
 		fprintf (stderr, "Unknown argument: %s\n\n", argv[1]);
 		print_help ();
@@ -639,6 +704,9 @@ main (int argc, char *argv[])
 			break;
 		case COMMAND_REVOKE:
 			revoke_request ();
+			break;
+		case COMMAND_EXPORT:
+			export_moks ();
 			break;
 		default:
 			fprintf (stderr, "Unknown command\n");
