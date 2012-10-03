@@ -190,7 +190,6 @@ static int
 list_enrolled_keys ()
 {
 	efi_variable_t var;
-	char name[PATH_MAX];
 	int ret;
 
 	memset (&var, 0, sizeof(var));
@@ -198,9 +197,7 @@ list_enrolled_keys ()
 
 	var.VendorGuid = SHIM_LOCK_GUID;
 
-	variable_to_name (&var, name);
-
-	if (read_variable (name, &var) != EFI_SUCCESS) {
+	if (read_variable (&var) != EFI_SUCCESS) {
 		fprintf (stderr, "Failed to read MokListRT\n");
 		return -1;
 	}
@@ -215,7 +212,6 @@ static int
 list_new_keys ()
 {
 	efi_variable_t var;
-	char name[PATH_MAX];
 	int ret;
 
 	memset (&var, 0, sizeof(var));
@@ -223,9 +219,7 @@ list_new_keys ()
 
 	var.VendorGuid = SHIM_LOCK_GUID;
 
-	variable_to_name (&var, name);
-
-	if (read_variable (name, &var) != EFI_SUCCESS) {
+	if (read_variable (&var) != EFI_SUCCESS) {
 		fprintf (stderr, "Failed to read MokNew\n");
 		return -1;
 	}
@@ -553,7 +547,6 @@ static int
 export_moks ()
 {
 	efi_variable_t var;
-	char name[PATH_MAX];
 	char filename[PATH_MAX];
 	uint32_t mok_num;
 	MokListNode *list;
@@ -567,9 +560,7 @@ export_moks ()
 
 	var.VendorGuid = SHIM_LOCK_GUID;
 
-	variable_to_name (&var, name);
-
-	if (read_variable (name, &var) != EFI_SUCCESS) {
+	if (read_variable (&var) != EFI_SUCCESS) {
 		fprintf (stderr, "Failed to read MokListRT\n");
 		return -1;
 	}

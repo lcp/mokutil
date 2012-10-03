@@ -355,7 +355,7 @@ struct efivar_kernel_calls {
 extern char * efi_guid_unparse(efi_guid_t *guid, char *out);
 
 extern efi_status_t test_variable (efi_variable_t *var);
-extern efi_status_t read_variable (const char *name, efi_variable_t *var);
+extern efi_status_t read_variable (efi_variable_t *var);
 extern efi_status_t edit_variable (efi_variable_t *var);
 extern efi_status_t delete_variable (efi_variable_t *var);
 

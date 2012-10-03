@@ -79,17 +79,19 @@ test_variable (efi_variable_t *var)
 }
 
 efi_status_t
-read_variable (const char *name, efi_variable_t *var)
+read_variable (efi_variable_t *var)
 {
+	char name[PATH_MAX];
 	char filename[PATH_MAX];
 	int fd;
 	struct stat buf;
 	size_t readsize, datasize;
 	void *buffer;
 
-	if (!name || !var)
+	if (!var)
 		return EFI_INVALID_PARAMETER;
 
+	variable_to_name (var, name);
 	snprintf (filename, PATH_MAX-1, "%s/%s", SYSFS_DIR_EFI_VARS, name);
 	fd = open (filename, O_RDONLY);
 	if (fd == -1) {
