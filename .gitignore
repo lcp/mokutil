@@ -64,5 +64,8 @@
 /src/.deps/
 /src/Makefile
 /src/Makefile.in
+/src/*.o
+/src/mokutil
+/src/*.swp
 /stamp-h1
 /tags
