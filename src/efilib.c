@@ -99,6 +99,7 @@ read_variable (efi_variable_t *var)
 	}
 
 	if (fstat (fd, &buf) != 0) {
+		close (fd);
 		return EFI_INVALID_PARAMETER;
 	}
 

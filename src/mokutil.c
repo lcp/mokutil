@@ -183,6 +183,8 @@ list_keys (efi_variable_t *var)
 			printf ("\n");
 	}
 
+	free (list);
+
 	return 0;
 }
 
@@ -532,6 +534,8 @@ import_moks (char **files, uint32_t total)
 			         files[i]);
 		}
 		ptr += sizes[i];
+
+		close (fd);
 	}
 
 	if (update_request (new_list, list_size) < 0) {
