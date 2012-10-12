@@ -26,7 +26,6 @@ typedef struct {
 enum Command {
 	COMMAND_LIST_ENROLLED,
 	COMMAND_LIST_NEW,
-	COMMAND_ENROLL,
 	COMMAND_IMPORT,
 	COMMAND_DELETE,
 	COMMAND_REVOKE,
@@ -41,8 +40,6 @@ print_help ()
 	printf("  mokutil --list-enrolled\n\n");
 	printf("List the keys to be enrolled:\n");
 	printf("  mokutil --list-new\n\n");
-	printf("Enroll a new key:\n");
-	printf("  mokutil --enroll <der file>\n\n");
 	printf("Import keys:\n");
 	printf("  mokutil --import <der file>...\n\n");
 	printf("Request to delete all keys\n");
@@ -406,71 +403,6 @@ is_valid_cert (void *cert, uint32_t cert_size)
 }
 
 static int
-enroll_mok (char *filename)
-{
-	void *new_list = NULL, *ptr;
-	int list_len, extra;
-	uint32_t mok_num, key_size;
-	int fd = -1;
-	struct stat buf;
-	ssize_t read_size;
-	int ret = -1;
-
-	if (!filename) {
-		fprintf (stderr, "Invalid filename\n");
-		return -1;
-	}
-
-	fd = open (filename, O_RDONLY);
-	if (fd == -1) {
-		fprintf (stderr, "Failed to open %s\n", filename);
-		goto error;
-	}
-
-	if (fstat (fd, &buf) != 0) {
-		fprintf (stderr, "Failed to get file stat\n");
-		goto error;
-	}
-
-	mok_num = 1;
-	extra = sizeof(mok_num) + mok_num*sizeof(key_size);
-	new_list = malloc (buf.st_size + extra);
-	if (new_list == NULL) {
-		goto error;
-	}
-
-	ptr = new_list;
-	memcpy ((void *)ptr, (void *)&mok_num, sizeof(mok_num));
-	ptr += sizeof(mok_num);
-	key_size = buf.st_size;
-	memcpy ((void *)ptr, (void *)&key_size, sizeof(key_size));
-	ptr += sizeof(key_size);
-	read_size = read (fd, ptr, buf.st_size);
-	if (read_size < 0 || read_size != buf.st_size) {
-		fprintf (stderr, "Failed to read %s\n", filename);
-		goto error;
-	}
-	if (!is_valid_cert (ptr, read_size)) {
-		fprintf (stderr, "Warning!!! %s is not a valid x509 certificate in DER format\n",
-		         filename);
-	}
-
-	list_len = read_size + sizeof(mok_num) + sizeof(key_size);
-
-	if (update_request (new_list, list_len) < 0) {
-		goto error;
-	}
-
-	ret = 0;
-error:
-	close (fd);
-	if (new_list)
-		free (new_list);
-
-	return ret;
-}
-
-static int
 import_moks (char **files, uint32_t total)
 {
 	void *new_list = NULL;
@@ -636,7 +568,6 @@ error:
 int
 main (int argc, char *argv[])
 {
-	char *filename;
 	char **files = NULL;
 	int i, total;
 	int command;
@@ -661,16 +592,6 @@ main (int argc, char *argv[])
 	           strcmp (argv[1], "--list-new") == 0) {
 
 		command = COMMAND_LIST_NEW;
-
-	} else if (strcmp (argv[1], "-e") == 0 ||
-	           strcmp (argv[1], "--enroll") == 0) {
-
-		if (argc < 3) {
-			print_help ();
-			return -1;
-		}
-		filename = argv[2];
-		command = COMMAND_ENROLL;
 
 	} else if (strcmp (argv[1], "-i") == 0 ||
 	           strcmp (argv[1], "--import") == 0) {
@@ -719,9 +640,6 @@ main (int argc, char *argv[])
 			break;
 		case COMMAND_LIST_NEW:
 			list_new_keys ();
-			break;
-		case COMMAND_ENROLL:
-			enroll_mok (filename);
 			break;
 		case COMMAND_IMPORT:
 			import_moks (files, total);
