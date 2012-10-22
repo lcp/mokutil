@@ -11,6 +11,7 @@
 #include <openssl/x509.h>
 
 #include "efi.h"
+#include "signature.h"
 
 #define SHIM_LOCK_GUID \
 EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 0x23)
@@ -74,49 +75,57 @@ static MokListNode*
 build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 {
 	MokListNode *list;
-	long long remain = data_size;
-	uint32_t num, i;
-	void *ptr;
+	EFI_SIGNATURE_LIST *CertList = data;
+	EFI_SIGNATURE_DATA *Cert;
+	efi_guid_t CertType = EfiCertX509Guid;
+	efi_guid_t HashType = EfiHashSha256Guid;
+	unsigned long dbsize = data_size;
+	unsigned long count = 0;
 
-	if (data_size < sizeof(uint32_t))
-		return NULL;
-
-	memcpy (&num, data, sizeof(uint32_t));
-
-	if (num == 0)
-		return NULL;
-
-	remain -= sizeof(uint32_t);
-	if (remain <= 0) {
-		fprintf(stderr, "the list was corrupted\n");
-		return NULL;
-	}
-
-	ptr = data + sizeof(uint32_t);
-
-	list = malloc(sizeof(MokListNode) * num);
+	list = malloc(sizeof(MokListNode));
 
 	if (!list) {
 		fprintf(stderr, "Unable to allocate MOK list\n");
 		return NULL;
 	}
 
-	for (i = 0; i < num; i++) {
-		memcpy (&list[i].mok_size, ptr, sizeof(uint32_t));
-		remain -= sizeof(uint32_t) + list[i].mok_size;
+	while ((dbsize > 0) && (dbsize >= CertList->SignatureListSize)) {
+		if ((efi_guidcmp (CertList->SignatureType, CertType) != 0) &&
+		    (efi_guidcmp (CertList->SignatureType, HashType) != 0)) {
+			dbsize -= CertList->SignatureListSize;
+			CertList = (EFI_SIGNATURE_LIST *)((uint8_t *) CertList +
+						      CertList->SignatureSize);
+			continue;
+		}
 
-		if (remain < 0) {
-			fprintf(stderr, "the list was corrupted\n");
-			free (list);
+		if ((efi_guidcmp (CertList->SignatureType, HashType) == 0) &&
+		    (CertList->SignatureSize != 48)) {
+			dbsize -= CertList->SignatureListSize;
+			CertList = (EFI_SIGNATURE_LIST *)((uint8_t *) CertList +
+						      CertList->SignatureSize);
+			continue;
+		}
+
+		Cert = (EFI_SIGNATURE_DATA *) (((uint8_t *) CertList) +
+		  sizeof (EFI_SIGNATURE_LIST) + CertList->SignatureHeaderSize);
+
+		list = realloc(list, sizeof(MokListNode) * (count + 1));
+
+		if (!list) {
+			fprintf(stderr, "Unable to allocate MOK list\n");
 			return NULL;
 		}
 
-		ptr += sizeof(uint32_t);
-		list[i].mok = ptr;
-		ptr += list[i].mok_size;
+		list[count].mok_size = CertList->SignatureSize;
+                list[count].mok = (void *)Cert->SignatureData;
+
+		count++;
+		dbsize -= CertList->SignatureListSize;
+		CertList = (EFI_SIGNATURE_LIST *) ((uint8_t *) CertList +
+						   CertList->SignatureSize);
 	}
 
-	*mok_num = num;
+	*mok_num = count;
 
 	return list;
 }
@@ -408,18 +417,23 @@ import_moks (char **files, uint32_t total)
 	void *new_list = NULL;
 	void *ptr;
 	struct stat buf;
-	unsigned long list_size;
+	unsigned long list_size = 0;
 	uint32_t *sizes = NULL;
 	int fd = -1;
 	ssize_t read_size;
 	int i, ret = -1;
+	EFI_SIGNATURE_LIST *CertList;
+	EFI_SIGNATURE_DATA *CertData;
 
 	if (!files)
 		return -1;
 
-	/* sizeof(MokNum) */
-	list_size = sizeof(uint32_t);
 	sizes = malloc (total * sizeof(uint32_t));
+
+	if (!sizes) {
+		fprintf (stderr, "Failed to allocate space for sizes\n");
+		goto error;
+	}
 
 	for (i = 0; i < total; i++) {
 		if (stat (files[i], &buf) != 0) {
@@ -429,9 +443,11 @@ import_moks (char **files, uint32_t total)
 		}
 
 		sizes[i] = buf.st_size;
-		/* sizeof(MokSize) + sizeof(Mok) */
-		list_size += sizeof(uint32_t) + buf.st_size;
+		list_size += buf.st_size;
 	}
+
+	list_size += sizeof(EFI_SIGNATURE_LIST) * total;
+	list_size += sizeof(efi_guid_t) * total;
 
 	new_list = malloc (list_size);
 	if (!new_list) {
@@ -440,20 +456,26 @@ import_moks (char **files, uint32_t total)
 	}
 	ptr = new_list;
 
-	/* MokNum */
-	memcpy (ptr, &total, sizeof(uint32_t));
-	ptr += sizeof(uint32_t);
-
 	for (i = 0; i < total; i++) {
-		/* MokSize */
-		memcpy (ptr, &sizes[i], sizeof(uint32_t));
-		ptr += sizeof(uint32_t);
+		CertList = ptr;
+		CertData = (EFI_SIGNATURE_DATA *)(((uint8_t *)ptr) +
+						  sizeof(EFI_SIGNATURE_LIST));
+
+		CertList->SignatureType = EfiCertX509Guid;
+		CertList->SignatureListSize = sizes[i] +
+		      sizeof(EFI_SIGNATURE_LIST) + sizeof(EFI_SIGNATURE_DATA);
+		CertList->SignatureHeaderSize = 0;
+		CertList->SignatureSize = sizes[i] +
+			sizeof(EFI_SIGNATURE_DATA) + 16;
+		CertData->SignatureOwner = SHIM_LOCK_GUID;
 
 		fd = open (files[i], O_RDONLY);
 		if (fd == -1) {
 			fprintf (stderr, "Failed to open %s\n", files[i]);
 			goto error;
 		}
+
+		ptr = CertData->SignatureData;
 
 		/* Mok */
 		read_size = read (fd, ptr, sizes[i]);
