@@ -24,6 +24,12 @@ typedef struct {
 	void    *mok;
 } MokListNode;
 
+typedef struct {
+	uint32_t mok_sb_state;
+	uint32_t password_length;
+	uint16_t password[PASSWORD_MAX];
+} MokSBVar;
+
 enum Command {
 	COMMAND_LIST_ENROLLED,
 	COMMAND_LIST_NEW,
@@ -32,6 +38,8 @@ enum Command {
 	COMMAND_REVOKE,
 	COMMAND_EXPORT,
 	COMMAND_PASSWORD,
+	COMMAND_DISABLE_VALIDATION,
+	COMMAND_ENABLE_VALIDATION,
 };
 
 static void
@@ -52,6 +60,10 @@ print_help ()
 	printf("  mokutil --export\n\n");
 	printf("Set MOK password:\n");
 	printf("  mokutil --password\n\n");
+	printf("Disable signature validation:\n");
+	printf("  mokutil --disable-validation\n\n");
+	printf("Enable signature validation:\n");
+	printf("  mokutil --enable-validation\n\n");
 }
 
 static int
@@ -270,7 +282,7 @@ read_hidden_line (char **line, size_t *n)
 }
 
 static int
-get_password (char **password, int *len)
+get_password (char **password, int *len, int min, int max)
 {
 	char *password_1, *password_2;
 	int len_1, len_2;
@@ -278,15 +290,14 @@ get_password (char **password, int *len)
 
 	password_1 = password_2 = NULL;
 
-	printf ("input password (%d~%d characters): ",
-		PASSWORD_MIN, PASSWORD_MAX);
+	printf ("input password (%d~%d characters): ", min, max);
 	len_1 = read_hidden_line (&password_1, &n);
 	printf ("\n");
 
-	if (len_1 > PASSWORD_MAX || len_1 < PASSWORD_MIN) {
+	if (len_1 > max || len_1 < min) {
 		free (password_1);
 		fprintf (stderr, "password should be %d~%d characters\n",
-			 PASSWORD_MIN, PASSWORD_MAX);
+			 min, max);
 		return -1;
 	}
 
@@ -344,7 +355,8 @@ update_request (void *new_list, int list_len)
 	int pw_len, fail = 0;
 	int ret = -1;
 
-	while (fail < 3 && get_password (&password, &pw_len) < 0)
+	while (fail < 3 &&
+	     get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0)
 		fail++;
 
 	if (fail >= 3) {
@@ -602,7 +614,8 @@ set_password ()
 	int pw_len, fail = 0;
 	int ret = -1;
 
-	while (fail < 3 && get_password (&password, &pw_len) < 0)
+	while (fail < 3 &&
+	     get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0)
 		fail++;
 
 	if (fail >= 3) {
@@ -634,6 +647,67 @@ error:
 	if (password)
 		free (password);
 	return ret;
+}
+
+static int
+set_validation (uint32_t state)
+{
+	efi_variable_t var;
+	MokSBVar sbvar;
+	char *password = NULL;
+	int pw_len, fail = 0;
+	efi_char16_t efichar_pass[PASSWORD_MAX];
+	int ret = -1;
+
+        while (fail < 3 &&
+	    get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0)
+		fail++;
+
+	if (fail >= 3) {
+		fprintf (stderr, "Abort\n");
+		goto error;
+	}
+
+	sbvar.password_length = pw_len;
+
+	efichar_from_char (efichar_pass, password,
+			   PASSWORD_MAX * sizeof(efi_char16_t));
+
+	memcpy(sbvar.password, efichar_pass,
+	       PASSWORD_MAX * sizeof(efi_char16_t));
+
+	sbvar.mok_sb_state = state;
+
+	var.VariableName = "MokSB";
+	var.VendorGuid = SHIM_LOCK_GUID;
+	var.Data = (void *)&sbvar;
+	var.DataSize = sizeof(sbvar);
+	var.Attributes = EFI_VARIABLE_NON_VOLATILE
+		| EFI_VARIABLE_BOOTSERVICE_ACCESS
+		| EFI_VARIABLE_RUNTIME_ACCESS;
+
+	if (edit_variable (&var) != EFI_SUCCESS) {
+		fprintf (stderr, "Failed to request new SB state\n");
+		goto error;
+	}
+
+	ret = 0;
+error:
+	if (password)
+		free (password);
+	return ret;
+}
+
+static int
+disable_validation()
+{
+	return set_validation(0);
+}
+
+static int
+enable_validation()
+{
+	return set_validation(1);
 }
 	
 int
@@ -704,6 +778,14 @@ main (int argc, char *argv[])
 
 		command = COMMAND_PASSWORD;
 
+	} else if (strcmp (argv[1], "--disable-validaton") == 0) {
+
+		command = COMMAND_DISABLE_VALIDATION;
+
+	} else if (strcmp (argv[1], "--enable-validaton") == 0) {
+
+		command = COMMAND_ENABLE_VALIDATION;
+
 	} else {
 		fprintf (stderr, "Unknown argument: %s\n\n", argv[1]);
 		print_help ();
@@ -731,6 +813,12 @@ main (int argc, char *argv[])
 			break;
 		case COMMAND_PASSWORD:
 			set_password ();
+			break;
+		case COMMAND_DISABLE_VALIDATION:
+			disable_validation ();
+			break;
+		case COMMAND_ENABLE_VALIDATION:
+			enable_validation ();
 			break;
 		default:
 			fprintf (stderr, "Unknown command\n");
