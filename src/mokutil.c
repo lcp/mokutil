@@ -31,6 +31,7 @@ enum Command {
 	COMMAND_DELETE,
 	COMMAND_REVOKE,
 	COMMAND_EXPORT,
+	COMMAND_PASSWORD,
 };
 
 static void
@@ -49,6 +50,8 @@ print_help ()
 	printf("  mokutil --revoke\n\n");
 	printf("Export enrolled keys to files:\n");
 	printf("  mokutil --export\n\n");
+	printf("Set MOK password:\n");
+	printf("  mokutil --password\n\n");
 }
 
 static int
@@ -590,6 +593,49 @@ error:
 	return ret;
 }
 
+static int
+set_password ()
+{
+	efi_variable_t var;
+	uint8_t auth[SHA256_DIGEST_LENGTH];
+	char *password = NULL;
+	int pw_len, fail = 0;
+	int ret = -1;
+
+	while (fail < 3 && get_password (&password, &pw_len) < 0)
+		fail++;
+
+	if (fail >= 3) {
+		fprintf (stderr, "Abort\n");
+		goto error;
+	}
+
+	if (generate_auth (NULL, 0, password, pw_len, auth) < 0) {
+		fprintf (stderr, "Couldn't generate hash\n");
+		goto error;
+	}
+
+	var.Data = auth;
+	var.DataSize = SHA256_DIGEST_LENGTH;
+	var.VariableName = "MokPW";
+
+	var.VendorGuid = SHIM_LOCK_GUID;
+	var.Attributes = EFI_VARIABLE_NON_VOLATILE
+			 | EFI_VARIABLE_BOOTSERVICE_ACCESS
+			 | EFI_VARIABLE_RUNTIME_ACCESS;
+
+	if (edit_variable (&var) != EFI_SUCCESS) {
+		fprintf (stderr, "Failed to write MokPW\n");
+		goto error;
+	}
+
+	ret = 0;
+error:
+	if (password)
+		free (password);
+	return ret;
+}
+	
 int
 main (int argc, char *argv[])
 {
@@ -653,6 +699,11 @@ main (int argc, char *argv[])
 
 		command = COMMAND_EXPORT;
 
+	} else if (strcmp (argv[1], "-p") == 0 ||
+	           strcmp (argv[1], "--password") == 0) {
+
+		command = COMMAND_PASSWORD;
+
 	} else {
 		fprintf (stderr, "Unknown argument: %s\n\n", argv[1]);
 		print_help ();
@@ -677,6 +728,9 @@ main (int argc, char *argv[])
 			break;
 		case COMMAND_EXPORT:
 			export_moks ();
+			break;
+		case COMMAND_PASSWORD:
+			set_password ();
 			break;
 		default:
 			fprintf (stderr, "Unknown command\n");
