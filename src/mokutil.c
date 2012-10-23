@@ -314,7 +314,7 @@ generate_auth (void *new_list, int list_len, char *password, int pw_len,
 	unsigned long efichar_len;
 	SHA256_CTX ctx;
 
-	if (!new_list || !password || !auth)
+	if (!password || !auth)
 		return -1;
 
 	efichar_len = efichar_from_char (efichar_pass, password,
@@ -322,7 +322,8 @@ generate_auth (void *new_list, int list_len, char *password, int pw_len,
 
 	SHA256_Init (&ctx);
 
-	SHA256_Update (&ctx, new_list, list_len);
+	if (new_list)
+		SHA256_Update (&ctx, new_list, list_len);
 
 	SHA256_Update (&ctx, efichar_pass, efichar_len);
 
@@ -350,19 +351,23 @@ update_request (void *new_list, int list_len)
 
 	generate_auth (new_list, list_len, password, pw_len, auth);
 
-	/* Write MokNew*/
-	var.Data = new_list;
-	var.DataSize = list_len;
-	var.VariableName = "MokNew";
+	if (new_list) {
+		/* Write MokNew*/
+		var.Data = new_list;
+		var.DataSize = list_len;
+		var.VariableName = "MokNew";
 
-	var.VendorGuid = SHIM_LOCK_GUID;
-	var.Attributes = EFI_VARIABLE_NON_VOLATILE
-			 | EFI_VARIABLE_BOOTSERVICE_ACCESS
-			 | EFI_VARIABLE_RUNTIME_ACCESS;
+		var.VendorGuid = SHIM_LOCK_GUID;
+		var.Attributes = EFI_VARIABLE_NON_VOLATILE
+			| EFI_VARIABLE_BOOTSERVICE_ACCESS
+			| EFI_VARIABLE_RUNTIME_ACCESS;
 
-	if (edit_variable (&var) != EFI_SUCCESS) {
-		fprintf (stderr, "Failed to enroll new keys\n");
-		goto error;
+		if (edit_variable (&var) != EFI_SUCCESS) {
+			fprintf (stderr, "Failed to enroll new keys\n");
+			goto error;
+		}
+	} else {
+		test_and_delete_var ("MokNew");
 	}
 
 	/* Write MokAuth */
@@ -509,9 +514,7 @@ error:
 static int
 delete_all ()
 {
-	uint32_t mok_num = 0;
-
-	if (update_request (&mok_num, sizeof(mok_num))) {
+	if (update_request (NULL, 0)) {
 		fprintf (stderr, "Failed to issue an delete request\n");
 		return -1;
 	}
