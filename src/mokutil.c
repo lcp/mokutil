@@ -94,7 +94,7 @@ build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 		    (efi_guidcmp (CertList->SignatureType, HashType) != 0)) {
 			dbsize -= CertList->SignatureListSize;
 			CertList = (EFI_SIGNATURE_LIST *)((uint8_t *) CertList +
-						      CertList->SignatureSize);
+						  CertList->SignatureListSize);
 			continue;
 		}
 
@@ -102,7 +102,7 @@ build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 		    (CertList->SignatureSize != 48)) {
 			dbsize -= CertList->SignatureListSize;
 			CertList = (EFI_SIGNATURE_LIST *)((uint8_t *) CertList +
-						      CertList->SignatureSize);
+						  CertList->SignatureListSize);
 			continue;
 		}
 
@@ -122,7 +122,7 @@ build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 		count++;
 		dbsize -= CertList->SignatureListSize;
 		CertList = (EFI_SIGNATURE_LIST *) ((uint8_t *) CertList +
-						   CertList->SignatureSize);
+						  CertList->SignatureListSize);
 	}
 
 	*mok_num = count;
@@ -463,7 +463,7 @@ import_moks (char **files, uint32_t total)
 
 		CertList->SignatureType = EfiCertX509Guid;
 		CertList->SignatureListSize = sizes[i] +
-		      sizeof(EFI_SIGNATURE_LIST) + sizeof(EFI_SIGNATURE_DATA);
+		   sizeof(EFI_SIGNATURE_LIST) + sizeof(EFI_SIGNATURE_DATA) - 1;
 		CertList->SignatureHeaderSize = 0;
 		CertList->SignatureSize = sizes[i] +
 			sizeof(EFI_SIGNATURE_DATA) + 16;
