@@ -7,4 +7,5 @@ mokutil_LDADD   = $(OPENSSL_LIBS)
 
 mokutil_SOURCES = efi.h \
 		  efilib.c \
+		  signature.h \
 		  mokutil.c
