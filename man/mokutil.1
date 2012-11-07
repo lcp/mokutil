@@ -1,0 +1,66 @@
+.TH MOKUTIL 1 "Wed Nov 07 2012"
+.SH NAME
+
+mokutil \- utility to manipulate machine owner keys
+
+.SH SYNOPSIS
+\fBmokutil\fR [--list-enrolled | -le]
+.br
+\fBmokutil\fR [--list-new | -ln]
+.br
+\fBmokutil\fR [--import | -i] ...
+.br
+\fBmokutil\fR [--delete-all | -D]
+.br
+\fBmokutil\fR [--revoke | -r]
+.br
+\fBmokutil\fR [--export | -x]
+.br
+\fBmokutil\fR [--password | -p]
+.br
+\fBmokutil\fR [--disable-validation]
+.br
+\fBmokutil\fR [--enable-validation]
+.br
+
+.SH DESCRIPTION
+\fBmokutil\fR is a tool to import or delete the machines owner keys
+(MOK) stored in the database of shim.
+
+.SH OPTIONS
+.TP
+\fB--list-enrolled\fR
+List the keys the already stored in the database
+
+.TP
+\fB--list-new\fR
+List the keys to be enrolled
+
+.TP
+\fB--import\fR
+Collect the followed files and form a request to shim. The files must be in DER
+format.
+
+.TP
+\fB--delete-all\fR
+Request shim to delete all stored keys
+
+.TP
+\fB--revoke\fR
+Revoke the current request
+
+.TP
+\fB--export\fR
+Export the keys stored in MokListRT
+
+.TP
+\fB--password\fR
+Setup the password for MokManager
+
+.TP
+\fB--disable-validation\fR
+Disable the validation process in shim
+
+.TP
+\fB--enrolled-validation\fR
+Enable the validation process in shim

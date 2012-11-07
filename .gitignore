@@ -42,6 +42,8 @@
 /intltool-merge.in
 /intltool-update.in
 /libtool
+/man/Makefile
+/man/Makefile.in
 /po/*.gmo
 /po/*.mo
 /po/.intltool-merge-cache
