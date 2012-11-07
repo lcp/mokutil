@@ -778,11 +778,11 @@ main (int argc, char *argv[])
 
 		command = COMMAND_PASSWORD;
 
-	} else if (strcmp (argv[1], "--disable-validaton") == 0) {
+	} else if (strcmp (argv[1], "--disable-validation") == 0) {
 
 		command = COMMAND_DISABLE_VALIDATION;
 
-	} else if (strcmp (argv[1], "--enable-validaton") == 0) {
+	} else if (strcmp (argv[1], "--enable-validation") == 0) {
 
 		command = COMMAND_ENABLE_VALIDATION;
 
