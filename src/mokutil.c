@@ -40,6 +40,7 @@ enum Command {
 	COMMAND_PASSWORD,
 	COMMAND_DISABLE_VALIDATION,
 	COMMAND_ENABLE_VALIDATION,
+	COMMAND_SB_STATE,
 };
 
 static void
@@ -48,22 +49,33 @@ print_help ()
 	printf("Usage:\n");
 	printf("List the enrolled keys:\n");
 	printf("  mokutil --list-enrolled\n\n");
+
 	printf("List the keys to be enrolled:\n");
 	printf("  mokutil --list-new\n\n");
+
 	printf("Import keys:\n");
 	printf("  mokutil --import <der file>...\n\n");
+
 	printf("Request to delete all keys\n");
 	printf("  mokutil --delete-all\n\n");
+
 	printf("Revoke the request:\n");
 	printf("  mokutil --revoke\n\n");
+
 	printf("Export enrolled keys to files:\n");
 	printf("  mokutil --export\n\n");
+
 	printf("Set MOK password:\n");
 	printf("  mokutil --password\n\n");
+
 	printf("Disable signature validation:\n");
 	printf("  mokutil --disable-validation\n\n");
+
 	printf("Enable signature validation:\n");
 	printf("  mokutil --enable-validation\n\n");
+
+	printf("SecureBoot State:\n");
+	printf("  mokutil --sb-state\n\n");
 }
 
 static int
@@ -709,7 +721,36 @@ enable_validation()
 {
 	return set_validation(1);
 }
-	
+
+static int
+sb_state ()
+{
+	efi_variable_t var;
+	char *state;
+
+	memset (&var, 0, sizeof(var));
+	var.VariableName = "SecureBoot";
+	var.VendorGuid = EFI_GLOBAL_VARIABLE;
+
+	if (read_variable (&var) != EFI_SUCCESS) {
+		fprintf (stderr, "Failed to read SecureBoot\n");
+		return -1;
+	}
+
+	state = (char *)var.Data;
+	if (*state == 1) {
+		printf ("SecureBoot enabled\n");
+	} else if (*state == 0) {
+		printf ("SecureBoot disabled\n");
+	} else {
+		printf ("SecureBoot unknown");
+	}
+
+	free (var.Data);
+
+	return 0;
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -786,6 +827,10 @@ main (int argc, char *argv[])
 
 		command = COMMAND_ENABLE_VALIDATION;
 
+	} else if (strcmp (argv[1], "--sb-state") == 0) {
+
+		command = COMMAND_SB_STATE;
+
 	} else {
 		fprintf (stderr, "Unknown argument: %s\n\n", argv[1]);
 		print_help ();
@@ -819,6 +864,9 @@ main (int argc, char *argv[])
 			break;
 		case COMMAND_ENABLE_VALIDATION:
 			enable_validation ();
+			break;
+		case COMMAND_SB_STATE:
+			sb_state ();
 			break;
 		default:
 			fprintf (stderr, "Unknown command\n");
