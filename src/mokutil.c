@@ -333,8 +333,8 @@ get_password (char **password, int *len, int min, int max)
 }
 
 static int
-generate_auth (void *new_list, int list_len, char *password, int pw_len,
-	       uint8_t *auth)
+generate_auth (void *new_list, unsigned long list_len, char *password,
+	       int pw_len, uint8_t *auth)
 {
 	efi_char16_t efichar_pass[PASSWORD_MAX+1];
 	unsigned long efichar_len;
@@ -444,12 +444,97 @@ is_valid_cert (void *cert, uint32_t cert_size)
 }
 
 static int
+is_duplicate (const void *cert, const uint32_t cert_size, const char *db_name,
+	      efi_guid_t guid)
+{
+	efi_variable_t var;
+	uint32_t mok_num;
+	MokListNode *list;
+	int i, ret = 0;
+
+	if (!cert || cert_size == 0 || !db_name)
+		return 0;
+
+	memset (&var, 0, sizeof(var));
+	var.VariableName = db_name;
+	var.VendorGuid = guid;
+
+	if (read_variable (&var) != EFI_SUCCESS)
+		return 0;
+
+	list = build_mok_list (var.Data, var.DataSize, &mok_num);
+	if (list == NULL) {
+		goto done;
+	}
+
+	for (i = 0; i < mok_num; i++) {
+		if (list[i].mok_size != cert_size)
+			continue;
+
+		if (memcmp (list[i].mok, cert, cert_size) == 0) {
+			ret = 1;
+			break;
+		}
+	}
+
+done:
+	free (var.Data);
+
+	return ret;
+}
+
+static int
+verify_mok_new (void *mok_new, unsigned long mok_new_size)
+{
+	efi_variable_t mok_auth;
+	uint8_t auth[SHA256_DIGEST_LENGTH];
+	char *password;
+	int pw_len, fail = 0;
+	size_t n;
+	int ret = 0;
+
+	memset (&mok_auth, 0, sizeof(mok_auth));
+	mok_auth.VariableName = "MokAuth";
+	mok_auth.VendorGuid = SHIM_LOCK_GUID;
+	if (read_variable (&mok_auth) == EFI_SUCCESS)
+		return 0;
+
+	while (fail < 3) {
+		printf ("input old password: ");
+		pw_len = read_hidden_line (&password, &n);
+		printf ("\n");
+
+		if (pw_len > PASSWORD_MAX || pw_len < PASSWORD_MIN) {
+			free (password);
+			fprintf (stderr, "invalid password\n");
+			fail++;
+			continue;
+		}
+
+		generate_auth (mok_new, mok_new_size, password, pw_len, auth);
+		if (memcmp (auth, mok_auth.Data, SHA256_DIGEST_LENGTH) == 0) {
+			ret = 1;
+			break;
+		}
+
+		fail++;
+	}
+
+	if (mok_auth.Data)
+		free (mok_auth.Data);
+
+	return ret;
+}
+
+static int
 import_moks (char **files, uint32_t total)
 {
+	efi_variable_t mok_new;
 	void *new_list = NULL;
 	void *ptr;
 	struct stat buf;
 	unsigned long list_size = 0;
+	unsigned long real_size = 0;
 	uint32_t *sizes = NULL;
 	int fd = -1;
 	ssize_t read_size;
@@ -480,6 +565,12 @@ import_moks (char **files, uint32_t total)
 
 	list_size += sizeof(EFI_SIGNATURE_LIST) * total;
 	list_size += sizeof(efi_guid_t) * total;
+
+	memset (&mok_new, 0, sizeof(mok_new));
+	mok_new.VariableName = "MokNew";
+	mok_new.VendorGuid = SHIM_LOCK_GUID;
+	if (read_variable (&mok_new) == EFI_SUCCESS)
+		list_size += mok_new.DataSize;
 
 	new_list = malloc (list_size);
 	if (!new_list) {
@@ -518,17 +609,46 @@ import_moks (char **files, uint32_t total)
 			fprintf (stderr, "Warning!!! %s is not a valid x509 certificate in DER format\n",
 			         files[i]);
 		}
-		ptr += sizes[i];
+
+		/* whether this key is already enrolled... */
+		if (!is_duplicate (ptr, sizes[i], "PK", EFI_GLOBAL_VARIABLE) &&
+		    !is_duplicate (ptr, sizes[i], "KEK", EFI_GLOBAL_VARIABLE) &&
+		    !is_duplicate (ptr, sizes[i], "db", EFI_GLOBAL_VARIABLE) &&
+		    !is_duplicate (ptr, sizes[i], "MokListRT", SHIM_LOCK_GUID) &&
+		    !is_duplicate (ptr, sizes[i], "MokNew", SHIM_LOCK_GUID)) {
+			ptr += sizes[i];
+			real_size += sizes[i] + sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
+		} else {
+			ptr -= sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
+		}
 
 		close (fd);
 	}
 
-	if (update_request (new_list, list_size) < 0) {
+	/* All keys are enrolled, nothing to do here... */
+	if (real_size == 0) {
+		ret = 0;
+		goto error;
+	}
+
+	/* append the keys in MokNew */
+	if (mok_new.Data) {
+		/* request the previous password to verify the keys */
+		if (!verify_mok_new (mok_new.Data, mok_new.DataSize)) {
+			goto error;
+		}
+
+		memcpy (ptr, mok_new.Data, mok_new.DataSize);
+	}
+
+	if (update_request (new_list, real_size) < 0) {
 		goto error;
 	}
 
 	ret = 0;
 error:
+	if (mok_new.Data)
+		free (mok_new.Data);
 	if (sizes)
 		free (sizes);
 	if (new_list)
