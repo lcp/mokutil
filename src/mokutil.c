@@ -143,7 +143,7 @@ build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 			return NULL;
 		}
 
-		list[count].mok_size = CertList->SignatureSize;
+		list[count].mok_size = CertList->SignatureSize - sizeof(efi_guid_t);
                 list[count].mok = (void *)Cert->SignatureData;
 
 		count++;
@@ -497,8 +497,7 @@ import_moks (char **files, uint32_t total)
 		CertList->SignatureListSize = sizes[i] +
 		   sizeof(EFI_SIGNATURE_LIST) + sizeof(EFI_SIGNATURE_DATA) - 1;
 		CertList->SignatureHeaderSize = 0;
-		CertList->SignatureSize = sizes[i] +
-			sizeof(EFI_SIGNATURE_DATA) + 16;
+		CertList->SignatureSize = sizes[i] + sizeof(efi_guid_t);
 		CertData->SignatureOwner = SHIM_LOCK_GUID;
 
 		fd = open (files[i], O_RDONLY);
