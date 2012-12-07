@@ -640,7 +640,8 @@ import_moks (char **files, uint32_t total)
 			goto error;
 		}
 
-		memcpy (ptr, mok_new.Data, mok_new.DataSize);
+		memcpy (new_list + real_size, mok_new.Data, mok_new.DataSize);
+		real_size += mok_new.DataSize;
 	}
 
 	if (update_request (new_list, real_size) < 0) {
