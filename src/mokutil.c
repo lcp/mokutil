@@ -496,8 +496,10 @@ verify_mok_new (void *mok_new, unsigned long mok_new_size)
 	memset (&mok_auth, 0, sizeof(mok_auth));
 	mok_auth.VariableName = "MokAuth";
 	mok_auth.VendorGuid = SHIM_LOCK_GUID;
-	if (read_variable (&mok_auth) == EFI_SUCCESS)
+	if (read_variable (&mok_auth) != EFI_SUCCESS) {
+		fprintf (stderr, "Failed to read MokAuth\n");
 		return 0;
+	}
 
 	while (fail < 3) {
 		printf ("input old password: ");
