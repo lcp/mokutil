@@ -297,39 +297,60 @@ static int
 get_password (char **password, int *len, int min, int max)
 {
 	char *password_1, *password_2;
-	int len_1, len_2;
+	int len_1, len_2, fail, ret = -1;
 	size_t n;
 
 	password_1 = password_2 = NULL;
 
-	printf ("input password (%d~%d characters): ", min, max);
-	len_1 = read_hidden_line (&password_1, &n);
-	printf ("\n");
+	fail = 0;
 
-	if (len_1 > max || len_1 < min) {
-		free (password_1);
-		fprintf (stderr, "password should be %d~%d characters\n",
-			 min, max);
-		return -1;
+	while (fail < 3) {
+		printf ("input password (%d~%d characters): ", min, max);
+		len_1 = read_hidden_line (&password_1, &n);
+		printf ("\n");
+
+		if (len_1 > max || len_1 < min) {
+			fail++;
+			fprintf (stderr, "password should be %d~%d characters\n",
+				 min, max);
+		} else {
+			break;
+		}
 	}
 
-	printf ("input password again: ");
-	len_2 = read_hidden_line (&password_2, &n);
-	printf ("\n");
-
-	if (len_1 != len_2 || strcmp (password_1, password_2) != 0) {
-		free (password_1);
-		free (password_2);
-		fprintf (stderr, "password doesn't match\n");
-		return -1;
+	if (fail >= 3) {
+		if (password_1)
+			free (password_1);
+		goto error;
 	}
+
+	fail = 0;
+
+	while (fail < 3) {
+		printf ("input password again: ");
+		len_2 = read_hidden_line (&password_2, &n);
+		printf ("\n");
+
+		if (len_1 != len_2 || strcmp (password_1, password_2) != 0) {
+			fail++;
+			fprintf (stderr, "password doesn't match\n");
+		} else {
+			break;
+		}
+	}
+
+	if (fail >= 3)
+		goto error;
 
 	*password = password_1;
 	*len = len_1;
 
-	free (password_2);
+	ret = 0;
+error:
+	if (password_2)
+		free (password_2);
 
-	return 0;
+	return ret;
 }
 
 static int
@@ -364,14 +385,10 @@ update_request (void *new_list, int list_len)
 	efi_variable_t var;
 	uint8_t auth[SHA256_DIGEST_LENGTH];
 	char *password = NULL;
-	int pw_len, fail = 0;
+	int pw_len;
 	int ret = -1;
 
-	while (fail < 3 &&
-	     get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0)
-		fail++;
-
-	if (fail >= 3) {
+	if (get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0) {
 		fprintf (stderr, "Abort\n");
 		goto error;
 	}
@@ -745,14 +762,10 @@ set_password ()
 	efi_variable_t var;
 	uint8_t auth[SHA256_DIGEST_LENGTH];
 	char *password = NULL;
-	int pw_len, fail = 0;
+	int pw_len;
 	int ret = -1;
 
-	while (fail < 3 &&
-	     get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0)
-		fail++;
-
-	if (fail >= 3) {
+	while (get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0) {
 		fprintf (stderr, "Abort\n");
 		goto error;
 	}
@@ -789,15 +802,11 @@ set_validation (uint32_t state)
 	efi_variable_t var;
 	MokSBVar sbvar;
 	char *password = NULL;
-	int pw_len, fail = 0;
+	int pw_len;
 	efi_char16_t efichar_pass[PASSWORD_MAX];
 	int ret = -1;
 
-        while (fail < 3 &&
-	    get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0)
-		fail++;
-
-	if (fail >= 3) {
+        while (get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0) {
 		fprintf (stderr, "Abort\n");
 		goto error;
 	}
