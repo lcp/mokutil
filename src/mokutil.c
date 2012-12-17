@@ -939,6 +939,7 @@ main (int argc, char *argv[])
 	char *key_file = NULL;
 	int i, total;
 	int command;
+	int ret = -1;
 
 	if (argc < 2) {
 		print_help ();
@@ -1032,37 +1033,37 @@ main (int argc, char *argv[])
 
 	switch (command) {
 		case COMMAND_LIST_ENROLLED:
-			list_enrolled_keys ();
+			ret = list_enrolled_keys ();
 			break;
 		case COMMAND_LIST_NEW:
-			list_new_keys ();
+			ret = list_new_keys ();
 			break;
 		case COMMAND_IMPORT:
-			import_moks (files, total);
+			ret = import_moks (files, total);
 			break;
 		case COMMAND_DELETE:
-			delete_all ();
+			ret = delete_all ();
 			break;
 		case COMMAND_REVOKE:
-			revoke_request ();
+			ret = revoke_request ();
 			break;
 		case COMMAND_EXPORT:
-			export_moks ();
+			ret = export_moks ();
 			break;
 		case COMMAND_PASSWORD:
-			set_password ();
+			ret = set_password ();
 			break;
 		case COMMAND_DISABLE_VALIDATION:
-			disable_validation ();
+			ret = disable_validation ();
 			break;
 		case COMMAND_ENABLE_VALIDATION:
-			enable_validation ();
+			ret = enable_validation ();
 			break;
 		case COMMAND_SB_STATE:
-			sb_state ();
+			ret = sb_state ();
 			break;
 		case COMMAND_TEST_KEY:
-			test_key (key_file);
+			ret = test_key (key_file);
 			break;
 		default:
 			fprintf (stderr, "Unknown command\n");
@@ -1072,5 +1073,5 @@ main (int argc, char *argv[])
 	if (files)
 		free (files);
 
-	return 0;
+	return ret;
 }
