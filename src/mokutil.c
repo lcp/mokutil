@@ -41,6 +41,7 @@ enum Command {
 	COMMAND_DISABLE_VALIDATION,
 	COMMAND_ENABLE_VALIDATION,
 	COMMAND_SB_STATE,
+	COMMAND_TEST_KEY,
 };
 
 static void
@@ -76,6 +77,9 @@ print_help ()
 
 	printf("SecureBoot State:\n");
 	printf("  mokutil --sb-state\n\n");
+
+	printf("Test if the key is enrolled or not:\n");
+	printf("  mokutil --test-key\n\n");
 }
 
 static int
@@ -882,10 +886,57 @@ sb_state ()
 	return 0;
 }
 
+static int
+test_key (const char *key_file)
+{
+	struct stat buf;
+	void *key = NULL;
+	ssize_t read_size;
+	int fd, ret = -1;
+
+	if (stat (key_file, &buf) != 0) {
+		fprintf (stderr, "Failed to get file status, %s\n", key_file);
+		return -1;
+	}
+
+	key = malloc (buf.st_size);
+
+	fd = open (key_file, O_RDONLY);
+	if (fd < 0) {
+		fprintf (stderr, "Failed to open %s\n", key_file);
+		goto error;
+	}
+
+	read_size = read (fd, key, buf.st_size);
+	if (read_size < 0 || read_size != buf.st_size) {
+		fprintf (stderr, "Failed to read %s\n", key_file);
+		goto error;
+	}
+
+	if (!is_duplicate (key, read_size, "PK", EFI_GLOBAL_VARIABLE) &&
+	    !is_duplicate (key, read_size, "KEK", EFI_GLOBAL_VARIABLE) &&
+	    !is_duplicate (key, read_size, "db", EFI_GLOBAL_VARIABLE) &&
+	    !is_duplicate (key, read_size, "MokListRT", SHIM_LOCK_GUID) &&
+	    !is_duplicate (key, read_size, "MokNew", SHIM_LOCK_GUID)) {
+		printf ("%s is not enrolled\n", key_file);
+		ret = 0;
+	} else {
+		printf ("%s is already enrolled\n", key_file);
+		ret = 1;
+	}
+
+error:
+	if (key)
+		free (key);
+
+	return ret;
+}
+
 int
 main (int argc, char *argv[])
 {
 	char **files = NULL;
+	char *key_file = NULL;
 	int i, total;
 	int command;
 
@@ -962,6 +1013,17 @@ main (int argc, char *argv[])
 
 		command = COMMAND_SB_STATE;
 
+	} else if (strcmp (argv[1], "--test-key") == 0) {
+
+		if (argc < 3) {
+			print_help ();
+			return -1;
+		}
+
+		key_file = argv[2];
+
+		command = COMMAND_TEST_KEY;
+
 	} else {
 		fprintf (stderr, "Unknown argument: %s\n\n", argv[1]);
 		print_help ();
@@ -998,6 +1060,9 @@ main (int argc, char *argv[])
 			break;
 		case COMMAND_SB_STATE:
 			sb_state ();
+			break;
+		case COMMAND_TEST_KEY:
+			test_key (key_file);
 			break;
 		default:
 			fprintf (stderr, "Unknown command\n");
