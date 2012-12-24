@@ -509,7 +509,7 @@ verify_mok_new (void *mok_new, unsigned long mok_new_size)
 {
 	efi_variable_t mok_auth;
 	uint8_t auth[SHA256_DIGEST_LENGTH];
-	char *password;
+	char *password = NULL;
 	int pw_len, fail = 0;
 	size_t n;
 	int ret = 0;
