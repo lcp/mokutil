@@ -636,7 +636,7 @@ import_moks (char **files, uint32_t total)
 		/* whether this key is already enrolled... */
 		if (!is_duplicate (ptr, sizes[i], "PK", EFI_GLOBAL_VARIABLE) &&
 		    !is_duplicate (ptr, sizes[i], "KEK", EFI_GLOBAL_VARIABLE) &&
-		    !is_duplicate (ptr, sizes[i], "db", EFI_GLOBAL_VARIABLE) &&
+		    !is_duplicate (ptr, sizes[i], "db", EFI_IMAGE_SECURITY_DATABASE_GUID) &&
 		    !is_duplicate (ptr, sizes[i], "MokListRT", SHIM_LOCK_GUID) &&
 		    !is_duplicate (ptr, sizes[i], "MokNew", SHIM_LOCK_GUID)) {
 			ptr += sizes[i];
