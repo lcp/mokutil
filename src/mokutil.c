@@ -42,6 +42,7 @@ enum Command {
 	COMMAND_ENABLE_VALIDATION,
 	COMMAND_SB_STATE,
 	COMMAND_TEST_KEY,
+	COMMAND_RESET,
 };
 
 static void
@@ -57,8 +58,8 @@ print_help ()
 	printf("Import keys:\n");
 	printf("  mokutil --import <der file>...\n\n");
 
-	printf("Request to delete all keys\n");
-	printf("  mokutil --delete-all\n\n");
+	printf("Request to delete specific keys\n");
+	printf("  mokutil --delete <der file>...\n\n");
 
 	printf("Revoke the request:\n");
 	printf("  mokutil --revoke\n\n");
@@ -80,6 +81,9 @@ print_help ()
 
 	printf("Test if the key is enrolled or not:\n");
 	printf("  mokutil --test-key\n\n");
+
+	printf("Reset MOK list:\n");
+	printf("  mokutil --reset\n\n");
 }
 
 static int
@@ -384,13 +388,22 @@ generate_auth (void *new_list, unsigned long list_len, char *password,
 }
 
 static int
-update_request (void *new_list, int list_len)
+update_request (void *new_list, int list_len, uint8_t import)
 {
 	efi_variable_t var;
+	const char *req_name, *auth_name;
 	uint8_t auth[SHA256_DIGEST_LENGTH];
 	char *password = NULL;
 	int pw_len;
 	int ret = -1;
+
+	if (import) {
+		req_name = "MokNew";
+		auth_name = "MokAuth";
+	} else {
+		req_name = "MokDel";
+		auth_name = "MokDelAuth";
+	}
 
 	if (get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0) {
 		fprintf (stderr, "Abort\n");
@@ -403,7 +416,7 @@ update_request (void *new_list, int list_len)
 		/* Write MokNew*/
 		var.Data = new_list;
 		var.DataSize = list_len;
-		var.VariableName = "MokNew";
+		var.VariableName = req_name;
 
 		var.VendorGuid = SHIM_LOCK_GUID;
 		var.Attributes = EFI_VARIABLE_NON_VOLATILE
@@ -411,17 +424,18 @@ update_request (void *new_list, int list_len)
 			| EFI_VARIABLE_RUNTIME_ACCESS;
 
 		if (edit_variable (&var) != EFI_SUCCESS) {
-			fprintf (stderr, "Failed to enroll new keys\n");
+			fprintf (stderr, "Failed to %s keys\n",
+				 import ? "enroll new" : "delete");
 			goto error;
 		}
 	} else {
-		test_and_delete_var ("MokNew");
+		test_and_delete_var (req_name);
 	}
 
 	/* Write MokAuth */
 	var.Data = auth;
 	var.DataSize = SHA256_DIGEST_LENGTH;
-	var.VariableName = "MokAuth";
+	var.VariableName = auth_name;
 
 	var.VendorGuid = SHIM_LOCK_GUID;
 	var.Attributes = EFI_VARIABLE_NON_VOLATILE
@@ -429,8 +443,8 @@ update_request (void *new_list, int list_len)
 			 | EFI_VARIABLE_RUNTIME_ACCESS;
 
 	if (edit_variable (&var) != EFI_SUCCESS) {
-		fprintf (stderr, "Failed to write MokAuth\n");
-		test_and_delete_var ("MokNew");
+		fprintf (stderr, "Failed to write %s\n", auth_name);
+		test_and_delete_var (req_name);
 		goto error;
 	}
 
@@ -505,20 +519,47 @@ done:
 }
 
 static int
-verify_mok_new (void *mok_new, unsigned long mok_new_size)
+is_valid_request (void *mok, uint32_t mok_size, uint8_t import)
 {
-	efi_variable_t mok_auth;
+	if (import) {
+		if (is_duplicate (mok, mok_size, "PK", EFI_GLOBAL_VARIABLE) ||
+		    is_duplicate (mok, mok_size, "KEK", EFI_GLOBAL_VARIABLE) ||
+		    is_duplicate (mok, mok_size, "db", EFI_IMAGE_SECURITY_DATABASE_GUID) ||
+		    is_duplicate (mok, mok_size, "MokListRT", SHIM_LOCK_GUID) ||
+		    is_duplicate (mok, mok_size, "MokNew", SHIM_LOCK_GUID)) {
+			return 0;
+		}
+	} else {
+		if (!is_duplicate (mok, mok_size, "MokListRT", SHIM_LOCK_GUID) ||
+		    is_duplicate (mok, mok_size, "MokDel", SHIM_LOCK_GUID)) {
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
+static int
+verify_old_req (void *old_req, unsigned long old_req_size, uint8_t import)
+{
+	efi_variable_t req_auth;
+	const char *auth_name;
 	uint8_t auth[SHA256_DIGEST_LENGTH];
 	char *password = NULL;
 	int pw_len, fail = 0;
 	size_t n;
 	int ret = 0;
 
-	memset (&mok_auth, 0, sizeof(mok_auth));
-	mok_auth.VariableName = "MokAuth";
-	mok_auth.VendorGuid = SHIM_LOCK_GUID;
-	if (read_variable (&mok_auth) != EFI_SUCCESS) {
-		fprintf (stderr, "Failed to read MokAuth\n");
+	if (import)
+		auth_name = "MokAuth";
+	else
+		auth_name = "MokDelAuth";
+
+	memset (&req_auth, 0, sizeof(req_auth));
+	req_auth.VariableName = auth_name;
+	req_auth.VendorGuid = SHIM_LOCK_GUID;
+	if (read_variable (&req_auth) != EFI_SUCCESS) {
+		fprintf (stderr, "Failed to read %s\n", auth_name);
 		return 0;
 	}
 
@@ -534,8 +575,8 @@ verify_mok_new (void *mok_new, unsigned long mok_new_size)
 			continue;
 		}
 
-		generate_auth (mok_new, mok_new_size, password, pw_len, auth);
-		if (memcmp (auth, mok_auth.Data, SHA256_DIGEST_LENGTH) == 0) {
+		generate_auth (old_req, old_req_size, password, pw_len, auth);
+		if (memcmp (auth, req_auth.Data, SHA256_DIGEST_LENGTH) == 0) {
 			ret = 1;
 			break;
 		}
@@ -543,16 +584,17 @@ verify_mok_new (void *mok_new, unsigned long mok_new_size)
 		fail++;
 	}
 
-	if (mok_auth.Data)
-		free (mok_auth.Data);
+	if (req_auth.Data)
+		free (req_auth.Data);
 
 	return ret;
 }
 
 static int
-import_moks (char **files, uint32_t total)
+issue_mok_request (char **files, uint32_t total, uint8_t import)
 {
-	efi_variable_t mok_new;
+	efi_variable_t old_req;
+	const char *req_name;
 	void *new_list = NULL;
 	void *ptr;
 	struct stat buf;
@@ -567,6 +609,11 @@ import_moks (char **files, uint32_t total)
 
 	if (!files)
 		return -1;
+
+	if (import)
+		req_name = "MokNew";
+	else
+		req_name = "MokDel";
 
 	sizes = malloc (total * sizeof(uint32_t));
 
@@ -589,15 +636,15 @@ import_moks (char **files, uint32_t total)
 	list_size += sizeof(EFI_SIGNATURE_LIST) * total;
 	list_size += sizeof(efi_guid_t) * total;
 
-	memset (&mok_new, 0, sizeof(mok_new));
-	mok_new.VariableName = "MokNew";
-	mok_new.VendorGuid = SHIM_LOCK_GUID;
-	if (read_variable (&mok_new) == EFI_SUCCESS)
-		list_size += mok_new.DataSize;
+	memset (&old_req, 0, sizeof(old_req));
+	old_req.VariableName = req_name;
+	old_req.VendorGuid = SHIM_LOCK_GUID;
+	if (read_variable (&old_req) == EFI_SUCCESS)
+		list_size += old_req.DataSize;
 
 	new_list = malloc (list_size);
 	if (!new_list) {
-		fprintf (stderr, "Failed to allocate space for MokNew\n");
+		fprintf (stderr, "Failed to allocate space for %s\n", req_name);
 		goto error;
 	}
 	ptr = new_list;
@@ -633,15 +680,11 @@ import_moks (char **files, uint32_t total)
 			         files[i]);
 		}
 
-		/* whether this key is already enrolled... */
-		if (!is_duplicate (ptr, sizes[i], "PK", EFI_GLOBAL_VARIABLE) &&
-		    !is_duplicate (ptr, sizes[i], "KEK", EFI_GLOBAL_VARIABLE) &&
-		    !is_duplicate (ptr, sizes[i], "db", EFI_IMAGE_SECURITY_DATABASE_GUID) &&
-		    !is_duplicate (ptr, sizes[i], "MokListRT", SHIM_LOCK_GUID) &&
-		    !is_duplicate (ptr, sizes[i], "MokNew", SHIM_LOCK_GUID)) {
+		if (is_valid_request (ptr, sizes[i], import)) {
 			ptr += sizes[i];
 			real_size += sizes[i] + sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
 		} else {
+			printf ("Skip %s\n", files[i]);
 			ptr -= sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
 		}
 
@@ -654,25 +697,25 @@ import_moks (char **files, uint32_t total)
 		goto error;
 	}
 
-	/* append the keys in MokNew */
-	if (mok_new.Data) {
+	/* append the keys to the previous request */
+	if (old_req.Data) {
 		/* request the previous password to verify the keys */
-		if (!verify_mok_new (mok_new.Data, mok_new.DataSize)) {
+		if (!verify_old_req (old_req.Data, old_req.DataSize, import)) {
 			goto error;
 		}
 
-		memcpy (new_list + real_size, mok_new.Data, mok_new.DataSize);
-		real_size += mok_new.DataSize;
+		memcpy (new_list + real_size, old_req.Data, old_req.DataSize);
+		real_size += old_req.DataSize;
 	}
 
-	if (update_request (new_list, real_size) < 0) {
+	if (update_request (new_list, real_size, import) < 0) {
 		goto error;
 	}
 
 	ret = 0;
 error:
-	if (mok_new.Data)
-		free (mok_new.Data);
+	if (old_req.Data)
+		free (old_req.Data);
 	if (sizes)
 		free (sizes);
 	if (new_list)
@@ -682,14 +725,15 @@ error:
 }
 
 static int
-delete_all ()
+import_moks (char **files, uint32_t total)
 {
-	if (update_request (NULL, 0)) {
-		fprintf (stderr, "Failed to issue an delete request\n");
-		return -1;
-	}
+	return issue_mok_request (files, total, 1);
+}
 
-	return 0;
+static int
+delete_moks (char **files, uint32_t total)
+{
+	return issue_mok_request (files, total, 0);
 }
 
 static int
@@ -932,6 +976,17 @@ error:
 	return ret;
 }
 
+static int
+reset_moks ()
+{
+	if (update_request (NULL, 0, 1)) {
+		fprintf (stderr, "Failed to issue a reset request\n");
+		return -1;
+	}
+
+	return 0;
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -982,8 +1037,23 @@ main (int argc, char *argv[])
 
 		command = COMMAND_IMPORT;
 
-	} else if (strcmp (argv[1], "-D") == 0 ||
-	           strcmp (argv[1], "--delete-all") == 0) {
+	} else if (strcmp (argv[1], "-d") == 0 ||
+	           strcmp (argv[1], "--delete") == 0) {
+
+		if (argc < 3) {
+			print_help ();
+			return -1;
+		}
+		total = argc - 2;
+
+		files = malloc (total * sizeof(char *));
+		if (!files) {
+			fprintf (stderr, "Failed to allocate file list\n");
+			return -1;
+		}
+
+		for (i = 0; i < total; i++)
+			files[i] = argv[i+2];
 
 		command = COMMAND_DELETE;
 
@@ -1025,6 +1095,10 @@ main (int argc, char *argv[])
 
 		command = COMMAND_TEST_KEY;
 
+	} else if (strcmp (argv[1], "--reset") == 0) {
+
+		command = COMMAND_RESET;
+
 	} else {
 		fprintf (stderr, "Unknown argument: %s\n\n", argv[1]);
 		print_help ();
@@ -1042,7 +1116,7 @@ main (int argc, char *argv[])
 			ret = import_moks (files, total);
 			break;
 		case COMMAND_DELETE:
-			ret = delete_all ();
+			ret = delete_moks (files, total);
 			break;
 		case COMMAND_REVOKE:
 			ret = revoke_request ();
@@ -1064,6 +1138,9 @@ main (int argc, char *argv[])
 			break;
 		case COMMAND_TEST_KEY:
 			ret = test_key (key_file);
+			break;
+		case COMMAND_RESET:
+			ret = reset_moks ();
 			break;
 		default:
 			fprintf (stderr, "Unknown command\n");
