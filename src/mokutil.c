@@ -278,22 +278,27 @@ read_hidden_line (char **line, size_t *n)
 {
 	struct termios old, new;
 	int nread;
+	int isTTY = isatty(fileno (stdin));
 
-	/* Turn echoing off and fail if we can't. */
-	if (tcgetattr (fileno (stdin), &old) != 0)
-		return -1;
+	if (isTTY) {
+		/* Turn echoing off and fail if we can't. */
+		if (tcgetattr (fileno (stdin), &old) != 0)
+			return -1;
 
-	new = old;
-	new.c_lflag &= ~ECHO;
+		new = old;
+		new.c_lflag &= ~ECHO;
 
-	if (tcsetattr (fileno (stdin), TCSAFLUSH, &new) != 0)
-		return -1;
+		if (tcsetattr (fileno (stdin), TCSAFLUSH, &new) != 0)
+			return -1;
+	}
 
 	/* Read the password. */
 	nread = getline (line, n, stdin);
 
-	/* Restore terminal. */
-	(void) tcsetattr (fileno (stdin), TCSAFLUSH, &old);
+	if (isTTY) {
+		/* Restore terminal. */
+		(void) tcsetattr (fileno (stdin), TCSAFLUSH, &old);
+	}
 
 	/* Remove the newline */
 	(*line)[nread-1] = '\0';
