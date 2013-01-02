@@ -617,6 +617,8 @@ issue_mok_request (char **files, uint32_t total, uint8_t import)
 
 	sizes = malloc (total * sizeof(uint32_t));
 
+	memset (&old_req, 0, sizeof(old_req));
+
 	if (!sizes) {
 		fprintf (stderr, "Failed to allocate space for sizes\n");
 		goto error;
@@ -636,7 +638,6 @@ issue_mok_request (char **files, uint32_t total, uint8_t import)
 	list_size += sizeof(EFI_SIGNATURE_LIST) * total;
 	list_size += sizeof(efi_guid_t) * total;
 
-	memset (&old_req, 0, sizeof(old_req));
 	old_req.VariableName = req_name;
 	old_req.VendorGuid = SHIM_LOCK_GUID;
 	if (read_variable (&old_req) == EFI_SUCCESS)
