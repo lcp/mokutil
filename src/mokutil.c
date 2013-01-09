@@ -20,6 +20,8 @@ EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 
 #define PASSWORD_MAX 16
 #define PASSWORD_MIN 8
 
+#define SALT_SIZE 16
+
 #define HELP               0x1
 #define LIST_ENROLLED      0x2
 #define LIST_NEW           0x4
@@ -366,8 +368,19 @@ error:
 	return ret;
 }
 
+static void
+generate_salt (uint8_t salt[], unsigned int salt_len)
+{
+	int i;
+
+	srand (time (NULL));
+
+	for (i = 0; i < salt_len; i++)
+		salt[i] = rand() % 256;
+}
+
 static int
-generate_auth (void *new_list, unsigned long list_len, char *password,
+generate_hash (void *salt, unsigned int salt_len, char *password,
 	       int pw_len, uint8_t *auth)
 {
 	efi_char16_t efichar_pass[PASSWORD_MAX+1];
@@ -382,8 +395,8 @@ generate_auth (void *new_list, unsigned long list_len, char *password,
 
 	SHA256_Init (&ctx);
 
-	if (new_list)
-		SHA256_Update (&ctx, new_list, list_len);
+	if (salt)
+		SHA256_Update (&ctx, salt, salt_len);
 
 	SHA256_Update (&ctx, efichar_pass, efichar_len);
 
@@ -397,7 +410,9 @@ update_request (void *new_list, int list_len, uint8_t import)
 {
 	efi_variable_t var;
 	const char *req_name, *auth_name;
-	uint8_t auth[SHA256_DIGEST_LENGTH];
+	uint8_t salt[SALT_SIZE];
+	uint8_t hash[SHA256_DIGEST_LENGTH];
+	uint8_t auth[SALT_SIZE + SHA256_DIGEST_LENGTH];
 	char *password = NULL;
 	int pw_len;
 	int ret = -1;
@@ -415,7 +430,13 @@ update_request (void *new_list, int list_len, uint8_t import)
 		goto error;
 	}
 
-	generate_auth (new_list, list_len, password, pw_len, auth);
+	generate_salt (salt, SALT_SIZE);
+	if (generate_hash (salt, SALT_SIZE, password, pw_len, hash) < 0) {
+		fprintf (stderr, "Couldn't generate hash\n");
+		goto error;
+	}
+	memcpy (auth, salt, SALT_SIZE);
+	memcpy (auth + SALT_SIZE, hash, SHA256_DIGEST_LENGTH);
 
 	if (new_list) {
 		/* Write MokNew*/
@@ -439,7 +460,7 @@ update_request (void *new_list, int list_len, uint8_t import)
 
 	/* Write MokAuth */
 	var.Data = auth;
-	var.DataSize = SHA256_DIGEST_LENGTH;
+	var.DataSize = SHA256_DIGEST_LENGTH + SALT_SIZE;
 	var.VariableName = auth_name;
 
 	var.VendorGuid = SHIM_LOCK_GUID;
@@ -542,57 +563,6 @@ is_valid_request (void *mok, uint32_t mok_size, uint8_t import)
 	}
 
 	return 1;
-}
-
-static int
-verify_old_req (void *old_req, unsigned long old_req_size, uint8_t import)
-{
-	efi_variable_t req_auth;
-	const char *auth_name;
-	uint8_t auth[SHA256_DIGEST_LENGTH];
-	char *password = NULL;
-	int pw_len, fail = 0;
-	size_t n;
-	int ret = 0;
-
-	if (import)
-		auth_name = "MokAuth";
-	else
-		auth_name = "MokDelAuth";
-
-	memset (&req_auth, 0, sizeof(req_auth));
-	req_auth.VariableName = auth_name;
-	req_auth.VendorGuid = SHIM_LOCK_GUID;
-	if (read_variable (&req_auth) != EFI_SUCCESS) {
-		fprintf (stderr, "Failed to read %s\n", auth_name);
-		return 0;
-	}
-
-	while (fail < 3) {
-		printf ("input old password: ");
-		pw_len = read_hidden_line (&password, &n);
-		printf ("\n");
-
-		if (pw_len > PASSWORD_MAX || pw_len < PASSWORD_MIN) {
-			free (password);
-			fprintf (stderr, "invalid password\n");
-			fail++;
-			continue;
-		}
-
-		generate_auth (old_req, old_req_size, password, pw_len, auth);
-		if (memcmp (auth, req_auth.Data, SHA256_DIGEST_LENGTH) == 0) {
-			ret = 1;
-			break;
-		}
-
-		fail++;
-	}
-
-	if (req_auth.Data)
-		free (req_auth.Data);
-
-	return ret;
 }
 
 static int
@@ -705,11 +675,6 @@ issue_mok_request (char **files, uint32_t total, uint8_t import)
 
 	/* append the keys to the previous request */
 	if (old_req.Data) {
-		/* request the previous password to verify the keys */
-		if (!verify_old_req (old_req.Data, old_req.DataSize, import)) {
-			goto error;
-		}
-
 		memcpy (new_list + real_size, old_req.Data, old_req.DataSize);
 		real_size += old_req.DataSize;
 	}
@@ -745,8 +710,6 @@ delete_moks (char **files, uint32_t total)
 static int
 revoke_request ()
 {
-	/* TODO request the old password? */
-
 	if (test_and_delete_var ("MokNew") < 0)
 		return -1;
 
@@ -814,7 +777,9 @@ static int
 set_password ()
 {
 	efi_variable_t var;
-	uint8_t auth[SHA256_DIGEST_LENGTH];
+	uint8_t salt[SALT_SIZE];
+	uint8_t hash[SHA256_DIGEST_LENGTH];
+	uint8_t auth[SHA256_DIGEST_LENGTH + SALT_SIZE];
 	char *password = NULL;
 	int pw_len;
 	int ret = -1;
@@ -824,13 +789,16 @@ set_password ()
 		goto error;
 	}
 
-	if (generate_auth (NULL, 0, password, pw_len, auth) < 0) {
+	generate_salt (salt, SALT_SIZE);
+	if (generate_hash (salt, SALT_SIZE, password, pw_len, hash) < 0) {
 		fprintf (stderr, "Couldn't generate hash\n");
 		goto error;
 	}
+	memcpy (auth, salt, SALT_SIZE);
+	memcpy (auth + SALT_SIZE, hash, SHA256_DIGEST_LENGTH);
 
 	var.Data = auth;
-	var.DataSize = SHA256_DIGEST_LENGTH;
+	var.DataSize = SHA256_DIGEST_LENGTH + SALT_SIZE;
 	var.VariableName = "MokPW";
 
 	var.VendorGuid = SHIM_LOCK_GUID;
