@@ -6,6 +6,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <termios.h>
+#include <getopt.h>
 
 #include <openssl/sha.h>
 #include <openssl/x509.h>
@@ -19,6 +20,20 @@ EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 
 #define PASSWORD_MAX 16
 #define PASSWORD_MIN 8
 
+#define HELP               0x1
+#define LIST_ENROLLED      0x2
+#define LIST_NEW           0x4
+#define IMPORT             0x8
+#define DELETE             0x10
+#define REVOKE             0x20
+#define EXPORT             0x40
+#define PASSWORD           0x80
+#define DISABLE_VALIDATION 0x100
+#define ENABLE_VALIDATION  0x200
+#define SB_STATE           0x400
+#define TEST_KEY           0x800
+#define RESET              0x1000
+
 typedef struct {
 	uint32_t mok_size;
 	void    *mok;
@@ -29,21 +44,6 @@ typedef struct {
 	uint32_t password_length;
 	uint16_t password[PASSWORD_MAX];
 } MokSBVar;
-
-enum Command {
-	COMMAND_LIST_ENROLLED,
-	COMMAND_LIST_NEW,
-	COMMAND_IMPORT,
-	COMMAND_DELETE,
-	COMMAND_REVOKE,
-	COMMAND_EXPORT,
-	COMMAND_PASSWORD,
-	COMMAND_DISABLE_VALIDATION,
-	COMMAND_ENABLE_VALIDATION,
-	COMMAND_SB_STATE,
-	COMMAND_TEST_KEY,
-	COMMAND_RESET,
-};
 
 static void
 print_help ()
@@ -80,7 +80,7 @@ print_help ()
 	printf("  mokutil --sb-state\n\n");
 
 	printf("Test if the key is enrolled or not:\n");
-	printf("  mokutil --test-key\n\n");
+	printf("  mokutil --test-key <der file>\n\n");
 
 	printf("Reset MOK list:\n");
 	printf("  mokutil --reset\n\n");
@@ -998,163 +998,152 @@ main (int argc, char *argv[])
 {
 	char **files = NULL;
 	char *key_file = NULL;
-	int i, total;
-	int command;
+	const char *option;
+	int c, i, f_ind, total = 0;
+	unsigned int command = 0;
 	int ret = -1;
 
-	if (argc < 2) {
-		print_help ();
-		return 0;
-	}
+	while (1) {
+		static struct option long_options[] = {
+			{"help",               no_argument,       0, 'h'},
+			{"list-enrolled",      no_argument,       0, 0  },
+			{"list-new",	       no_argument,       0, 0  },
+			{"import",             required_argument, 0, 'i'},
+			{"delete",             required_argument, 0, 'd'},
+			{"revoke",             no_argument,       0, 0  },
+			{"export",             no_argument,       0, 'x'},
+			{"password",           no_argument,       0, 'p'},
+			{"disable-validation", no_argument,       0, 0  },
+			{"enable-validation",  no_argument,       0, 0  },
+			{"sb-state",           no_argument,       0, 0  },
+			{"test-key",           required_argument, 0, 't'},
+			{"reset",              no_argument,       0, 0  },
+			{0, 0, 0, 0}
+		};
 
-	if (strcmp (argv[1], "-h") == 0 ||
-	    strcmp (argv[1], "--help") == 0) {
+		int option_index = 0;
+		c = getopt_long (argc, argv, "d:hi:pt:x",
+				 long_options, &option_index);
 
-		print_help ();
-		return 0;
+		if (c == -1)
+			break;
 
-	} else if (strcmp (argv[1], "-le") == 0 ||
-	           strcmp (argv[1], "--list-enrolled") == 0) {
+		switch (c) {
+		case 0:
+			option = long_options[option_index].name;
+			if (strcmp (option, "list-enrolled") == 0) {
+				command |= LIST_ENROLLED;
+			} else if (strcmp (option, "list-new") == 0) {
+				command |= LIST_NEW;
+			} else if (strcmp (option, "revoke") == 0) {
+				command |= REVOKE;
+			} else if (strcmp (option, "disable-validation") == 0) {
+				command |= DISABLE_VALIDATION;
+			} else if (strcmp (option, "enable-validation") == 0) {
+				command |= ENABLE_VALIDATION;
+			} else if (strcmp (option, "sb-state") == 0) {
+				command |= SB_STATE;
+			} else if (strcmp (option, "reset") == 0) {
+				command |= RESET;
+			}
+			break;
+		case 'd':
+		case 'i':
+			if (c == 'd')
+				command |= DELETE;
+			else
+				command |= IMPORT;
 
-		command = COMMAND_LIST_ENROLLED;
+			if (files) {
+				command |= HELP;
+				break;
+			}
 
-	} else if (strcmp (argv[1], "-ln") == 0 ||
-	           strcmp (argv[1], "--list-new") == 0) {
+			total = 0;
+			for (f_ind = optind - 1;
+			     f_ind < argc && *argv[f_ind] != '-';
+			     f_ind++) {
+				total++;
+			}
 
-		command = COMMAND_LIST_NEW;
+			files = malloc (total * sizeof (char *));
+			for (i = 0; i < total; i++) {
+				f_ind = i + optind - 1;
+				files[i] = malloc (strlen(argv[f_ind]) + 1);
+				strcpy (files[i], argv[f_ind]);
+			}
 
-	} else if (strcmp (argv[1], "-i") == 0 ||
-	           strcmp (argv[1], "--import") == 0) {
+			break;
+		case 'p':
+			command |= PASSWORD;
+			break;
+		case 't':
+			key_file = strdup (optarg);
 
-		if (argc < 3) {
-			print_help ();
-			return -1;
+			command |= TEST_KEY;
+			break;
+		case 'x':
+			command |= EXPORT;
+			break;
+		case 'h':
+		case '?':
+			command |= HELP;
+			break;
+		default:
+			abort ();
 		}
-		total = argc - 2;
-
-		files = malloc (total * sizeof(char *));
-		if (!files) {
-			fprintf (stderr, "Failed to allocate file list\n");
-			return -1;
-		}
-
-		for (i = 0; i < total; i++)
-			files[i] = argv[i+2];
-
-		command = COMMAND_IMPORT;
-
-	} else if (strcmp (argv[1], "-d") == 0 ||
-	           strcmp (argv[1], "--delete") == 0) {
-
-		if (argc < 3) {
-			print_help ();
-			return -1;
-		}
-		total = argc - 2;
-
-		files = malloc (total * sizeof(char *));
-		if (!files) {
-			fprintf (stderr, "Failed to allocate file list\n");
-			return -1;
-		}
-
-		for (i = 0; i < total; i++)
-			files[i] = argv[i+2];
-
-		command = COMMAND_DELETE;
-
-	} else if (strcmp (argv[1], "-r") == 0 ||
-	           strcmp (argv[1], "--revoke") == 0) {
-
-		command = COMMAND_REVOKE;
-
-	} else if (strcmp (argv[1], "-x") == 0 ||
-	           strcmp (argv[1], "--export") == 0) {
-
-		command = COMMAND_EXPORT;
-
-	} else if (strcmp (argv[1], "-p") == 0 ||
-	           strcmp (argv[1], "--password") == 0) {
-
-		command = COMMAND_PASSWORD;
-
-	} else if (strcmp (argv[1], "--disable-validation") == 0) {
-
-		command = COMMAND_DISABLE_VALIDATION;
-
-	} else if (strcmp (argv[1], "--enable-validation") == 0) {
-
-		command = COMMAND_ENABLE_VALIDATION;
-
-	} else if (strcmp (argv[1], "--sb-state") == 0) {
-
-		command = COMMAND_SB_STATE;
-
-	} else if (strcmp (argv[1], "--test-key") == 0) {
-
-		if (argc < 3) {
-			print_help ();
-			return -1;
-		}
-
-		key_file = argv[2];
-
-		command = COMMAND_TEST_KEY;
-
-	} else if (strcmp (argv[1], "--reset") == 0) {
-
-		command = COMMAND_RESET;
-
-	} else {
-		fprintf (stderr, "Unknown argument: %s\n\n", argv[1]);
-		print_help ();
-		return -1;
 	}
 
 	switch (command) {
-		case COMMAND_LIST_ENROLLED:
+		case LIST_ENROLLED:
 			ret = list_enrolled_keys ();
 			break;
-		case COMMAND_LIST_NEW:
+		case LIST_NEW:
 			ret = list_new_keys ();
 			break;
-		case COMMAND_IMPORT:
+		case IMPORT:
 			ret = import_moks (files, total);
 			break;
-		case COMMAND_DELETE:
+		case DELETE:
 			ret = delete_moks (files, total);
 			break;
-		case COMMAND_REVOKE:
+		case REVOKE:
 			ret = revoke_request ();
 			break;
-		case COMMAND_EXPORT:
+		case EXPORT:
 			ret = export_moks ();
 			break;
-		case COMMAND_PASSWORD:
+		case PASSWORD:
 			ret = set_password ();
 			break;
-		case COMMAND_DISABLE_VALIDATION:
+		case DISABLE_VALIDATION:
 			ret = disable_validation ();
 			break;
-		case COMMAND_ENABLE_VALIDATION:
+		case ENABLE_VALIDATION:
 			ret = enable_validation ();
 			break;
-		case COMMAND_SB_STATE:
+		case SB_STATE:
 			ret = sb_state ();
 			break;
-		case COMMAND_TEST_KEY:
+		case TEST_KEY:
 			ret = test_key (key_file);
 			break;
-		case COMMAND_RESET:
+		case RESET:
 			ret = reset_moks ();
 			break;
 		default:
-			fprintf (stderr, "Unknown command\n");
+			print_help ();
 			break;
 	}
 
-	if (files)
+	if (files) {
+		for (i = 0; i < total; i++)
+			free (files[i]);
 		free (files);
+	}
+
+	if (key_file)
+		free (key_file);
 
 	return ret;
 }
