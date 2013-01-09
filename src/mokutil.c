@@ -947,6 +947,8 @@ error:
 	if (key)
 		free (key);
 
+	close (fd);
+
 	return ret;
 }
 
