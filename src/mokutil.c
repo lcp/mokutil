@@ -36,6 +36,7 @@ EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 
 #define TEST_KEY           0x800
 #define RESET              0x1000
 #define HASH_FILE          0x2000
+#define GENERATE_PW_HASH   0x4000
 
 typedef struct {
 	uint32_t mok_size;
@@ -1045,12 +1046,65 @@ reset_moks (const char *hash_file)
 	return 0;
 }
 
+static int
+generate_pw_hash (const char *input_pw)
+{
+	uint8_t salt[SALT_SIZE];
+	uint8_t hash[SHA256_DIGEST_LENGTH];
+	char *password = NULL;
+	int pw_len, i, ret = -1;
+
+	if (input_pw) {
+		pw_len = strlen (input_pw);
+		if (pw_len > PASSWORD_MAX || pw_len < PASSWORD_MIN) {
+			fprintf (stderr, "password should be %d~%d characters\n",
+				 PASSWORD_MIN, PASSWORD_MAX);
+			return -1;
+		}
+
+		password = strdup (input_pw);
+
+		if (!password) {
+			fprintf (stderr, "Failed to duplicate string\n");
+			return -1;
+		}
+	} else {
+		if (get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0) {
+			fprintf (stderr, "Abort\n");
+			return -1;
+		}
+	}
+
+	generate_salt (salt, SALT_SIZE);
+	if (generate_hash (salt, SALT_SIZE, password, pw_len, hash) < 0) {
+		fprintf (stderr, "Couldn't generate hash\n");
+		goto error;
+	}
+
+	/* Print the salt and hash */
+	for (i = 0; i < SALT_SIZE; i++) {
+		printf ("%x%x", salt[i]/16, salt[i]%16);
+	}
+	putchar ('.');
+	for (i = 0; i < SHA256_DIGEST_LENGTH; i++)
+		printf ("%x%x", hash[i]/16, hash[i]%16);
+	putchar ('\n');
+
+	ret = 0;
+error:
+	if (password)
+		free (password);
+
+	return ret;
+}
+
 int
 main (int argc, char *argv[])
 {
 	char **files = NULL;
 	char *key_file = NULL;
 	char *hash_file = NULL;
+	char *input_pw = NULL;
 	const char *option;
 	int c, i, f_ind, total = 0;
 	unsigned int command = 0;
@@ -1072,11 +1126,12 @@ main (int argc, char *argv[])
 			{"test-key",           required_argument, 0, 't'},
 			{"reset",              no_argument,       0, 0  },
 			{"hash-file",          required_argument, 0, 'f'},
+			{"generate-hash",      optional_argument, 0, 'g'},
 			{0, 0, 0, 0}
 		};
 
 		int option_index = 0;
-		c = getopt_long (argc, argv, "d:f:hi:pt:x",
+		c = getopt_long (argc, argv, "d:f:g::hi:pt:x",
 				 long_options, &option_index);
 
 		if (c == -1)
@@ -1132,6 +1187,12 @@ main (int argc, char *argv[])
 			hash_file = strdup (optarg);
 
 			command |= HASH_FILE;
+			break;
+		case 'g':
+			if (optarg)
+				input_pw = strdup (optarg);
+
+			command |= GENERATE_PW_HASH;
 			break;
 		case 'p':
 			command |= PASSWORD;
@@ -1194,6 +1255,9 @@ main (int argc, char *argv[])
 		case RESET | HASH_FILE:
 			ret = reset_moks (hash_file);
 			break;
+		case GENERATE_PW_HASH:
+			ret = generate_pw_hash (input_pw);
+			break;
 		default:
 			print_help ();
 			break;
@@ -1210,6 +1274,9 @@ main (int argc, char *argv[])
 
 	if (hash_file)
 		free (hash_file);
+
+	if (input_pw)
+		free (input_pw);
 
 	return ret;
 }
