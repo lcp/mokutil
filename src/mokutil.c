@@ -35,6 +35,7 @@ EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 
 #define SB_STATE           0x400
 #define TEST_KEY           0x800
 #define RESET              0x1000
+#define HASH_FILE          0x2000
 
 typedef struct {
 	uint32_t mok_size;
@@ -406,7 +407,73 @@ generate_hash (void *salt, unsigned int salt_len, char *password,
 }
 
 static int
-update_request (void *new_list, int list_len, uint8_t import)
+char_to_int (const char c)
+{
+	if (c >= '0' && c <= '9')
+		return (c - '0');
+
+	if (c >= 'A' && c <= 'F')
+		return (c - 'A' + 10);
+
+	if (c >= 'a' && c <= 'f')
+		return (c - 'a' + 10);
+
+	return -1;
+}
+
+static int
+read_hex_array (const char *string, char *out, int len)
+{
+	int i, digit_1, digit_2;
+
+	for (i = 0; i < len; i++) {
+		digit_1 = char_to_int (string[2*i]);
+		digit_2 = char_to_int (string[2*i + 1]);
+		if (digit_1 < 0 || digit_2 < 0)
+			return -1;
+
+		out[i] = (char)digit_1 * 16 + (char)digit_2;
+	}
+
+	return 0;
+}
+
+static int
+get_hash_from_file (const char *file, void *salt, void *hash)
+{
+	FILE *fptr;
+	char salt_string[2*SALT_SIZE];
+	char hash_string[2*SHA256_DIGEST_LENGTH];
+
+	fptr = fopen (file, "r");
+	if (fptr == NULL) {
+		fprintf (stderr, "Failed to open %s\n", file);
+		return -1;
+	}
+
+	memset (salt_string, 0, 2*SALT_SIZE);
+	memset (hash_string, 0, 2*SHA256_DIGEST_LENGTH);
+
+	fscanf (fptr, "%32c.%64c", salt_string, hash_string);
+
+	fclose (fptr);
+
+	if (read_hex_array (salt_string, salt, SALT_SIZE) < 0) {
+		fprintf (stderr, "Corrupted salt\n");
+		return -1;
+	}
+
+	if (read_hex_array (hash_string, hash, SHA256_DIGEST_LENGTH) < 0) {
+		fprintf (stderr, "Corrupted hash\n");
+		return -1;
+	}
+
+	return 0;
+}
+
+static int
+update_request (void *new_list, int list_len, uint8_t import,
+		const char *hash_file)
 {
 	efi_variable_t var;
 	const char *req_name, *auth_name;
@@ -425,15 +492,22 @@ update_request (void *new_list, int list_len, uint8_t import)
 		auth_name = "MokDelAuth";
 	}
 
-	if (get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0) {
-		fprintf (stderr, "Abort\n");
-		goto error;
-	}
+	if (hash_file) {
+		if (get_hash_from_file (hash_file, salt, hash) < 0) {
+			fprintf (stderr, "Failed to read hash\n");
+			goto error;
+		}
+	} else {
+		if (get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0) {
+			fprintf (stderr, "Abort\n");
+			goto error;
+		}
 
-	generate_salt (salt, SALT_SIZE);
-	if (generate_hash (salt, SALT_SIZE, password, pw_len, hash) < 0) {
-		fprintf (stderr, "Couldn't generate hash\n");
-		goto error;
+		generate_salt (salt, SALT_SIZE);
+		if (generate_hash (salt, SALT_SIZE, password, pw_len, hash) < 0) {
+			fprintf (stderr, "Couldn't generate hash\n");
+			goto error;
+		}
 	}
 	memcpy (auth, salt, SALT_SIZE);
 	memcpy (auth + SALT_SIZE, hash, SHA256_DIGEST_LENGTH);
@@ -566,7 +640,8 @@ is_valid_request (void *mok, uint32_t mok_size, uint8_t import)
 }
 
 static int
-issue_mok_request (char **files, uint32_t total, uint8_t import)
+issue_mok_request (char **files, uint32_t total, uint8_t import,
+		   const char *hash_file)
 {
 	efi_variable_t old_req;
 	const char *req_name;
@@ -679,7 +754,7 @@ issue_mok_request (char **files, uint32_t total, uint8_t import)
 		real_size += old_req.DataSize;
 	}
 
-	if (update_request (new_list, real_size, import) < 0) {
+	if (update_request (new_list, real_size, import, hash_file) < 0) {
 		goto error;
 	}
 
@@ -696,15 +771,15 @@ error:
 }
 
 static int
-import_moks (char **files, uint32_t total)
+import_moks (char **files, uint32_t total, const char *hash_file)
 {
-	return issue_mok_request (files, total, 1);
+	return issue_mok_request (files, total, 1, hash_file);
 }
 
 static int
-delete_moks (char **files, uint32_t total)
+delete_moks (char **files, uint32_t total, const char *hash_file)
 {
-	return issue_mok_request (files, total, 0);
+	return issue_mok_request (files, total, 0, hash_file);
 }
 
 static int
@@ -774,7 +849,7 @@ error:
 }
 
 static int
-set_password ()
+set_password (const char *hash_file)
 {
 	efi_variable_t var;
 	uint8_t salt[SALT_SIZE];
@@ -784,15 +859,22 @@ set_password ()
 	int pw_len;
 	int ret = -1;
 
-	if (get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0) {
-		fprintf (stderr, "Abort\n");
-		goto error;
-	}
+	if (hash_file) {
+		if (get_hash_from_file (hash_file, salt, hash) < 0) {
+			fprintf (stderr, "Failed to read hash\n");
+			goto error;
+		}
+	} else {
+		if (get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0) {
+			fprintf (stderr, "Abort\n");
+			goto error;
+		}
 
-	generate_salt (salt, SALT_SIZE);
-	if (generate_hash (salt, SALT_SIZE, password, pw_len, hash) < 0) {
-		fprintf (stderr, "Couldn't generate hash\n");
-		goto error;
+		generate_salt (salt, SALT_SIZE);
+		if (generate_hash (salt, SALT_SIZE, password, pw_len, hash) < 0) {
+			fprintf (stderr, "Couldn't generate hash\n");
+			goto error;
+		}
 	}
 	memcpy (auth, salt, SALT_SIZE);
 	memcpy (auth + SALT_SIZE, hash, SHA256_DIGEST_LENGTH);
@@ -953,9 +1035,9 @@ error:
 }
 
 static int
-reset_moks ()
+reset_moks (const char *hash_file)
 {
-	if (update_request (NULL, 0, 1)) {
+	if (update_request (NULL, 0, 1, hash_file)) {
 		fprintf (stderr, "Failed to issue a reset request\n");
 		return -1;
 	}
@@ -968,6 +1050,7 @@ main (int argc, char *argv[])
 {
 	char **files = NULL;
 	char *key_file = NULL;
+	char *hash_file = NULL;
 	const char *option;
 	int c, i, f_ind, total = 0;
 	unsigned int command = 0;
@@ -988,11 +1071,12 @@ main (int argc, char *argv[])
 			{"sb-state",           no_argument,       0, 0  },
 			{"test-key",           required_argument, 0, 't'},
 			{"reset",              no_argument,       0, 0  },
+			{"hash-file",          required_argument, 0, 'f'},
 			{0, 0, 0, 0}
 		};
 
 		int option_index = 0;
-		c = getopt_long (argc, argv, "d:hi:pt:x",
+		c = getopt_long (argc, argv, "d:f:hi:pt:x",
 				 long_options, &option_index);
 
 		if (c == -1)
@@ -1044,6 +1128,11 @@ main (int argc, char *argv[])
 			}
 
 			break;
+		case 'f':
+			hash_file = strdup (optarg);
+
+			command |= HASH_FILE;
+			break;
 		case 'p':
 			command |= PASSWORD;
 			break;
@@ -1072,10 +1161,12 @@ main (int argc, char *argv[])
 			ret = list_new_keys ();
 			break;
 		case IMPORT:
-			ret = import_moks (files, total);
+		case IMPORT | HASH_FILE:
+			ret = import_moks (files, total, hash_file);
 			break;
 		case DELETE:
-			ret = delete_moks (files, total);
+		case DELETE | HASH_FILE:
+			ret = delete_moks (files, total, hash_file);
 			break;
 		case REVOKE:
 			ret = revoke_request ();
@@ -1084,7 +1175,8 @@ main (int argc, char *argv[])
 			ret = export_moks ();
 			break;
 		case PASSWORD:
-			ret = set_password ();
+		case PASSWORD | HASH_FILE:
+			ret = set_password (hash_file);
 			break;
 		case DISABLE_VALIDATION:
 			ret = disable_validation ();
@@ -1099,7 +1191,8 @@ main (int argc, char *argv[])
 			ret = test_key (key_file);
 			break;
 		case RESET:
-			ret = reset_moks ();
+		case RESET | HASH_FILE:
+			ret = reset_moks (hash_file);
 			break;
 		default:
 			print_help ();
@@ -1114,6 +1207,9 @@ main (int argc, char *argv[])
 
 	if (key_file)
 		free (key_file);
+
+	if (hash_file)
+		free (hash_file);
 
 	return ret;
 }
