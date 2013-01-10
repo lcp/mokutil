@@ -784,7 +784,7 @@ set_password ()
 	int pw_len;
 	int ret = -1;
 
-	while (get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0) {
+	if (get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0) {
 		fprintf (stderr, "Abort\n");
 		goto error;
 	}
@@ -828,7 +828,7 @@ set_validation (uint32_t state)
 	efi_char16_t efichar_pass[PASSWORD_MAX];
 	int ret = -1;
 
-        while (get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0) {
+        if (get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0) {
 		fprintf (stderr, "Abort\n");
 		goto error;
 	}
