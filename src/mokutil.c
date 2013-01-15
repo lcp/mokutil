@@ -27,16 +27,17 @@ EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 
 #define LIST_NEW           0x4
 #define IMPORT             0x8
 #define DELETE             0x10
-#define REVOKE             0x20
-#define EXPORT             0x40
-#define PASSWORD           0x80
-#define DISABLE_VALIDATION 0x100
-#define ENABLE_VALIDATION  0x200
-#define SB_STATE           0x400
-#define TEST_KEY           0x800
-#define RESET              0x1000
-#define HASH_FILE          0x2000
-#define GENERATE_PW_HASH   0x4000
+#define REVOKE_IMPORT      0x20
+#define REVOKE_DELETE      0x40
+#define EXPORT             0x80
+#define PASSWORD           0x100
+#define DISABLE_VALIDATION 0x200
+#define ENABLE_VALIDATION  0x400
+#define SB_STATE           0x800
+#define TEST_KEY           0x1000
+#define RESET              0x2000
+#define HASH_FILE          0x4000
+#define GENERATE_PW_HASH   0x8000
 
 typedef struct {
 	uint32_t mok_size;
@@ -61,7 +62,8 @@ print_help ()
 	printf ("  --list-new\t\t\t\tList the keys to be enrolled\n");
 	printf ("  --import <der file...>\t\tImport keys\n");
 	printf ("  --delete <der file...>\t\tDelete specific keys\n");
-	printf ("  --revoke\t\t\t\tRevoke the import request\n");
+	printf ("  --revoke-import\t\t\tRevoke the import request\n");
+	printf ("  --revoke-delete\t\t\tRevoke the delete request\n");
 	printf ("  --export\t\t\t\tExport enrolled keys to files\n");
 	printf ("  --password\t\t\t\tSet MOK password\n");
 	printf ("  --disable-validation\t\t\tDisable signature validation\n");
@@ -771,13 +773,19 @@ delete_moks (char **files, uint32_t total, const char *hash_file)
 }
 
 static int
-revoke_request ()
+revoke_request (uint8_t import)
 {
-	if (test_and_delete_var ("MokNew") < 0)
-		return -1;
-
-	if (test_and_delete_var ("MokAuth") < 0)
-		return -1;
+	if (import == 1) {
+		if (test_and_delete_var ("MokNew") < 0)
+			return -1;
+		if (test_and_delete_var ("MokAuth") < 0)
+			return -1;
+	} else {
+		if (test_and_delete_var ("MokDel") < 0)
+			return -1;
+		if (test_and_delete_var ("MokDelAuth") < 0)
+			return -1;
+	}
 
 	return 0;
 }
@@ -1104,7 +1112,8 @@ main (int argc, char *argv[])
 			{"list-new",	       no_argument,       0, 0  },
 			{"import",             required_argument, 0, 'i'},
 			{"delete",             required_argument, 0, 'd'},
-			{"revoke",             no_argument,       0, 0  },
+			{"revoke-import",      no_argument,       0, 0  },
+			{"revoke-delete",      no_argument,       0, 0  },
 			{"export",             no_argument,       0, 'x'},
 			{"password",           no_argument,       0, 'p'},
 			{"disable-validation", no_argument,       0, 0  },
@@ -1131,8 +1140,10 @@ main (int argc, char *argv[])
 				command |= LIST_ENROLLED;
 			} else if (strcmp (option, "list-new") == 0) {
 				command |= LIST_NEW;
-			} else if (strcmp (option, "revoke") == 0) {
-				command |= REVOKE;
+			} else if (strcmp (option, "revoke-import") == 0) {
+				command |= REVOKE_IMPORT;
+			} else if (strcmp (option, "revoke-delete") == 0) {
+				command |= REVOKE_DELETE;
 			} else if (strcmp (option, "disable-validation") == 0) {
 				command |= DISABLE_VALIDATION;
 			} else if (strcmp (option, "enable-validation") == 0) {
@@ -1216,8 +1227,11 @@ main (int argc, char *argv[])
 		case DELETE | HASH_FILE:
 			ret = delete_moks (files, total, hash_file);
 			break;
-		case REVOKE:
-			ret = revoke_request ();
+		case REVOKE_IMPORT:
+			ret = revoke_request (1);
+			break;
+		case REVOKE_DELETE:
+			ret = revoke_request (0);
 			break;
 		case EXPORT:
 			ret = export_moks ();
