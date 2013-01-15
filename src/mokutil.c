@@ -52,42 +52,29 @@ typedef struct {
 static void
 print_help ()
 {
-	printf("Usage:\n");
-	printf("List the enrolled keys:\n");
-	printf("  mokutil --list-enrolled\n\n");
-
-	printf("List the keys to be enrolled:\n");
-	printf("  mokutil --list-new\n\n");
-
-	printf("Import keys:\n");
-	printf("  mokutil --import <der file>...\n\n");
-
-	printf("Request to delete specific keys\n");
-	printf("  mokutil --delete <der file>...\n\n");
-
-	printf("Revoke the request:\n");
-	printf("  mokutil --revoke\n\n");
-
-	printf("Export enrolled keys to files:\n");
-	printf("  mokutil --export\n\n");
-
-	printf("Set MOK password:\n");
-	printf("  mokutil --password\n\n");
-
-	printf("Disable signature validation:\n");
-	printf("  mokutil --disable-validation\n\n");
-
-	printf("Enable signature validation:\n");
-	printf("  mokutil --enable-validation\n\n");
-
-	printf("SecureBoot State:\n");
-	printf("  mokutil --sb-state\n\n");
-
-	printf("Test if the key is enrolled or not:\n");
-	printf("  mokutil --test-key <der file>\n\n");
-
-	printf("Reset MOK list:\n");
-	printf("  mokutil --reset\n\n");
+	printf ("Usage:\n");
+	printf ("  mokutil OPTIONS [ARGS...]\n");
+	printf ("\n");
+	printf ("Options:\n");
+	printf ("  --help\t\t\t\tShow help\n");
+	printf ("  --list-enrolled\t\t\tList the enrolled keys\n");
+	printf ("  --list-new\t\t\t\tList the keys to be enrolled\n");
+	printf ("  --import <der file...>\t\tImport keys\n");
+	printf ("  --delete <der file...>\t\tDelete specific keys\n");
+	printf ("  --revoke\t\t\t\tRevoke the import request\n");
+	printf ("  --export\t\t\t\tExport enrolled keys to files\n");
+	printf ("  --password\t\t\t\tSet MOK password\n");
+	printf ("  --disable-validation\t\t\tDisable signature validation\n");
+	printf ("  --enable-validation\t\t\tEnable signature validation\n");
+	printf ("  --sb-state\t\t\t\tShow SecureBoot State\n");
+	printf ("  --test-key <der file>\t\t\tTest if the key is enrolled or not\n");
+	printf ("  --reset\t\t\t\tReset MOK list\n");
+	printf ("  --generate-hash[=password]\t\tGenerate the password hash\n");
+	printf ("\n");
+	printf ("Suboptions:\n");
+	printf ("  --hash-file <hash file>\t\tUse the specific password hash\n");
+	printf ("                         \t\t(Only valid with --import, --delete,\n");
+	printf ("                         \t\t --password, and --reset)\n");
 }
 
 static int
