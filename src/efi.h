@@ -360,6 +360,7 @@ extern efi_status_t test_variable (efi_variable_t *var);
 extern efi_status_t read_variable (efi_variable_t *var);
 extern efi_status_t edit_variable (efi_variable_t *var);
 extern efi_status_t delete_variable (efi_variable_t *var);
+extern efi_status_t edit_protected_variable (efi_variable_t *var);
 
 extern int efichar_strlen (const efi_char16_t *p, int max);
 extern unsigned long efichar_from_char (efi_char16_t *dest, const char *src, size_t dest_len);

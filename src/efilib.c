@@ -215,3 +215,25 @@ delete_variable(efi_variable_t *var)
 
 	return EFI_OUT_OF_RESOURCES;
 }
+
+efi_status_t
+edit_protected_variable (efi_variable_t *var)
+{
+	char name[PATH_MAX];
+	char filename[PATH_MAX];
+	int ret;
+	if (!var)
+		return EFI_INVALID_PARAMETER;
+
+	variable_to_name(var, name);
+
+	snprintf(filename, PATH_MAX-1, "%s/%s", SYSFS_DIR_EFI_VARS, name);
+	ret = write_variable (filename, var);
+	if (ret != EFI_SUCCESS)
+		return ret;
+
+	if (chmod (filename, S_IRUSR | S_IWUSR) < 0)
+		return EFI_UNSUPPORTED;
+
+	return EFI_SUCCESS;
+}

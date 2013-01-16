@@ -532,7 +532,7 @@ update_request (void *new_list, int list_len, uint8_t import,
 			 | EFI_VARIABLE_BOOTSERVICE_ACCESS
 			 | EFI_VARIABLE_RUNTIME_ACCESS;
 
-	if (edit_variable (&var) != EFI_SUCCESS) {
+	if (edit_protected_variable (&var) != EFI_SUCCESS) {
 		fprintf (stderr, "Failed to write %s\n", auth_name);
 		test_and_delete_var (req_name);
 		goto error;
@@ -884,7 +884,7 @@ set_password (const char *hash_file)
 			 | EFI_VARIABLE_BOOTSERVICE_ACCESS
 			 | EFI_VARIABLE_RUNTIME_ACCESS;
 
-	if (edit_variable (&var) != EFI_SUCCESS) {
+	if (edit_protected_variable (&var) != EFI_SUCCESS) {
 		fprintf (stderr, "Failed to write MokPW\n");
 		goto error;
 	}
@@ -929,7 +929,7 @@ set_validation (uint32_t state)
 		| EFI_VARIABLE_BOOTSERVICE_ACCESS
 		| EFI_VARIABLE_RUNTIME_ACCESS;
 
-	if (edit_variable (&var) != EFI_SUCCESS) {
+	if (edit_protected_variable (&var) != EFI_SUCCESS) {
 		fprintf (stderr, "Failed to request new SB state\n");
 		goto error;
 	}
