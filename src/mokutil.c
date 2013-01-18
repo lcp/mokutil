@@ -13,14 +13,13 @@
 
 #include "efi.h"
 #include "signature.h"
+#include "PasswordHash.h"
 
 #define SHIM_LOCK_GUID \
 EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 0x23)
 
 #define PASSWORD_MAX 16
 #define PASSWORD_MIN 8
-
-#define SALT_SIZE 16
 
 #define HELP               0x1
 #define LIST_ENROLLED      0x2
@@ -359,37 +358,35 @@ error:
 	return ret;
 }
 
-static void
-generate_salt (uint8_t salt[], unsigned int salt_len)
+static unsigned int
+generate_salt (uint8_t salt[], unsigned int max_size, unsigned int min_size)
 {
+	unsigned int salt_len = max_size / 8;
 	int i;
 
 	srand (time (NULL));
 
 	for (i = 0; i < salt_len; i++)
 		salt[i] = rand() % 256;
+
+	return max_size;
 }
 
 static int
 generate_hash (void *salt, unsigned int salt_len, char *password,
 	       int pw_len, uint8_t *auth)
 {
-	efi_char16_t efichar_pass[PASSWORD_MAX+1];
-	unsigned long efichar_len;
 	SHA256_CTX ctx;
 
 	if (!password || !auth)
 		return -1;
-
-	efichar_len = efichar_from_char (efichar_pass, password,
-					 (PASSWORD_MAX+1)*sizeof(efi_char16_t));
 
 	SHA256_Init (&ctx);
 
 	if (salt)
 		SHA256_Update (&ctx, salt, salt_len);
 
-	SHA256_Update (&ctx, efichar_pass, efichar_len);
+	SHA256_Update (&ctx, password, pw_len);
 
 	SHA256_Final (auth, &ctx);
 
@@ -412,7 +409,7 @@ char_to_int (const char c)
 }
 
 static int
-read_hex_array (const char *string, char *out, int len)
+read_hex_array (const char *string, uint8_t *out, unsigned int len)
 {
 	int i, digit_1, digit_2;
 
@@ -422,17 +419,18 @@ read_hex_array (const char *string, char *out, int len)
 		if (digit_1 < 0 || digit_2 < 0)
 			return -1;
 
-		out[i] = (char)digit_1 * 16 + (char)digit_2;
+		out[i] = (uint8_t)digit_1 * 16 + (uint8_t)digit_2;
 	}
 
 	return 0;
 }
 
 static int
-get_hash_from_file (const char *file, void *salt, void *hash)
+get_hash_from_file (const char *file, pw_hash_t *pw_hash)
 {
 	FILE *fptr;
-	char salt_string[2*SALT_SIZE];
+	unsigned int method, iter_count, salt_size;
+	char salt_string[2*(SHA256_SALT_MAX/8)];
 	char hash_string[2*SHA256_DIGEST_LENGTH];
 
 	fptr = fopen (file, "r");
@@ -441,19 +439,24 @@ get_hash_from_file (const char *file, void *salt, void *hash)
 		return -1;
 	}
 
-	memset (salt_string, 0, 2*SALT_SIZE);
+	memset (salt_string, 0, 2*(SHA256_SALT_MAX/8));
 	memset (hash_string, 0, 2*SHA256_DIGEST_LENGTH);
 
-	fscanf (fptr, "%32c.%64c", salt_string, hash_string);
+	fscanf (fptr, "%x.%x.%x.%24c.%64c", &method, &iter_count, &salt_size,
+	        salt_string, hash_string);
 
 	fclose (fptr);
 
-	if (read_hex_array (salt_string, salt, SALT_SIZE) < 0) {
+	pw_hash->method = (uint16_t)method;
+	pw_hash->iter_count = (uint32_t)iter_count;
+	pw_hash->salt_size = (uint16_t)salt_size;
+
+	if (read_hex_array (salt_string, pw_hash->salt, salt_size/8) < 0) {
 		fprintf (stderr, "Corrupted salt\n");
 		return -1;
 	}
 
-	if (read_hex_array (hash_string, hash, SHA256_DIGEST_LENGTH) < 0) {
+	if (read_hex_array (hash_string, pw_hash->hash, SHA256_DIGEST_LENGTH) < 0) {
 		fprintf (stderr, "Corrupted hash\n");
 		return -1;
 	}
@@ -467,12 +470,15 @@ update_request (void *new_list, int list_len, uint8_t import,
 {
 	efi_variable_t var;
 	const char *req_name, *auth_name;
-	uint8_t salt[SALT_SIZE];
-	uint8_t hash[SHA256_DIGEST_LENGTH];
-	uint8_t auth[SALT_SIZE + SHA256_DIGEST_LENGTH];
+	pw_hash_t pw_hash;
 	char *password = NULL;
 	int pw_len;
 	int ret = -1;
+
+	bzero (&pw_hash, sizeof(pw_hash_t));
+	pw_hash.method = SHA256_BASED;
+	pw_hash.iter_count = 1;
+	pw_hash.salt_size = SHA256_SALT_MAX;
 
 	if (import) {
 		req_name = "MokNew";
@@ -483,7 +489,7 @@ update_request (void *new_list, int list_len, uint8_t import,
 	}
 
 	if (hash_file) {
-		if (get_hash_from_file (hash_file, salt, hash) < 0) {
+		if (get_hash_from_file (hash_file, &pw_hash) < 0) {
 			fprintf (stderr, "Failed to read hash\n");
 			goto error;
 		}
@@ -493,14 +499,13 @@ update_request (void *new_list, int list_len, uint8_t import,
 			goto error;
 		}
 
-		generate_salt (salt, SALT_SIZE);
-		if (generate_hash (salt, SALT_SIZE, password, pw_len, hash) < 0) {
+		generate_salt (pw_hash.salt, SHA256_SALT_MAX, 0);
+		if (generate_hash (pw_hash.salt, SHA256_SALT_MAX/8, password,
+				   pw_len, pw_hash.hash) < 0) {
 			fprintf (stderr, "Couldn't generate hash\n");
 			goto error;
 		}
 	}
-	memcpy (auth, salt, SALT_SIZE);
-	memcpy (auth + SALT_SIZE, hash, SHA256_DIGEST_LENGTH);
 
 	if (new_list) {
 		/* Write MokNew*/
@@ -522,9 +527,9 @@ update_request (void *new_list, int list_len, uint8_t import,
 		test_and_delete_var (req_name);
 	}
 
-	/* Write MokAuth */
-	var.Data = auth;
-	var.DataSize = SHA256_DIGEST_LENGTH + SALT_SIZE;
+	/* Write MokAuth or MokDelAuth */
+	var.Data = (void *)&pw_hash;
+	var.DataSize = PASSWORD_HASH_SIZE;
 	var.VariableName = auth_name;
 
 	var.VendorGuid = SHIM_LOCK_GUID;
@@ -848,15 +853,18 @@ static int
 set_password (const char *hash_file)
 {
 	efi_variable_t var;
-	uint8_t salt[SALT_SIZE];
-	uint8_t hash[SHA256_DIGEST_LENGTH];
-	uint8_t auth[SHA256_DIGEST_LENGTH + SALT_SIZE];
+	pw_hash_t pw_hash;
 	char *password = NULL;
 	int pw_len;
 	int ret = -1;
 
+	bzero (&pw_hash, sizeof(pw_hash_t));
+	pw_hash.method = SHA256_BASED;
+	pw_hash.iter_count = 1;
+	pw_hash.salt_size = SHA256_SALT_MAX;
+
 	if (hash_file) {
-		if (get_hash_from_file (hash_file, salt, hash) < 0) {
+		if (get_hash_from_file (hash_file, &pw_hash) < 0) {
 			fprintf (stderr, "Failed to read hash\n");
 			goto error;
 		}
@@ -866,17 +874,16 @@ set_password (const char *hash_file)
 			goto error;
 		}
 
-		generate_salt (salt, SALT_SIZE);
-		if (generate_hash (salt, SALT_SIZE, password, pw_len, hash) < 0) {
+		generate_salt (pw_hash.salt, SHA256_SALT_MAX, 0);
+		if (generate_hash (pw_hash.salt, SHA256_SALT_MAX/8, password,
+				   pw_len, pw_hash.hash) < 0) {
 			fprintf (stderr, "Couldn't generate hash\n");
 			goto error;
 		}
 	}
-	memcpy (auth, salt, SALT_SIZE);
-	memcpy (auth + SALT_SIZE, hash, SHA256_DIGEST_LENGTH);
 
-	var.Data = auth;
-	var.DataSize = SHA256_DIGEST_LENGTH + SALT_SIZE;
+	var.Data = (void *)&pw_hash;
+	var.DataSize = PASSWORD_HASH_SIZE;
 	var.VariableName = "MokPW";
 
 	var.VendorGuid = SHIM_LOCK_GUID;
@@ -1044,10 +1051,14 @@ reset_moks (const char *hash_file)
 static int
 generate_pw_hash (const char *input_pw)
 {
-	uint8_t salt[SALT_SIZE];
-	uint8_t hash[SHA256_DIGEST_LENGTH];
+	pw_hash_t pw_hash;
 	char *password = NULL;
 	int pw_len, i, ret = -1;
+
+	bzero (&pw_hash, sizeof(pw_hash_t));
+	pw_hash.method = SHA256_BASED;
+	pw_hash.iter_count = 1;
+	pw_hash.salt_size = SHA256_SALT_MAX;
 
 	if (input_pw) {
 		pw_len = strlen (input_pw);
@@ -1070,19 +1081,22 @@ generate_pw_hash (const char *input_pw)
 		}
 	}
 
-	generate_salt (salt, SALT_SIZE);
-	if (generate_hash (salt, SALT_SIZE, password, pw_len, hash) < 0) {
+	generate_salt (pw_hash.salt, SHA256_SALT_MAX, 0);
+	if (generate_hash (pw_hash.salt, SHA256_SALT_MAX/8, password,
+			   pw_len, pw_hash.hash) < 0) {
 		fprintf (stderr, "Couldn't generate hash\n");
 		goto error;
 	}
 
 	/* Print the salt and hash */
-	for (i = 0; i < SALT_SIZE; i++) {
-		printf ("%x%x", salt[i]/16, salt[i]%16);
+	printf ("%x.%x.%x.", pw_hash.method, pw_hash.iter_count,
+	       pw_hash.salt_size);
+	for (i = 0; i < (SHA256_SALT_MAX/8); i++) {
+		printf ("%x%x", pw_hash.salt[i]/16, pw_hash.salt[i]%16);
 	}
 	putchar ('.');
 	for (i = 0; i < SHA256_DIGEST_LENGTH; i++)
-		printf ("%x%x", hash[i]/16, hash[i]%16);
+		printf ("%x%x", pw_hash.hash[i]/16, pw_hash.hash[i]%16);
 	putchar ('\n');
 
 	ret = 0;
