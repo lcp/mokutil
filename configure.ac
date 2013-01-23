@@ -15,7 +15,7 @@ AM_PROG_CC_C_O
 AC_ARG_ENABLE(debug, AC_HELP_STRING([--enable-debug], [turn on debug]), CFLAGS="$CFLAGS -g")
 
 # Checks for header files.
-AC_CHECK_HEADERS([fcntl.h stdint.h stdlib.h string.h unistd.h])
+AC_CHECK_HEADERS([fcntl.h stdint.h stdlib.h string.h unistd.h crypt.h])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_C_INLINE
