@@ -7,6 +7,7 @@
 #define MIN(a,b) ((a)<(b)?(a):(b))
 
 #define SHA256_DEFAULT_ROUNDS 5000
+#define SHA512_DEFAULT_ROUNDS 5000
 
 static const char b64t[64] =
 "./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -14,9 +15,10 @@ static const char b64t[64] =
 static const char sha256_prefix[] = "$5$";
 static const char sha512_prefix[] = "$6$";
 
-static const char sha256_rounds_prefix[] = "rounds=";
+static const char sha_rounds_prefix[] = "rounds=";
 
 static int restore_sha256_array (const char *string, uint8_t *hash);
+static int restore_sha512_array (const char *string, uint8_t *hash);
 
 int
 get_hash_size (int method)
@@ -70,8 +72,8 @@ decode_sha256_pass (const char *string, pw_crypt_t *pw_crypt)
 
 	/* get rounds */
 	pw_crypt->iter_count = SHA256_DEFAULT_ROUNDS;
-	if (strncmp (ptr, sha256_rounds_prefix, sizeof(sha256_rounds_prefix) - 1) == 0) {
-		const char *num = ptr + sizeof(sha256_rounds_prefix) - 1;
+	if (strncmp (ptr, sha_rounds_prefix, sizeof(sha_rounds_prefix) - 1) == 0) {
+		const char *num = ptr + sizeof(sha_rounds_prefix) - 1;
 		char *endp;
 		unsigned long int srounds = strtoul (num, &endp, 10);
 		if (*endp == '$') {
@@ -110,6 +112,56 @@ decode_sha256_pass (const char *string, pw_crypt_t *pw_crypt)
 	return 0;
 }
 
+static int
+decode_sha512_pass (const char *string, pw_crypt_t *pw_crypt)
+{
+	/* Expected string: (rounds=[0-9]{1,9}\$)?([./0-9A-Za-z]{1,16})?\$[./0-9A-Za-z]{86} */
+	char *tmp, *ptr = (char *)string;
+	char *b64_hash;
+	int count = 0;
+
+	/* get rounds */
+	pw_crypt->iter_count = SHA512_DEFAULT_ROUNDS;
+	if (strncmp (ptr, sha_rounds_prefix, sizeof(sha_rounds_prefix) - 1) == 0) {
+		const char *num = ptr + sizeof(sha_rounds_prefix) - 1;
+		char *endp;
+		unsigned long int srounds = strtoul (num, &endp, 10);
+		if (*endp == '$') {
+			ptr = endp + 1;
+			pw_crypt->iter_count = (uint32_t)srounds;
+		} else {
+			return -1;
+		}
+	}
+
+	/* get salt */
+	for (tmp = ptr; *tmp != '$'; tmp++) {
+		if (tmp == '\0')
+			return -1;
+		count++;
+	}
+	count = MIN(count, SHA512_SALT_MAX);
+	memcpy (pw_crypt->salt, ptr, count);
+	pw_crypt->salt_size = count;
+	ptr = tmp + 1;
+
+	/* get hash */
+	if (strlen(ptr) < SHA512_B64_LENGTH)
+		return -1;
+	b64_hash = malloc (SHA512_B64_LENGTH + 1);
+	if (!b64_hash)
+		return -1;
+	memcpy (b64_hash, ptr, SHA512_B64_LENGTH);
+	b64_hash[SHA512_B64_LENGTH] = '\0';
+
+	if (restore_sha512_array (b64_hash, pw_crypt->hash) < 0)
+		return -1;
+
+	free (b64_hash);
+
+	return 0;
+}
+
 int
 decode_pass (const char *crypt_pass, pw_crypt_t *pw_crypt)
 {
@@ -118,7 +170,12 @@ decode_pass (const char *crypt_pass, pw_crypt_t *pw_crypt)
 
 	if (strncmp (crypt_pass, sha256_prefix, 3) == 0) {
 		pw_crypt->method = SHA256_BASED;
-		return decode_sha256_pass (crypt_pass + 3, pw_crypt);
+		return decode_sha256_pass (crypt_pass + strlen (sha256_prefix), pw_crypt);
+	}
+
+	if (strncmp (crypt_pass, sha512_prefix, 3) == 0) {
+		pw_crypt->method = SHA512_BASED;
+		return decode_sha512_pass (crypt_pass + strlen (sha512_prefix), pw_crypt);
 	}
 
 	return -1;
@@ -215,4 +272,66 @@ restore_sha256_array (const char *string, uint8_t *hash)
 	return 0;
 }
 
+int
+restore_sha512_array (const char *string, uint8_t *hash)
+{
+	uint32_t tmp = 0;
+	int value1, value2;
 
+	if (strlen (string) != SHA512_B64_LENGTH)
+		return -1;
+
+	if (split_24bit (string, hash,  0, 4, 0, 21, 42) < 0)
+		return -1;
+	if (split_24bit (string, hash,  4, 4, 22, 43, 1) < 0)
+		return -1;
+	if (split_24bit (string, hash,  8, 4, 44, 2, 23) < 0)
+		return -1;
+	if (split_24bit (string, hash, 12, 4, 3, 24, 45) < 0)
+		return -1;
+	if (split_24bit (string, hash, 16, 4, 25, 46, 4) < 0)
+		return -1;
+	if (split_24bit (string, hash, 20, 4, 47, 5, 26) < 0)
+		return -1;
+	if (split_24bit (string, hash, 24, 4, 6, 27, 48) < 0)
+		return -1;
+	if (split_24bit (string, hash, 28, 4, 28, 49, 7) < 0)
+		return -1;
+	if (split_24bit (string, hash, 32, 4, 50, 8, 29) < 0)
+		return -1;
+	if (split_24bit (string, hash, 36, 4, 9, 30, 51) < 0)
+		return -1;
+	if (split_24bit (string, hash, 40, 4, 31, 52, 10) < 0)
+		return -1;
+	if (split_24bit (string, hash, 44, 4, 53, 11, 32) < 0)
+		return -1;
+	if (split_24bit (string, hash, 48, 4, 12, 33, 54) < 0)
+		return -1;
+	if (split_24bit (string, hash, 52, 4, 34, 55, 13) < 0)
+		return -1;
+	if (split_24bit (string, hash, 56, 4, 56, 14, 35) < 0)
+		return -1;
+	if (split_24bit (string, hash, 60, 4, 15, 36, 57) < 0)
+		return -1;
+	if (split_24bit (string, hash, 64, 4, 37, 58, 16) < 0)
+		return -1;
+	if (split_24bit (string, hash, 68, 4, 59, 17, 38) < 0)
+		return -1;
+	if (split_24bit (string, hash, 72, 4, 18, 39, 60) < 0)
+		return -1;
+	if (split_24bit (string, hash, 76, 4, 40, 61, 19) < 0)
+		return -1;
+	if (split_24bit (string, hash, 80, 4, 62, 20, 41) < 0)
+		return -1;
+
+	value1 = b64_to_int (string[85]);
+	if (value1 < 0)
+		return -1;
+	value2 = b64_to_int (string[84]);
+	if (value2 < 0)
+		return -1;
+	tmp = (value1 << 6) | value2;
+	hash[63] = (uint8_t)tmp;
+
+	return 0;
+}

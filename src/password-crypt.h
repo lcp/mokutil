@@ -32,6 +32,7 @@ typedef struct {
 #define PASSWORD_CRYPT_SIZE sizeof(pw_crypt_t)
 
 #define SHA256_B64_LENGTH 43
+#define SHA512_B64_LENGTH 86
 
 int get_hash_size (int method);
 const char *get_crypt_prefix (int method);

@@ -43,8 +43,9 @@ EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 
 #define HASH_FILE          0x4000
 #define GENERATE_PW_HASH   0x8000
 
-#define DEFAULT_CRYPT_METHOD SHA256_BASED
-#define DEFAULT_SALT_SIZE    SHA256_SALT_MAX
+#define DEFAULT_CRYPT_METHOD SHA512_BASED
+#define DEFAULT_SALT_SIZE    SHA512_SALT_MAX
+#define SETTINGS_LEN         (DEFAULT_SALT_SIZE*2)
 
 typedef struct {
 	uint32_t mok_size;
@@ -384,7 +385,7 @@ generate_hash (pw_crypt_t *pw_crypt, char *password, int pw_len)
 {
 	pw_crypt_t new_crypt;
 	struct crypt_data data;
-	char settings[64];
+	char settings[SETTINGS_LEN];
 	char *crypt_string;
 	const char *prefix;
 	int hash_len, prefix_len;
@@ -1033,9 +1034,11 @@ static int
 generate_pw_hash (const char *input_pw)
 {
 	struct crypt_data data;
-	char settings[SHA256_SALT_MAX + 3 + 1];
+	char settings[SETTINGS_LEN];
 	char *password = NULL;
 	char *crypt_string;
+	const char *prefix;
+	int prefix_len;
 	int pw_len, ret = -1;
 
 	if (input_pw) {
@@ -1058,9 +1061,15 @@ generate_pw_hash (const char *input_pw)
 		}
 	}
 
-	strncpy (settings, "$5$", 3);
-	generate_salt ((uint8_t *)(settings + 3), SHA256_SALT_MAX, 0);
-	settings[SHA256_SALT_MAX + 3] = '\0';
+	prefix = get_crypt_prefix (DEFAULT_CRYPT_METHOD);
+	if (!prefix)
+		return -1;
+	prefix_len = strlen(prefix);
+
+	strncpy (settings, prefix, prefix_len);
+	generate_salt ((uint8_t *)(settings + prefix_len),
+		       DEFAULT_SALT_SIZE, DEFAULT_SALT_SIZE);
+	settings[DEFAULT_SALT_SIZE + prefix_len] = '\0';
 
 	crypt_string = crypt_r (password, settings, &data);
 	if (!crypt_string) {
