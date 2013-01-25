@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <termios.h>
 #include <getopt.h>
+#include <shadow.h>
 
 #include <openssl/sha.h>
 #include <openssl/x509.h>
@@ -42,6 +43,7 @@ EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 
 #define RESET              0x2000
 #define HASH_FILE          0x4000
 #define GENERATE_PW_HASH   0x8000
+#define ROOT_PW            0x10000
 
 #define DEFAULT_CRYPT_METHOD SHA512_BASED
 #define DEFAULT_SALT_SIZE    SHA512_SALT_MAX
@@ -83,6 +85,9 @@ print_help ()
 	printf ("  --hash-file <hash file>\t\tUse the specific password hash\n");
 	printf ("                         \t\t(Only valid with --import, --delete,\n");
 	printf ("                         \t\t --password, and --reset)\n");
+	printf ("  --root-pw\t\t\t\tUse the root password\n");
+	printf ("           \t\t\t\t(Only valid with --import, --delete,\n");
+	printf ("           \t\t\t\t --password, and --reset)\n");
 }
 
 static int
@@ -448,8 +453,23 @@ get_hash_from_file (const char *file, pw_crypt_t *pw_crypt)
 }
 
 static int
+get_password_from_shadow (pw_crypt_t *pw_crypt)
+{
+	struct spwd *pw_ent;
+
+	pw_ent = getspnam ("root");
+	if (!pw_ent)
+		return -1;
+
+	if (decode_pass (pw_ent->sp_pwdp, pw_crypt) < 0)
+		return -1;
+
+	return 0;
+}
+
+static int
 update_request (void *new_list, int list_len, uint8_t import,
-		const char *hash_file)
+		const char *hash_file, const int root_pw)
 {
 	efi_variable_t var;
 	const char *req_name, *auth_name;
@@ -472,6 +492,11 @@ update_request (void *new_list, int list_len, uint8_t import,
 	if (hash_file) {
 		if (get_hash_from_file (hash_file, &pw_crypt) < 0) {
 			fprintf (stderr, "Failed to read hash\n");
+			goto error;
+		}
+	} else if (root_pw) {
+		if (get_password_from_shadow (&pw_crypt) < 0) {
+			fprintf (stderr, "Failed to get root password hash\n");
 			goto error;
 		}
 	} else {
@@ -618,7 +643,7 @@ is_valid_request (void *mok, uint32_t mok_size, uint8_t import)
 
 static int
 issue_mok_request (char **files, uint32_t total, uint8_t import,
-		   const char *hash_file)
+		   const char *hash_file, const int root_pw)
 {
 	efi_variable_t old_req;
 	const char *req_name;
@@ -731,7 +756,7 @@ issue_mok_request (char **files, uint32_t total, uint8_t import,
 		real_size += old_req.DataSize;
 	}
 
-	if (update_request (new_list, real_size, import, hash_file) < 0) {
+	if (update_request (new_list, real_size, import, hash_file, root_pw) < 0) {
 		goto error;
 	}
 
@@ -748,15 +773,17 @@ error:
 }
 
 static int
-import_moks (char **files, uint32_t total, const char *hash_file)
+import_moks (char **files, uint32_t total, const char *hash_file,
+	     const int root_pw)
 {
-	return issue_mok_request (files, total, 1, hash_file);
+	return issue_mok_request (files, total, 1, hash_file, root_pw);
 }
 
 static int
-delete_moks (char **files, uint32_t total, const char *hash_file)
+delete_moks (char **files, uint32_t total, const char *hash_file,
+	     const int root_pw)
 {
-	return issue_mok_request (files, total, 0, hash_file);
+	return issue_mok_request (files, total, 0, hash_file, root_pw);
 }
 
 static int
@@ -832,7 +859,7 @@ error:
 }
 
 static int
-set_password (const char *hash_file)
+set_password (const char *hash_file, const int root_pw)
 {
 	efi_variable_t var;
 	pw_crypt_t pw_crypt;
@@ -846,6 +873,11 @@ set_password (const char *hash_file)
 	if (hash_file) {
 		if (get_hash_from_file (hash_file, &pw_crypt) < 0) {
 			fprintf (stderr, "Failed to read hash\n");
+			goto error;
+		}
+	} else if (root_pw) {
+		if (get_password_from_shadow (&pw_crypt) < 0) {
+			fprintf (stderr, "Failed to get root password hash\n");
 			goto error;
 		}
 	} else {
@@ -1020,9 +1052,9 @@ error:
 }
 
 static int
-reset_moks (const char *hash_file)
+reset_moks (const char *hash_file, const int root_pw)
 {
-	if (update_request (NULL, 0, 1, hash_file)) {
+	if (update_request (NULL, 0, 1, hash_file, root_pw)) {
 		fprintf (stderr, "Failed to issue a reset request\n");
 		return -1;
 	}
@@ -1117,11 +1149,12 @@ main (int argc, char *argv[])
 			{"reset",              no_argument,       0, 0  },
 			{"hash-file",          required_argument, 0, 'f'},
 			{"generate-hash",      optional_argument, 0, 'g'},
+			{"root-pw",            no_argument,       0, 'P'},
 			{0, 0, 0, 0}
 		};
 
 		int option_index = 0;
-		c = getopt_long (argc, argv, "d:f:g::hi:pt:x",
+		c = getopt_long (argc, argv, "d:f:g::hi:pt:xP",
 				 long_options, &option_index);
 
 		if (c == -1)
@@ -1189,6 +1222,9 @@ main (int argc, char *argv[])
 		case 'p':
 			command |= PASSWORD;
 			break;
+		case 'P':
+			command |= ROOT_PW;
+			break;
 		case 't':
 			key_file = strdup (optarg);
 
@@ -1215,11 +1251,17 @@ main (int argc, char *argv[])
 			break;
 		case IMPORT:
 		case IMPORT | HASH_FILE:
-			ret = import_moks (files, total, hash_file);
+			ret = import_moks (files, total, hash_file, 0);
+			break;
+		case IMPORT | ROOT_PW:
+			ret = import_moks (files, total, NULL, 1);
 			break;
 		case DELETE:
 		case DELETE | HASH_FILE:
-			ret = delete_moks (files, total, hash_file);
+			ret = delete_moks (files, total, hash_file, 0);
+			break;
+		case DELETE | ROOT_PW:
+			ret = delete_moks (files, total, NULL, 1);
 			break;
 		case REVOKE_IMPORT:
 			ret = revoke_request (1);
@@ -1232,7 +1274,10 @@ main (int argc, char *argv[])
 			break;
 		case PASSWORD:
 		case PASSWORD | HASH_FILE:
-			ret = set_password (hash_file);
+			ret = set_password (hash_file, 0);
+			break;
+		case PASSWORD | ROOT_PW:
+			ret = set_password (NULL, 1);
 			break;
 		case DISABLE_VALIDATION:
 			ret = disable_validation ();
@@ -1248,7 +1293,10 @@ main (int argc, char *argv[])
 			break;
 		case RESET:
 		case RESET | HASH_FILE:
-			ret = reset_moks (hash_file);
+			ret = reset_moks (hash_file, 0);
+			break;
+		case RESET | ROOT_PW:
+			ret = reset_moks (NULL, 1);
 			break;
 		case GENERATE_PW_HASH:
 			ret = generate_pw_hash (input_pw);
