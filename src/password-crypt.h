@@ -9,8 +9,7 @@
 #define MD5_SALT_MAX 8
 #define SHA256_SALT_MAX 16
 #define SHA512_SALT_MAX 16
-/* The max salt size of Blowfish in UINT8 */
-#define BLOWFISH_SALT_MAX 16
+#define BLOWFISH_SALT_MAX 22
 
 enum HashMethod {
 	TRANDITIONAL_DES = 0,

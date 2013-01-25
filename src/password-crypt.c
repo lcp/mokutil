@@ -6,6 +6,8 @@
 
 #define MIN(a,b) ((a)<(b)?(a):(b))
 
+#define BLOWFISH_HASH_SIZE 31 /* 184 / 6 + 1 */
+
 #define SHA256_DEFAULT_ROUNDS 5000
 #define SHA512_DEFAULT_ROUNDS 5000
 
@@ -14,6 +16,10 @@ static const char b64t[64] =
 
 static const char sha256_prefix[] = "$5$";
 static const char sha512_prefix[] = "$6$";
+
+static const char bf_a_prefix[] = "$2a$";
+static const char bf_x_prefix[] = "$2x$";
+static const char bf_y_prefix[] = "$2y$";
 
 static const char sha_rounds_prefix[] = "rounds=";
 
@@ -35,7 +41,7 @@ get_hash_size (int method)
 	case SHA512_BASED:
 		return SHA512_DIGEST_LENGTH;
 	case BLOWFISH_BASED:
-		return 184 / 8; /* per "man crypt" */
+		return BLOWFISH_HASH_SIZE;
 	}
 
 	return -1;
@@ -56,7 +62,7 @@ get_crypt_prefix (int method)
 	case SHA512_BASED:
 		return "$6$";
 	case BLOWFISH_BASED:
-		return "$2y$"; /* per "man crypt" */
+		return "$2y$10$"; /* FIXME change the count */
 	}
 
 	return NULL;
@@ -162,6 +168,37 @@ decode_sha512_pass (const char *string, pw_crypt_t *pw_crypt)
 	return 0;
 }
 
+static int
+decode_blowfish_pass (const char *string, pw_crypt_t *pw_crypt)
+{
+	/* Expected string: \$2[axy]\$[0-9]{2}\$[./A-Za-z0-9]{53} */
+	/* Store the first (22+7) bytes in salt[] and the rest in hash */
+
+	if (strlen(string) != (53 + 7))
+		return -1;
+
+	if (string[0] != '$' ||
+	    string[1] != '2' ||
+	    (string[2] != 'a' && string[2] != 'x' && string[2] != 'y') ||
+	    string[3] != '$' ||
+	    string[4] < '0' || string[4] > '3' ||
+	    string[5] < '0' || string[5] > '9' ||
+	    (string[4] == '3' && string[5] > '1') ||
+	    string[6] != '$') {
+		return -1;
+        }
+
+	pw_crypt->iter_count = 0;
+
+	memcpy (pw_crypt->salt, string, (22 + 7));
+	pw_crypt->salt[22 + 7] = '\0';
+	pw_crypt->salt_size = 22 + 7 + 1;
+
+	memcpy (pw_crypt->hash, string + 22 + 7, BLOWFISH_HASH_SIZE);
+
+	return 0;
+}
+
 int
 decode_pass (const char *crypt_pass, pw_crypt_t *pw_crypt)
 {
@@ -176,6 +213,13 @@ decode_pass (const char *crypt_pass, pw_crypt_t *pw_crypt)
 	if (strncmp (crypt_pass, sha512_prefix, 3) == 0) {
 		pw_crypt->method = SHA512_BASED;
 		return decode_sha512_pass (crypt_pass + strlen (sha512_prefix), pw_crypt);
+	}
+
+	if (strncmp (crypt_pass, bf_a_prefix, 4) == 0 ||
+	    strncmp (crypt_pass, bf_x_prefix, 4) == 0 ||
+	    strncmp (crypt_pass, bf_y_prefix, 4) == 0) {
+		pw_crypt->method = BLOWFISH_BASED;
+		return decode_blowfish_pass (crypt_pass, pw_crypt);
 	}
 
 	return -1;
