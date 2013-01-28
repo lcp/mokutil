@@ -403,6 +403,10 @@ generate_hash (pw_crypt_t *pw_crypt, char *password, int pw_len)
 		return -1;
 	prefix_len = strlen(prefix);
 
+	pw_crypt->salt_size = generate_salt (pw_crypt->salt,
+					     DEFAULT_SALT_SIZE,
+					     DEFAULT_SALT_SIZE);
+
 	strncpy (settings, prefix, prefix_len);
 	strncpy (settings + prefix_len, (const char *)pw_crypt->salt,
 		 pw_crypt->salt_size);
@@ -420,6 +424,11 @@ generate_hash (pw_crypt_t *pw_crypt, char *password, int pw_len)
 		return -1;
 	memcpy (pw_crypt->hash, new_crypt.hash, hash_len);
 	pw_crypt->iter_count = new_crypt.iter_count;
+
+	if (pw_crypt->method == BLOWFISH_BASED) {
+		pw_crypt->salt_size = new_crypt.salt_size;
+		memcpy (pw_crypt->salt, new_crypt.salt, new_crypt.salt_size);
+	}
 
 	return 0;
 }
@@ -505,20 +514,9 @@ update_request (void *new_list, int list_len, uint8_t import,
 			goto error;
 		}
 
-		pw_crypt.salt_size = generate_salt (pw_crypt.salt,
-						    DEFAULT_SALT_SIZE,
-						    DEFAULT_SALT_SIZE);
-
 		if (generate_hash (&pw_crypt, password, pw_len) < 0) {
 			fprintf (stderr, "Couldn't generate hash\n");
 			goto error;
-		}
-		if (pw_crypt.method == BLOWFISH_BASED) {
-			const char *prefix = get_crypt_prefix (BLOWFISH_BASED);
-			memmove (pw_crypt.salt + 7, pw_crypt.salt, BLOWFISH_SALT_MAX);
-			memcpy (pw_crypt.salt, prefix, 7);
-			pw_crypt.salt[7 + BLOWFISH_SALT_MAX] = '\0';
-			pw_crypt.salt_size = BLOWFISH_SALT_MAX + 7 + 1;
 		}
 	}
 
@@ -894,19 +892,9 @@ set_password (const char *hash_file, const int root_pw)
 			goto error;
 		}
 
-		pw_crypt.salt_size = generate_salt (pw_crypt.salt,
-						    DEFAULT_SALT_SIZE,
-						    DEFAULT_SALT_SIZE);
 		if (generate_hash (&pw_crypt, password, pw_len) < 0) {
 			fprintf (stderr, "Couldn't generate hash\n");
 			goto error;
-		}
-		if (pw_crypt.method == BLOWFISH_BASED) {
-			const char *prefix = get_crypt_prefix (BLOWFISH_BASED);
-			memmove (pw_crypt.salt + 7, pw_crypt.salt, BLOWFISH_SALT_MAX);
-			memcpy (pw_crypt.salt, prefix, 7);
-			pw_crypt.salt[7 + BLOWFISH_SALT_MAX] = '\0';
-			pw_crypt.salt_size = BLOWFISH_SALT_MAX + 7 + 1;
 		}
 	}
 
