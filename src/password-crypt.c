@@ -6,6 +6,8 @@
 
 #define MIN(a,b) ((a)<(b)?(a):(b))
 
+#define TRAD_DES_HASH_SIZE 13 /* (64/6+1) + (12/6) */
+#define BSDI_DES_HASH_SIZE 20 /* (64/6+1) + (24/6) + 4 + 1 */
 #define BLOWFISH_HASH_SIZE 31 /* 184 / 6 + 1 */
 
 #define SHA256_DEFAULT_ROUNDS 5000
@@ -33,10 +35,10 @@ int
 get_hash_size (int method)
 {
 	switch (method) {
-	case TRANDITIONAL_DES:
-		return 64 / 8; /* per "man crypt" */
+	case TRADITIONAL_DES:
+		return TRAD_DES_HASH_SIZE;
 	case EXTEND_BSDI_DES:
-		return 64 / 8; /* per "man crypt" */
+		return BSDI_DES_HASH_SIZE;
 	case MD5_BASED:
 		return MD5_DIGEST_LENGTH;
 	case SHA256_BASED:
@@ -54,7 +56,7 @@ const char *
 get_crypt_prefix (int method)
 {
 	switch (method) {
-	case TRANDITIONAL_DES:
+	case TRADITIONAL_DES:
 		return ""; /* per "man crypt" */
 	case EXTEND_BSDI_DES:
 		return "_"; /* per "man crypt" */
@@ -69,6 +71,20 @@ get_crypt_prefix (int method)
 	}
 
 	return NULL;
+}
+
+static int
+decode_trad_des_pass (const char *string, pw_crypt_t *pw_crypt)
+{
+	/* Expected string: [./0-9A-Za-z]{13} */
+	pw_crypt->iter_count = 25;
+	pw_crypt->salt_size = 2;
+	memcpy (pw_crypt->salt, string, 2);
+	pw_crypt->salt[2] = '\0';
+	memcpy (pw_crypt->hash, string, TRAD_DES_HASH_SIZE);
+	pw_crypt->hash[TRAD_DES_HASH_SIZE] = '\0';
+
+	return 0;
 }
 
 static int
@@ -265,6 +281,11 @@ decode_pass (const char *crypt_pass, pw_crypt_t *pw_crypt)
 	    strncmp (crypt_pass, bf_y_prefix, 4) == 0) {
 		pw_crypt->method = BLOWFISH_BASED;
 		return decode_blowfish_pass (crypt_pass, pw_crypt);
+	}
+
+	if (strlen (crypt_pass) == TRAD_DES_HASH_SIZE) {
+		pw_crypt->method = TRADITIONAL_DES;
+		return decode_trad_des_pass (crypt_pass, pw_crypt);
 	}
 
 	return -1;
