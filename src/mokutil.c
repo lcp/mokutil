@@ -12,7 +12,6 @@
 #include <openssl/sha.h>
 #include <openssl/x509.h>
 
-#define __USE_GNU
 #include <crypt.h>
 
 #include "efi.h"
@@ -389,7 +388,6 @@ static int
 generate_hash (pw_crypt_t *pw_crypt, char *password, int pw_len)
 {
 	pw_crypt_t new_crypt;
-	struct crypt_data data;
 	char settings[SETTINGS_LEN];
 	char *crypt_string;
 	const char *prefix;
@@ -412,7 +410,7 @@ generate_hash (pw_crypt_t *pw_crypt, char *password, int pw_len)
 		 pw_crypt->salt_size);
 	settings[pw_crypt->salt_size + prefix_len] = '\0';
 
-	crypt_string = crypt_r (password, settings, &data);
+	crypt_string = crypt (password, settings);
 	if (!crypt_string)
 		return -1;
 
@@ -1068,7 +1066,6 @@ reset_moks (const char *hash_file, const int root_pw)
 static int
 generate_pw_hash (const char *input_pw)
 {
-	struct crypt_data data;
 	char settings[SETTINGS_LEN];
 	char *password = NULL;
 	char *crypt_string;
@@ -1106,7 +1103,7 @@ generate_pw_hash (const char *input_pw)
 		       DEFAULT_SALT_SIZE, DEFAULT_SALT_SIZE);
 	settings[DEFAULT_SALT_SIZE + prefix_len] = '\0';
 
-	crypt_string = crypt_r (password, settings, &data);
+	crypt_string = crypt (password, settings);
 	if (!crypt_string) {
 		fprintf (stderr, "Failed to generate hash\n");
 		goto error;
