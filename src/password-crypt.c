@@ -109,7 +109,7 @@ decode_sha256_pass (const char *string, pw_crypt_t *pw_crypt)
 {
 	/* Expected string: (rounds=[0-9]{1,9}\$)?([./0-9A-Za-z]{1,16})?\$[./0-9A-Za-z]{43} */
 	char *tmp, *ptr = (char *)string;
-	char *b64_hash;
+	char b64_hash[SHA256_B64_LENGTH + 1];
 	int count = 0;
 
 	/* get rounds */
@@ -127,29 +127,31 @@ decode_sha256_pass (const char *string, pw_crypt_t *pw_crypt)
 	}
 
 	/* get salt */
-	for (tmp = ptr; *tmp != '$'; tmp++) {
-		if (tmp == '\0')
-			return -1;
-		count++;
+	tmp = ptr;
+	if (strlen (ptr) > SHA256_B64_LENGTH) {
+		while (*tmp != '$') {
+			if (tmp == '\0')
+				return -1;
+			count++;
+			tmp++;
+		}
+
+		count = MIN(count, SHA256_SALT_MAX);
+		memcpy (pw_crypt->salt, ptr, count);
+		pw_crypt->salt_size = count;
+		ptr = tmp + 1;
+	} else {
+		pw_crypt->salt_size = 0;
 	}
-	count = MIN(count, SHA256_SALT_MAX);
-	memcpy (pw_crypt->salt, ptr, count);
-	pw_crypt->salt_size = count;
-	ptr = tmp + 1;
 
 	/* get hash */
 	if (strlen(ptr) < SHA256_B64_LENGTH)
-		return -1;
-	b64_hash = malloc (SHA256_B64_LENGTH + 1);
-	if (!b64_hash)
 		return -1;
 	memcpy (b64_hash, ptr, SHA256_B64_LENGTH);
 	b64_hash[SHA256_B64_LENGTH] = '\0';
 
 	if (restore_sha256_array (b64_hash, pw_crypt->hash) < 0)
 		return -1;
-
-	free (b64_hash);
 
 	return 0;
 }
@@ -159,7 +161,7 @@ decode_sha512_pass (const char *string, pw_crypt_t *pw_crypt)
 {
 	/* Expected string: (rounds=[0-9]{1,9}\$)?([./0-9A-Za-z]{1,16})?\$[./0-9A-Za-z]{86} */
 	char *tmp, *ptr = (char *)string;
-	char *b64_hash;
+	char b64_hash[SHA512_B64_LENGTH + 1];
 	int count = 0;
 
 	/* get rounds */
@@ -177,29 +179,31 @@ decode_sha512_pass (const char *string, pw_crypt_t *pw_crypt)
 	}
 
 	/* get salt */
-	for (tmp = ptr; *tmp != '$'; tmp++) {
-		if (tmp == '\0')
-			return -1;
-		count++;
+	tmp = ptr;
+	if (strlen (ptr) > SHA512_B64_LENGTH) {
+		while (*tmp != '$') {
+			if (tmp == '\0')
+				return -1;
+			count++;
+			tmp++;
+		}
+
+		count = MIN(count, SHA512_SALT_MAX);
+		memcpy (pw_crypt->salt, ptr, count);
+		pw_crypt->salt_size = count;
+		ptr = tmp + 1;
+	} else {
+		pw_crypt->salt_size = 0;
 	}
-	count = MIN(count, SHA512_SALT_MAX);
-	memcpy (pw_crypt->salt, ptr, count);
-	pw_crypt->salt_size = count;
-	ptr = tmp + 1;
 
 	/* get hash */
 	if (strlen(ptr) < SHA512_B64_LENGTH)
-		return -1;
-	b64_hash = malloc (SHA512_B64_LENGTH + 1);
-	if (!b64_hash)
 		return -1;
 	memcpy (b64_hash, ptr, SHA512_B64_LENGTH);
 	b64_hash[SHA512_B64_LENGTH] = '\0';
 
 	if (restore_sha512_array (b64_hash, pw_crypt->hash) < 0)
 		return -1;
-
-	free (b64_hash);
 
 	return 0;
 }
