@@ -30,6 +30,7 @@ typedef struct {
 
 #define PASSWORD_CRYPT_SIZE sizeof(pw_crypt_t)
 
+#define MD5_B64_LENGTH 22
 #define SHA256_B64_LENGTH 43
 #define SHA512_B64_LENGTH 86
 
