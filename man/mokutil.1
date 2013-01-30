@@ -1,26 +1,40 @@
-.TH MOKUTIL 1 "Wed Nov 07 2012"
+.TH MOKUTIL 1 "Wed Jan 30 2013"
 .SH NAME
 
 mokutil \- utility to manipulate machine owner keys
 
 .SH SYNOPSIS
-\fBmokutil\fR [--list-enrolled | -le]
+\fBmokutil\fR [--list-enrolled]
 .br
-\fBmokutil\fR [--list-new | -ln]
+\fBmokutil\fR [--list-new]
 .br
-\fBmokutil\fR [--import | -i] ...
+\fBmokutil\fR [--import \fIkeylist\fR| -i \fIkeylist\fR]
+        ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P])
 .br
-\fBmokutil\fR [--delete-all | -D]
+\fBmokutil\fR [--delete \fIkeylist\fR | -d \fIkeylist\fR]
+        ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P])
 .br
-\fBmokutil\fR [--revoke | -r]
+\fBmokutil\fR [--revoke-import]
+.br
+\fBmokutil\fR [--revoke-delete]
 .br
 \fBmokutil\fR [--export | -x]
 .br
 \fBmokutil\fR [--password | -p]
+        ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P])
 .br
 \fBmokutil\fR [--disable-validation]
 .br
 \fBmokutil\fR [--enable-validation]
+.br
+\fBmokutil\fR [--sb-state]
+.br
+\fBmokutil\fR [--test-key | -t] ...
+.br
+\fBmokutil\fR [--reset]
+        ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P])
+.br
+\fBmokutil\fR [--generate-hash=\fIpassword\fR | -g\fIpassword\fR]
 .br
 
 .SH DESCRIPTION
@@ -31,36 +45,49 @@ mokutil \- utility to manipulate machine owner keys
 .TP
 \fB--list-enrolled\fR
 List the keys the already stored in the database
-
 .TP
 \fB--list-new\fR
 List the keys to be enrolled
-
 .TP
 \fB--import\fR
 Collect the followed files and form a request to shim. The files must be in DER
 format.
-
 .TP
 \fB--delete-all\fR
 Request shim to delete all stored keys
-
 .TP
-\fB--revoke\fR
-Revoke the current request
-
+\fB--revoke-import\fR
+Revoke the current import request (MokNew)
+.TP
+\fB--revoke-delete\fR
+Revoke the current delete request (MokDel)
 .TP
 \fB--export\fR
 Export the keys stored in MokListRT
-
 .TP
 \fB--password\fR
 Setup the password for MokManager
-
 .TP
 \fB--disable-validation\fR
 Disable the validation process in shim
-
 .TP
 \fB--enrolled-validation\fR
 Enable the validation process in shim
+.TP
+\fB--sb-state\fR
+Show SecureBoot State
+.TP
+\fB--test-key\fR
+Test if the key is enrolled or not
+.TP
+\fB--reset\fR
+Reset MOK list
+.TP
+\fB--generate-hash\fR
+Generate the password hash
+.TP
+\fB--hash-file\fR
+Use the password hash from a specific file
+.TP
+\fB--root-pw\fR
+Use the root password hash from /etc/shadow
