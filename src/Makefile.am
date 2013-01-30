@@ -1,10 +1,10 @@
 bin_PROGRAMS    = mokutil
 
 mokutil_CFLAGS  = $(OPENSSL_CFLAGS) \
-		  -lcrypt \
 		  $(WARNINGFLAGS_C)
 
-mokutil_LDADD   = $(OPENSSL_LIBS)
+mokutil_LDADD   = $(OPENSSL_LIBS) \
+		  -lcrypt
 
 mokutil_SOURCES = efi.h \
 		  efilib.c \
