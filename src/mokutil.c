@@ -49,8 +49,9 @@ EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 
 #define SETTINGS_LEN         (DEFAULT_SALT_SIZE*2)
 
 typedef struct {
-	uint32_t mok_size;
-	void    *mok;
+	EFI_SIGNATURE_LIST *header;
+	uint32_t            mok_size;
+	void               *mok;
 } MokListNode;
 
 typedef struct {
@@ -154,8 +155,9 @@ build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 			return NULL;
 		}
 
+		list[count].header = CertList;
 		list[count].mok_size = CertList->SignatureSize - sizeof(efi_guid_t);
-                list[count].mok = (void *)Cert->SignatureData;
+		list[count].mok = (void *)Cert->SignatureData;
 
 		count++;
 		dbsize -= CertList->SignatureListSize;
@@ -230,6 +232,74 @@ list_keys (efi_variable_t *var)
 	free (list);
 
 	return 0;
+}
+
+static int
+delete_key_from_list (void *mok, uint32_t mok_size,
+		      const char *var_name, efi_guid_t guid)
+{
+	efi_variable_t var;
+	MokListNode *list;
+	uint32_t mok_num, total, remain;
+	void *ptr, *data = NULL;
+	int i, del_ind, ret = 0;
+
+	if (!var_name || !mok || mok_size == 0)
+		return 0;
+
+	memset (&var, 0, sizeof(var));
+	var.VariableName = var_name;
+	var.VendorGuid = guid;
+
+	if (read_variable (&var) != EFI_SUCCESS)
+		return 0;
+
+	total = var.DataSize;
+
+	list = build_mok_list (var.Data, var.DataSize, &mok_num);
+	if (list == NULL)
+		goto done;
+
+	for (i = 0; i < mok_num; i++) {
+		if (list[i].mok_size != mok_size)
+			continue;
+
+		if (memcmp (list[i].mok, mok, mok_size) == 0) {
+			/* Remove this key */
+			del_ind = i;
+			data = (void *)list[i].header;
+			ptr = data + list[i].header->SignatureListSize;
+			total -= list[i].header->SignatureListSize;
+			break;
+		}
+	}
+
+	/* the key is not in this list */
+	if (data == NULL)
+		return 0;
+
+	/* Move the rest of the keys */
+	remain = 0;
+	for (i = del_ind + 1; i < mok_num; i++)
+		remain += list[i].header->SignatureListSize;
+	if (remain > 0)
+		memmove (data, ptr, remain);
+
+	var.DataSize = total;
+	var.Attributes = EFI_VARIABLE_NON_VOLATILE
+			 | EFI_VARIABLE_BOOTSERVICE_ACCESS
+			 | EFI_VARIABLE_RUNTIME_ACCESS;
+
+	if (edit_protected_variable (&var) != EFI_SUCCESS) {
+		fprintf (stderr, "Failed to write %s\n", var_name);
+		goto done;
+	}
+
+	ret = 1;
+done:
+	free (var.Data);
+
+	return ret;
 }
 
 static int
@@ -658,6 +728,34 @@ is_valid_request (void *mok, uint32_t mok_size, uint8_t import)
 }
 
 static int
+in_pending_request (void *mok, uint32_t mok_size, uint8_t import)
+{
+	efi_variable_t authvar;
+	const char *var_name = import ? "MokDel" : "MokNew";
+
+	if (!mok || mok_size == 0)
+		return 0;
+
+	memset (&authvar, 0, sizeof(authvar));
+	authvar.VariableName = import ? "MokDelAuth" : "MokAuth";
+	authvar.VendorGuid = SHIM_LOCK_GUID;
+
+	if (read_variable (&authvar) != EFI_SUCCESS) {
+		return 0;
+	}
+
+	free (authvar.Data);
+	/* Check if the password hash is in the old format */
+	if (authvar.DataSize == SHA256_DIGEST_LENGTH)
+		return 0;
+
+	if (delete_key_from_list (mok, mok_size, var_name, SHIM_LOCK_GUID))
+		return 1;
+
+	return 0;
+}
+
+static int
 issue_mok_request (char **files, uint32_t total, uint8_t import,
 		   const char *hash_file, const int root_pw)
 {
@@ -678,10 +776,7 @@ issue_mok_request (char **files, uint32_t total, uint8_t import,
 	if (!files)
 		return -1;
 
-	if (import)
-		req_name = "MokNew";
-	else
-		req_name = "MokDel";
+	req_name = import ? "MokNew" : "MokDel";
 
 	sizes = malloc (total * sizeof(uint32_t));
 
@@ -692,6 +787,7 @@ issue_mok_request (char **files, uint32_t total, uint8_t import,
 		goto error;
 	}
 
+	/* get the sizes of the key files */
 	for (i = 0; i < total; i++) {
 		if (stat (files[i], &buf) != 0) {
 			fprintf (stderr, "Failed to get file status, %s\n",
@@ -752,6 +848,10 @@ issue_mok_request (char **files, uint32_t total, uint8_t import,
 		if (is_valid_request (ptr, sizes[i], import)) {
 			ptr += sizes[i];
 			real_size += sizes[i] + sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
+		} else if (in_pending_request (ptr, sizes[i], import)) {
+			printf ("Removed %s from %s\n", files[i], import ? "MokDel" : "MokNew");
+
+			ptr -= sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
 		} else {
 			printf ("Skip %s\n", files[i]);
 			ptr -= sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
@@ -760,7 +860,7 @@ issue_mok_request (char **files, uint32_t total, uint8_t import,
 		close (fd);
 	}
 
-	/* All keys are enrolled, nothing to do here... */
+	/* All keys are in the list, nothing to do here... */
 	if (real_size == 0) {
 		ret = 0;
 		goto error;
