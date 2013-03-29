@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include "efi.h"
 
 #define SYSFS_DIR_EFI_VARS "/sys/firmware/efi/efivars"
@@ -95,7 +96,9 @@ read_variable (efi_variable_t *var)
 	snprintf (filename, PATH_MAX-1, "%s/%s", SYSFS_DIR_EFI_VARS, name);
 	fd = open (filename, O_RDONLY);
 	if (fd == -1) {
-		return EFI_NOT_FOUND;
+		if (errno == ENOENT)
+			return EFI_NOT_FOUND;
+		return EFI_INVALID_PARAMETER;
 	}
 
 	if (fstat (fd, &buf) != 0) {
