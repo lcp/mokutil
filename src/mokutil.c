@@ -40,9 +40,7 @@ EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 
 #define SB_STATE           0x800
 #define TEST_KEY           0x1000
 #define RESET              0x2000
-#define HASH_FILE          0x4000
-#define GENERATE_PW_HASH   0x8000
-#define ROOT_PW            0x10000
+#define GENERATE_PW_HASH   0x4000
 
 #define DEFAULT_CRYPT_METHOD SHA512_BASED
 #define DEFAULT_SALT_SIZE    SHA512_SALT_MAX
@@ -1247,6 +1245,7 @@ main (int argc, char *argv[])
 	const char *option;
 	int c, i, f_ind, total = 0;
 	unsigned int command = 0;
+	int use_root_pw = 0;
 	int ret = -1;
 
 	while (1) {
@@ -1329,7 +1328,6 @@ main (int argc, char *argv[])
 		case 'f':
 			hash_file = strdup (optarg);
 
-			command |= HASH_FILE;
 			break;
 		case 'g':
 			if (optarg)
@@ -1341,7 +1339,7 @@ main (int argc, char *argv[])
 			command |= PASSWORD;
 			break;
 		case 'P':
-			command |= ROOT_PW;
+			use_root_pw = 1;
 			break;
 		case 't':
 			key_file = strdup (optarg);
@@ -1360,6 +1358,9 @@ main (int argc, char *argv[])
 		}
 	}
 
+	if (hash_file && use_root_pw)
+		command |= HELP;
+
 	switch (command) {
 		case LIST_ENROLLED:
 			ret = list_enrolled_keys ();
@@ -1368,18 +1369,16 @@ main (int argc, char *argv[])
 			ret = list_new_keys ();
 			break;
 		case IMPORT:
-		case IMPORT | HASH_FILE:
-			ret = import_moks (files, total, hash_file, 0);
-			break;
-		case IMPORT | ROOT_PW:
-			ret = import_moks (files, total, NULL, 1);
+			if (use_root_pw)
+				ret = import_moks (files, total, NULL, 1);
+			else
+				ret = import_moks (files, total, hash_file, 0);
 			break;
 		case DELETE:
-		case DELETE | HASH_FILE:
-			ret = delete_moks (files, total, hash_file, 0);
-			break;
-		case DELETE | ROOT_PW:
-			ret = delete_moks (files, total, NULL, 1);
+			if (use_root_pw)
+				ret = delete_moks (files, total, NULL, 1);
+			else
+				ret = delete_moks (files, total, hash_file, 0);
 			break;
 		case REVOKE_IMPORT:
 			ret = revoke_request (1);
@@ -1391,11 +1390,10 @@ main (int argc, char *argv[])
 			ret = export_moks ();
 			break;
 		case PASSWORD:
-		case PASSWORD | HASH_FILE:
-			ret = set_password (hash_file, 0);
-			break;
-		case PASSWORD | ROOT_PW:
-			ret = set_password (NULL, 1);
+			if (use_root_pw)
+				ret = set_password (NULL, 1);
+			else
+				ret = set_password (hash_file, 0);
 			break;
 		case DISABLE_VALIDATION:
 			ret = disable_validation ();
@@ -1410,11 +1408,10 @@ main (int argc, char *argv[])
 			ret = test_key (key_file);
 			break;
 		case RESET:
-		case RESET | HASH_FILE:
-			ret = reset_moks (hash_file, 0);
-			break;
-		case RESET | ROOT_PW:
-			ret = reset_moks (NULL, 1);
+			if (use_root_pw)
+				ret = reset_moks (NULL, 1);
+			else
+				ret = reset_moks (hash_file, 0);
 			break;
 		case GENERATE_PW_HASH:
 			ret = generate_pw_hash (input_pw);
