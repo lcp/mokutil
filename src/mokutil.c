@@ -1317,6 +1317,11 @@ main (int argc, char *argv[])
 				total++;
 			}
 
+			if (total == 0) {
+				command |= HELP;
+				break;
+			}
+
 			files = malloc (total * sizeof (char *));
 			for (i = 0; i < total; i++) {
 				f_ind = i + optind - 1;
