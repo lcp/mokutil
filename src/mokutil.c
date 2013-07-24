@@ -35,12 +35,13 @@ EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 
 #define REVOKE_DELETE      0x40
 #define EXPORT             0x80
 #define PASSWORD           0x100
-#define DISABLE_VALIDATION 0x200
-#define ENABLE_VALIDATION  0x400
-#define SB_STATE           0x800
-#define TEST_KEY           0x1000
-#define RESET              0x2000
-#define GENERATE_PW_HASH   0x4000
+#define CLEAR_PASSWORD     0x200
+#define DISABLE_VALIDATION 0x400
+#define ENABLE_VALIDATION  0x800
+#define SB_STATE           0x1000
+#define TEST_KEY           0x2000
+#define RESET              0x4000
+#define GENERATE_PW_HASH   0x8000
 
 #define DEFAULT_CRYPT_METHOD SHA512_BASED
 #define DEFAULT_SALT_SIZE    SHA512_SALT_MAX
@@ -74,6 +75,7 @@ print_help ()
 	printf ("  --revoke-delete\t\t\tRevoke the delete request\n");
 	printf ("  --export\t\t\t\tExport enrolled keys to files\n");
 	printf ("  --password\t\t\t\tSet MOK password\n");
+	printf ("  --clear-password\t\t\tClear MOK password\n");
 	printf ("  --disable-validation\t\t\tDisable signature validation\n");
 	printf ("  --enable-validation\t\t\tEnable signature validation\n");
 	printf ("  --sb-state\t\t\t\tShow SecureBoot State\n");
@@ -979,7 +981,7 @@ error:
 }
 
 static int
-set_password (const char *hash_file, const int root_pw)
+set_password (const char *hash_file, const int root_pw, const int clear)
 {
 	efi_variable_t var;
 	pw_crypt_t pw_crypt;
@@ -987,8 +989,7 @@ set_password (const char *hash_file, const int root_pw)
 	int pw_len;
 	int ret = -1;
 
-	bzero (&pw_crypt, sizeof(pw_crypt_t));
-	pw_crypt.method = DEFAULT_CRYPT_METHOD;
+	memset (&pw_crypt, 0, sizeof(pw_crypt_t));
 
 	if (hash_file) {
 		if (get_hash_from_file (hash_file, &pw_crypt) < 0) {
@@ -1000,7 +1001,8 @@ set_password (const char *hash_file, const int root_pw)
 			fprintf (stderr, "Failed to get root password hash\n");
 			goto error;
 		}
-	} else {
+	} else if (!clear) {
+		pw_crypt.method = DEFAULT_CRYPT_METHOD;
 		if (get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0) {
 			fprintf (stderr, "Abort\n");
 			goto error;
@@ -1259,6 +1261,7 @@ main (int argc, char *argv[])
 			{"revoke-delete",      no_argument,       0, 0  },
 			{"export",             no_argument,       0, 'x'},
 			{"password",           no_argument,       0, 'p'},
+			{"clear-password",     no_argument,       0, 'c'},
 			{"disable-validation", no_argument,       0, 0  },
 			{"enable-validation",  no_argument,       0, 0  },
 			{"sb-state",           no_argument,       0, 0  },
@@ -1271,7 +1274,7 @@ main (int argc, char *argv[])
 		};
 
 		int option_index = 0;
-		c = getopt_long (argc, argv, "d:f:g::hi:pt:xP",
+		c = getopt_long (argc, argv, "cd:f:g::hi:pt:xP",
 				 long_options, &option_index);
 
 		if (c == -1)
@@ -1343,6 +1346,9 @@ main (int argc, char *argv[])
 		case 'p':
 			command |= PASSWORD;
 			break;
+		case 'c':
+			command |= CLEAR_PASSWORD;
+			break;
 		case 'P':
 			use_root_pw = 1;
 			break;
@@ -1396,9 +1402,12 @@ main (int argc, char *argv[])
 			break;
 		case PASSWORD:
 			if (use_root_pw)
-				ret = set_password (NULL, 1);
+				ret = set_password (NULL, 1, 0);
 			else
-				ret = set_password (hash_file, 0);
+				ret = set_password (hash_file, 0, 0);
+			break;
+		case CLEAR_PASSWORD:
+			ret = set_password (NULL, 0, 1);
 			break;
 		case DISABLE_VALIDATION:
 			ret = disable_validation ();

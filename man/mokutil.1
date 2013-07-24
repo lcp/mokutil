@@ -23,6 +23,8 @@ mokutil \- utility to manipulate machine owner keys
 \fBmokutil\fR [--password | -p]
         ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P])
 .br
+\fBmokutil\fR [--clear-password | -c]
+.br
 \fBmokutil\fR [--disable-validation]
 .br
 \fBmokutil\fR [--enable-validation]
@@ -64,6 +66,9 @@ Export the keys stored in MokListRT
 .TP
 \fB--password\fR
 Setup the password for MokManager
+.TP
+\fB--clear-password\fR
+Clear the password for MokManager
 .TP
 \fB--disable-validation\fR
 Disable the validation process in shim
