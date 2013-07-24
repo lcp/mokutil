@@ -8,6 +8,8 @@ mokutil \- utility to manipulate machine owner keys
 .br
 \fBmokutil\fR [--list-new]
 .br
+\fBmokutil\fR [--list-delete]
+.br
 \fBmokutil\fR [--import \fIkeylist\fR| -i \fIkeylist\fR]
         ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P])
 .br
@@ -50,6 +52,9 @@ List the keys the already stored in the database
 .TP
 \fB--list-new\fR
 List the keys to be enrolled
+.TP
+\fB--list-delete\fR
+List the keys to be deleted
 .TP
 \fB--import\fR
 Collect the followed files and form a request to shim. The files must be in DER

@@ -26,22 +26,23 @@ EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 
 #define SB_PASSWORD_MAX 16
 #define SB_PASSWORD_MIN 8
 
-#define HELP               0x1
-#define LIST_ENROLLED      0x2
-#define LIST_NEW           0x4
-#define IMPORT             0x8
-#define DELETE             0x10
-#define REVOKE_IMPORT      0x20
-#define REVOKE_DELETE      0x40
-#define EXPORT             0x80
-#define PASSWORD           0x100
-#define CLEAR_PASSWORD     0x200
-#define DISABLE_VALIDATION 0x400
-#define ENABLE_VALIDATION  0x800
-#define SB_STATE           0x1000
-#define TEST_KEY           0x2000
-#define RESET              0x4000
-#define GENERATE_PW_HASH   0x8000
+#define HELP               (1 << 0)
+#define LIST_ENROLLED      (1 << 1)
+#define LIST_NEW           (1 << 2)
+#define LIST_DELETE        (1 << 3)
+#define IMPORT             (1 << 4)
+#define DELETE             (1 << 5)
+#define REVOKE_IMPORT      (1 << 6)
+#define REVOKE_DELETE      (1 << 7)
+#define EXPORT             (1 << 8)
+#define PASSWORD           (1 << 9)
+#define CLEAR_PASSWORD     (1 << 10)
+#define DISABLE_VALIDATION (1 << 11)
+#define ENABLE_VALIDATION  (1 << 12)
+#define SB_STATE           (1 << 13)
+#define TEST_KEY           (1 << 14)
+#define RESET              (1 << 15)
+#define GENERATE_PW_HASH   (1 << 16)
 
 #define DEFAULT_CRYPT_METHOD SHA512_BASED
 #define DEFAULT_SALT_SIZE    SHA512_SALT_MAX
@@ -69,6 +70,7 @@ print_help ()
 	printf ("  --help\t\t\t\tShow help\n");
 	printf ("  --list-enrolled\t\t\tList the enrolled keys\n");
 	printf ("  --list-new\t\t\t\tList the keys to be enrolled\n");
+	printf ("  --list-delete\t\t\t\tList the keys to be deleted\n");
 	printf ("  --import <der file...>\t\tImport keys\n");
 	printf ("  --delete <der file...>\t\tDelete specific keys\n");
 	printf ("  --revoke-import\t\t\tRevoke the import request\n");
@@ -303,52 +305,24 @@ done:
 }
 
 static int
-list_enrolled_keys ()
+list_keys_in_var (const char *var_name)
 {
 	efi_variable_t var;
 	efi_status_t status;
 	int ret;
 
 	memset (&var, 0, sizeof(var));
-	var.VariableName = "MokListRT";
+	var.VariableName = var_name;
 	var.VendorGuid = SHIM_LOCK_GUID;
 
 	status = read_variable (&var);
 	if (status != EFI_SUCCESS) {
 		if (status == EFI_NOT_FOUND) {
-			printf ("MokListRT is empty\n");
+			printf ("%s is empty\n", var_name);
 			return 0;
 		}
 
-		fprintf (stderr, "Failed to read MokListRT\n");
-		return -1;
-	}
-
-	ret = list_keys (&var);
-	free (var.Data);
-
-	return ret;
-}
-
-static int
-list_new_keys ()
-{
-	efi_variable_t var;
-	efi_status_t status;
-	int ret;
-
-	memset (&var, 0, sizeof(var));
-	var.VariableName = "MokNew";
-	var.VendorGuid = SHIM_LOCK_GUID;
-
-	status = read_variable (&var);
-	if (status != EFI_SUCCESS) {
-		if (status == EFI_NOT_FOUND) {
-			printf ("No MOK new key request\n");
-			return 0;
-		}
-
-		fprintf (stderr, "Failed to read MokNew\n");
+		fprintf (stderr, "Failed to read %s\n", var_name);
 		return -1;
 	}
 
@@ -1255,6 +1229,7 @@ main (int argc, char *argv[])
 			{"help",               no_argument,       0, 'h'},
 			{"list-enrolled",      no_argument,       0, 0  },
 			{"list-new",	       no_argument,       0, 0  },
+			{"list-delete",	       no_argument,       0, 0  },
 			{"import",             required_argument, 0, 'i'},
 			{"delete",             required_argument, 0, 'd'},
 			{"revoke-import",      no_argument,       0, 0  },
@@ -1287,6 +1262,8 @@ main (int argc, char *argv[])
 				command |= LIST_ENROLLED;
 			} else if (strcmp (option, "list-new") == 0) {
 				command |= LIST_NEW;
+			} else if (strcmp (option, "list-delete") == 0) {
+				command |= LIST_DELETE;
 			} else if (strcmp (option, "revoke-import") == 0) {
 				command |= REVOKE_IMPORT;
 			} else if (strcmp (option, "revoke-delete") == 0) {
@@ -1374,10 +1351,13 @@ main (int argc, char *argv[])
 
 	switch (command) {
 		case LIST_ENROLLED:
-			ret = list_enrolled_keys ();
+			ret = list_keys_in_var ("MokListRT");
 			break;
 		case LIST_NEW:
-			ret = list_new_keys ();
+			ret = list_keys_in_var ("MokNew");
+			break;
+		case LIST_DELETE:
+			ret = list_keys_in_var ("MokDel");
 			break;
 		case IMPORT:
 			if (use_root_pw)
