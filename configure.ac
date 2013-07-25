@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.68])
-AC_INIT([mokutil], [0.1.0], [glin@suse.com])
+AC_INIT([mokutil], [0.2.0], [glin@suse.com])
 AM_INIT_AUTOMAKE([1.11 -Wno-portability tar-ustar dist-bzip2 no-dist-gzip])
 AC_CONFIG_SRCDIR([src/mokutil.c])
 AC_CONFIG_HEADERS([config.h])
