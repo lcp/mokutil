@@ -8,6 +8,7 @@
 #include <termios.h>
 #include <getopt.h>
 #include <shadow.h>
+#include <sys/time.h>
 
 #include <openssl/sha.h>
 #include <openssl/x509.h>
@@ -425,19 +426,25 @@ error:
 	return ret;
 }
 
-static unsigned int
-generate_salt (uint8_t salt[], unsigned int max_size, unsigned int min_size)
+static void
+generate_salt (char salt[], unsigned int salt_size)
 {
-	unsigned int salt_size = max_size;
-	int i;
+	struct timeval tv;
+	char *rand_str;
+	int remain = salt_size;
 
-	/* TODO use a better random number generator */
-	srand (time (NULL));
+	salt[0] = '\0';
 
-	for (i = 0; i < salt_size; i++)
-		salt[i] = int_to_b64 (rand() % 0x3f);
+	(void) gettimeofday (&tv, NULL);
+	srandom (tv.tv_sec ^ tv.tv_usec ^ getpid ());
 
-	return salt_size;
+	do {
+		rand_str = l64a (random());
+		strncat (salt, rand_str, remain);
+		remain = remain - strlen(rand_str);
+	} while (remain > 0);
+
+	salt[salt_size] = '\0';
 }
 
 static int
@@ -457,9 +464,8 @@ generate_hash (pw_crypt_t *pw_crypt, char *password, int pw_len)
 		return -1;
 	prefix_len = strlen(prefix);
 
-	pw_crypt->salt_size = generate_salt (pw_crypt->salt,
-					     DEFAULT_SALT_SIZE,
-					     DEFAULT_SALT_SIZE);
+	pw_crypt->salt_size = get_salt_size (pw_crypt->method);
+	generate_salt ((char *)pw_crypt->salt, pw_crypt->salt_size);
 
 	strncpy (settings, prefix, prefix_len);
 	strncpy (settings + prefix_len, (const char *)pw_crypt->salt,
@@ -1163,7 +1169,7 @@ generate_pw_hash (const char *input_pw)
 	char *crypt_string;
 	const char *prefix;
 	int prefix_len;
-	int pw_len, ret = -1;
+	int pw_len, salt_size, ret = -1;
 
 	if (input_pw) {
 		pw_len = strlen (input_pw);
@@ -1191,8 +1197,8 @@ generate_pw_hash (const char *input_pw)
 	prefix_len = strlen(prefix);
 
 	strncpy (settings, prefix, prefix_len);
-	generate_salt ((uint8_t *)(settings + prefix_len),
-		       DEFAULT_SALT_SIZE, DEFAULT_SALT_SIZE);
+	salt_size = get_salt_size (DEFAULT_CRYPT_METHOD);
+	generate_salt ((settings + prefix_len), salt_size);
 	settings[DEFAULT_SALT_SIZE + prefix_len] = '\0';
 
 	crypt_string = crypt (password, settings);

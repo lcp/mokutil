@@ -34,6 +34,7 @@ typedef struct {
 #define SHA256_B64_LENGTH 43
 #define SHA512_B64_LENGTH 86
 
+uint16_t get_salt_size (int method);
 int get_hash_size (int method);
 const char *get_crypt_prefix (int method);
 int decode_pass (const char *crypt_pass, pw_crypt_t *pw_crypt);

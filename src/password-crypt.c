@@ -1,5 +1,8 @@
 #include <string.h>
 #include <stdlib.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <openssl/md5.h>
 #include <openssl/sha.h>
 #include "password-crypt.h"
@@ -30,6 +33,39 @@ static const char sha_rounds_prefix[] = "rounds=";
 static int restore_md5_array (const char *string, uint8_t *hash);
 static int restore_sha256_array (const char *string, uint8_t *hash);
 static int restore_sha512_array (const char *string, uint8_t *hash);
+
+static uint16_t
+gen_salt_size (uint16_t min, uint16_t max)
+{
+	struct timeval tv;
+	uint16_t diff;
+
+	(void) gettimeofday (&tv, NULL);
+	srandom (tv.tv_sec ^ tv.tv_usec ^ getpid ());
+
+	diff = random () % (max - min + 1);
+
+	return (min + diff);
+}
+
+uint16_t
+get_salt_size (int method) {
+	switch (method) {
+	case TRADITIONAL_DES:
+		return T_DES_SALT_MAX;
+	case EXTEND_BSDI_DES:
+		return E_BSI_DES_SALT_MAX;
+	case MD5_BASED:
+		return MD5_SALT_MAX;
+	case SHA256_BASED:
+	case SHA512_BASED:
+		return gen_salt_size (8, 16);
+	case BLOWFISH_BASED:
+		return BLOWFISH_SALT_MAX;
+	}
+
+	return -1;
+}
 
 int
 get_hash_size (int method)
