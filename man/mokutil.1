@@ -1,4 +1,4 @@
-.TH MOKUTIL 1 "Wed Jan 30 2013"
+.TH MOKUTIL 1 "Thu Jul 25 2013"
 .SH NAME
 
 mokutil \- utility to manipulate machine owner keys
@@ -11,10 +11,12 @@ mokutil \- utility to manipulate machine owner keys
 \fBmokutil\fR [--list-delete]
 .br
 \fBmokutil\fR [--import \fIkeylist\fR| -i \fIkeylist\fR]
-        ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P])
+        ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
+         [--simple-hash | -s])
 .br
 \fBmokutil\fR [--delete \fIkeylist\fR | -d \fIkeylist\fR]
-        ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P])
+        ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
+         [--simple-hash | -s])
 .br
 \fBmokutil\fR [--revoke-import]
 .br
@@ -23,9 +25,11 @@ mokutil \- utility to manipulate machine owner keys
 \fBmokutil\fR [--export | -x]
 .br
 \fBmokutil\fR [--password | -p]
-        ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P])
+        ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
+         [--simple-hash | -s])
 .br
 \fBmokutil\fR [--clear-password | -c]
+        ([--simple-hash | -s])
 .br
 \fBmokutil\fR [--disable-validation]
 .br
@@ -36,7 +40,8 @@ mokutil \- utility to manipulate machine owner keys
 \fBmokutil\fR [--test-key | -t] ...
 .br
 \fBmokutil\fR [--reset]
-        ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P])
+        ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
+         [--simple-hash | -s])
 .br
 \fBmokutil\fR [--generate-hash=\fIpassword\fR | -g\fIpassword\fR]
 .br
@@ -70,10 +75,10 @@ Revoke the current delete request (MokDel)
 Export the keys stored in MokListRT
 .TP
 \fB--password\fR
-Setup the password for MokManager
+Setup the password for MokManager (MokPW)
 .TP
 \fB--clear-password\fR
-Clear the password for MokManager
+Clear the password for MokManager (MokPW)
 .TP
 \fB--disable-validation\fR
 Disable the validation process in shim
@@ -98,3 +103,8 @@ Use the password hash from a specific file
 .TP
 \fB--root-pw\fR
 Use the root password hash from /etc/shadow
+.TP
+\fB--simple-hash\fR
+Use the old SHA256 password hash method to hash the password
+.br
+Note: --root-pw invalidates --simple-hash
