@@ -44,10 +44,13 @@ EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 
 #define TEST_KEY           (1 << 14)
 #define RESET              (1 << 15)
 #define GENERATE_PW_HASH   (1 << 16)
+#define SIMPLE_HASH        (1 << 17)
 
 #define DEFAULT_CRYPT_METHOD SHA512_BASED
 #define DEFAULT_SALT_SIZE    SHA512_SALT_MAX
 #define SETTINGS_LEN         (DEFAULT_SALT_SIZE*2)
+
+static int use_simple_hash;
 
 typedef struct {
 	EFI_SIGNATURE_LIST *header;
@@ -85,12 +88,17 @@ print_help ()
 	printf ("  --test-key <der file>\t\t\tTest if the key is enrolled or not\n");
 	printf ("  --reset\t\t\t\tReset MOK list\n");
 	printf ("  --generate-hash[=password]\t\tGenerate the password hash\n");
+	printf ("\n");
+	printf ("Supplimentary Options:\n");
 	printf ("  --hash-file <hash file>\t\tUse the specific password hash\n");
-	printf ("                         \t\t(Only valid with --import, --delete,\n");
-	printf ("                         \t\t --password, and --reset)\n");
+	printf ("                         \t\t(For --import, --delete, --password,\n");
+	printf ("                         \t\t and --reset)\n");
 	printf ("  --root-pw\t\t\t\tUse the root password\n");
-	printf ("           \t\t\t\t(Only valid with --import, --delete,\n");
-	printf ("           \t\t\t\t --password, and --reset)\n");
+	printf ("           \t\t\t\t(For --import, --delete, --password,\n");
+	printf ("           \t\t\t\t and --reset)\n");
+	printf ("  --simple-hash\t\t\t\tUse the old password hash method\n");
+	printf ("               \t\t\t\t(For --import, --delete, --password,\n");
+	printf ("               \t\t\t\t --clear-password and --reset)\n");
 }
 
 static int
@@ -426,6 +434,32 @@ error:
 	return ret;
 }
 
+static int
+generate_auth (void *new_list, int list_len, char *password, int pw_len,
+	       uint8_t *auth)
+{
+	efi_char16_t efichar_pass[PASSWORD_MAX+1];
+	unsigned long efichar_len;
+	SHA256_CTX ctx;
+
+	if (!password || !auth)
+		return -1;
+
+	efichar_len = efichar_from_char (efichar_pass, password,
+					 (PASSWORD_MAX+1)*sizeof(efi_char16_t));
+
+	SHA256_Init (&ctx);
+
+	if (new_list)
+		SHA256_Update (&ctx, new_list, list_len);
+
+	SHA256_Update (&ctx, efichar_pass, efichar_len);
+
+	SHA256_Final (auth, &ctx);
+
+	return 0;
+}
+
 static void
 generate_salt (char salt[], unsigned int salt_size)
 {
@@ -543,8 +577,10 @@ update_request (void *new_list, int list_len, uint8_t import,
 	efi_variable_t var;
 	const char *req_name, *auth_name;
 	pw_crypt_t pw_crypt;
+	uint8_t auth[SHA256_DIGEST_LENGTH];
 	char *password = NULL;
 	int pw_len;
+	int auth_ret;
 	int ret = -1;
 
 	bzero (&pw_crypt, sizeof(pw_crypt_t));
@@ -574,7 +610,13 @@ update_request (void *new_list, int list_len, uint8_t import,
 			goto error;
 		}
 
-		if (generate_hash (&pw_crypt, password, pw_len) < 0) {
+		if (!use_simple_hash) {
+			auth_ret = generate_hash (&pw_crypt, password, pw_len);
+		} else {
+			auth_ret = generate_auth (new_list, list_len, password,
+						  pw_len, auth);
+		}
+		if (auth_ret < 0) {
 			fprintf (stderr, "Couldn't generate hash\n");
 			goto error;
 		}
@@ -601,8 +643,13 @@ update_request (void *new_list, int list_len, uint8_t import,
 	}
 
 	/* Write MokAuth or MokDelAuth */
-	var.Data = (void *)&pw_crypt;
-	var.DataSize = PASSWORD_CRYPT_SIZE;
+	if (!use_simple_hash) {
+		var.Data = (void *)&pw_crypt;
+		var.DataSize = PASSWORD_CRYPT_SIZE;
+	} else {
+		var.Data = (void *)auth;
+		var.DataSize = SHA256_DIGEST_LENGTH;
+	}
 	var.VariableName = auth_name;
 
 	var.VendorGuid = SHIM_LOCK_GUID;
@@ -965,11 +1012,14 @@ set_password (const char *hash_file, const int root_pw, const int clear)
 {
 	efi_variable_t var;
 	pw_crypt_t pw_crypt;
+	uint8_t auth[SHA256_DIGEST_LENGTH];
 	char *password = NULL;
 	int pw_len;
+	int auth_ret;
 	int ret = -1;
 
 	memset (&pw_crypt, 0, sizeof(pw_crypt_t));
+	memset (auth, 0, SHA256_DIGEST_LENGTH);
 
 	if (hash_file) {
 		if (get_hash_from_file (hash_file, &pw_crypt) < 0) {
@@ -982,20 +1032,31 @@ set_password (const char *hash_file, const int root_pw, const int clear)
 			goto error;
 		}
 	} else if (!clear) {
-		pw_crypt.method = DEFAULT_CRYPT_METHOD;
 		if (get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0) {
 			fprintf (stderr, "Abort\n");
 			goto error;
 		}
 
-		if (generate_hash (&pw_crypt, password, pw_len) < 0) {
+		if (!use_simple_hash) {
+			pw_crypt.method = DEFAULT_CRYPT_METHOD;
+			auth_ret = generate_hash (&pw_crypt, password, pw_len);
+		} else {
+			auth_ret = generate_auth (NULL, 0, password, pw_len,
+						  auth);
+		}
+		if (auth_ret < 0) {
 			fprintf (stderr, "Couldn't generate hash\n");
 			goto error;
 		}
 	}
 
-	var.Data = (void *)&pw_crypt;
-	var.DataSize = PASSWORD_CRYPT_SIZE;
+	if (!use_simple_hash) {
+		var.Data = (void *)&pw_crypt;
+		var.DataSize = PASSWORD_CRYPT_SIZE;
+	} else {
+		var.Data = (void *)auth;
+		var.DataSize = SHA256_DIGEST_LENGTH;
+	}
 	var.VariableName = "MokPW";
 
 	var.VendorGuid = SHIM_LOCK_GUID;
@@ -1230,6 +1291,8 @@ main (int argc, char *argv[])
 	int use_root_pw = 0;
 	int ret = -1;
 
+	use_simple_hash = 0;
+
 	while (1) {
 		static struct option long_options[] = {
 			{"help",               no_argument,       0, 'h'},
@@ -1251,11 +1314,12 @@ main (int argc, char *argv[])
 			{"hash-file",          required_argument, 0, 'f'},
 			{"generate-hash",      optional_argument, 0, 'g'},
 			{"root-pw",            no_argument,       0, 'P'},
+			{"simple-hash",        no_argument,       0, 's'},
 			{0, 0, 0, 0}
 		};
 
 		int option_index = 0;
-		c = getopt_long (argc, argv, "cd:f:g::hi:pt:xP",
+		c = getopt_long (argc, argv, "cd:f:g::hi:pst:xP",
 				 long_options, &option_index);
 
 		if (c == -1)
@@ -1343,6 +1407,10 @@ main (int argc, char *argv[])
 		case 'x':
 			command |= EXPORT;
 			break;
+		case 's':
+			command |= SIMPLE_HASH;
+			use_simple_hash = 1;
+			break;
 		case 'h':
 		case '?':
 			command |= HELP;
@@ -1351,6 +1419,9 @@ main (int argc, char *argv[])
 			abort ();
 		}
 	}
+
+	if (use_root_pw == 1 && use_simple_hash == 1)
+		use_simple_hash = 0;;
 
 	if (hash_file && use_root_pw)
 		command |= HELP;
@@ -1366,12 +1437,14 @@ main (int argc, char *argv[])
 			ret = list_keys_in_var ("MokDel");
 			break;
 		case IMPORT:
+		case IMPORT | SIMPLE_HASH:
 			if (use_root_pw)
 				ret = import_moks (files, total, NULL, 1);
 			else
 				ret = import_moks (files, total, hash_file, 0);
 			break;
 		case DELETE:
+		case DELETE | SIMPLE_HASH:
 			if (use_root_pw)
 				ret = delete_moks (files, total, NULL, 1);
 			else
@@ -1387,12 +1460,14 @@ main (int argc, char *argv[])
 			ret = export_moks ();
 			break;
 		case PASSWORD:
+		case PASSWORD | SIMPLE_HASH:
 			if (use_root_pw)
 				ret = set_password (NULL, 1, 0);
 			else
 				ret = set_password (hash_file, 0, 0);
 			break;
 		case CLEAR_PASSWORD:
+		case CLEAR_PASSWORD | SIMPLE_HASH:
 			ret = set_password (NULL, 0, 1);
 			break;
 		case DISABLE_VALIDATION:
@@ -1408,6 +1483,7 @@ main (int argc, char *argv[])
 			ret = test_key (key_file);
 			break;
 		case RESET:
+		case RESET | SIMPLE_HASH:
 			if (use_root_pw)
 				ret = reset_moks (NULL, 1);
 			else
