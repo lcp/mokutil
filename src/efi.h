@@ -1,7 +1,8 @@
 /*
-  efi.[ch] - Extensible Firmware Interface definitions
+  efi.h - Extensible Firmware Interface definitions
 
   Copyright (C) 2001, 2003 Dell Computer Corporation <Matt_Domsch@dell.com>
+  Copyright (C) 2012 Gary Lin <glin@suse.com>
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
