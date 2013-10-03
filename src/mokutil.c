@@ -76,6 +76,8 @@ EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 
 #define RESET              (1 << 15)
 #define GENERATE_PW_HASH   (1 << 16)
 #define SIMPLE_HASH        (1 << 17)
+#define IGNORE_DB          (1 << 18)
+#define USE_DB             (1 << 19)
 
 #define DEFAULT_CRYPT_METHOD SHA512_BASED
 #define DEFAULT_SALT_SIZE    SHA512_SALT_MAX
@@ -90,10 +92,10 @@ typedef struct {
 } MokListNode;
 
 typedef struct {
-	uint32_t mok_sb_state;
+	uint32_t mok_toggle_state;
 	uint32_t password_length;
 	uint16_t password[SB_PASSWORD_MAX];
-} MokSBVar;
+} MokToggleVar;
 
 static void
 print_help ()
@@ -119,6 +121,8 @@ print_help ()
 	printf ("  --test-key <der file>\t\t\tTest if the key is enrolled or not\n");
 	printf ("  --reset\t\t\t\tReset MOK list\n");
 	printf ("  --generate-hash[=password]\t\tGenerate the password hash\n");
+	printf ("  --ignore-db\t\t\t\tIgnore DB for validation\n");
+	printf ("  --use-db\t\t\t\tUse DB for validation\n");
 	printf ("\n");
 	printf ("Supplimentary Options:\n");
 	printf ("  --hash-file <hash file>\t\tUse the specific password hash\n");
@@ -1108,10 +1112,10 @@ error:
 }
 
 static int
-set_validation (uint32_t state)
+set_toggle (const char * VarName, uint32_t state)
 {
 	efi_variable_t var;
-	MokSBVar sbvar;
+	MokToggleVar tvar;
 	char *password = NULL;
 	int pw_len;
 	efi_char16_t efichar_pass[SB_PASSWORD_MAX];
@@ -1123,26 +1127,26 @@ set_validation (uint32_t state)
 		goto error;
 	}
 
-	sbvar.password_length = pw_len;
+	tvar.password_length = pw_len;
 
 	efichar_from_char (efichar_pass, password,
 			   SB_PASSWORD_MAX * sizeof(efi_char16_t));
 
-	memcpy(sbvar.password, efichar_pass,
+	memcpy(tvar.password, efichar_pass,
 	       SB_PASSWORD_MAX * sizeof(efi_char16_t));
 
-	sbvar.mok_sb_state = state;
+	tvar.mok_toggle_state = state;
 
-	var.VariableName = "MokSB";
+	var.VariableName = VarName;
 	var.VendorGuid = SHIM_LOCK_GUID;
-	var.Data = (void *)&sbvar;
-	var.DataSize = sizeof(sbvar);
+	var.Data = (void *)&tvar;
+	var.DataSize = sizeof(tvar);
 	var.Attributes = EFI_VARIABLE_NON_VOLATILE
 		| EFI_VARIABLE_BOOTSERVICE_ACCESS
 		| EFI_VARIABLE_RUNTIME_ACCESS;
 
 	if (edit_protected_variable (&var) != EFI_SUCCESS) {
-		fprintf (stderr, "Failed to request new SB state\n");
+		fprintf (stderr, "Failed to request new %s state\n", VarName);
 		goto error;
 	}
 
@@ -1156,13 +1160,13 @@ error:
 static int
 disable_validation()
 {
-	return set_validation(0);
+	return set_toggle("MokSB", 0);
 }
 
 static int
 enable_validation()
 {
-	return set_validation(1);
+	return set_toggle("MokSB", 1);
 }
 
 static int
@@ -1192,6 +1196,18 @@ sb_state ()
 	free (var.Data);
 
 	return 0;
+}
+
+static int
+disable_db()
+{
+	return set_toggle("MokDB", 0);
+}
+
+static int
+enable_db()
+{
+	return set_toggle("MokDB", 1);
 }
 
 static int
@@ -1346,6 +1362,8 @@ main (int argc, char *argv[])
 			{"generate-hash",      optional_argument, 0, 'g'},
 			{"root-pw",            no_argument,       0, 'P'},
 			{"simple-hash",        no_argument,       0, 's'},
+			{"ignore-db",          no_argument,       0, 0  },
+			{"use-db",             no_argument,       0, 0  },
 			{0, 0, 0, 0}
 		};
 
@@ -1377,6 +1395,10 @@ main (int argc, char *argv[])
 				command |= SB_STATE;
 			} else if (strcmp (option, "reset") == 0) {
 				command |= RESET;
+			} else if (strcmp (option, "ignore-db") == 0) {
+				command |= IGNORE_DB;
+			} else if (strcmp (option, "use-db") == 0) {
+				command |= USE_DB;
 			}
 			break;
 		case 'd':
@@ -1522,6 +1544,12 @@ main (int argc, char *argv[])
 			break;
 		case GENERATE_PW_HASH:
 			ret = generate_pw_hash (input_pw);
+			break;
+		case IGNORE_DB:
+			ret = disable_db ();
+			break;
+		case USE_DB:
+			ret = enable_db ();
 			break;
 		default:
 			print_help ();
