@@ -1,17 +1,5 @@
-* Validate the DER file [DONE]
 * Show the detail of the DER file when enrolling (?)
 * Add an option to slience the output (?)
-* Show the current value of MokNew and MokListRT [DONE]
-* Request the user to input a password before enrolling [DONE]
-* Read the list from a volatile RT variable [DONE]
-* Export keys in MokListRT [DONE]
 * List hashes in MokListRT
-* Add a new command to probe the state of SecureBoot
-  - SecureBoot, EFI_GLOBAL_VARIABLE
-* Do not to enroll duplicate key
-  - compare the keys in MokListRT before enrolling the new keys
-  - compare the keys in MokNew
-  - add a new command to check duplicate
-* Add a new command to append the new key request to the old one
-  - use the old password to verify the old request
-* Delete a specific key
+* Support MokX
+* Import hash into MokNew, NokDel, MokXNew
