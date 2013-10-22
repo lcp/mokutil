@@ -157,14 +157,29 @@ test_and_delete_var (const char *var_name)
 	return 0;
 }
 
+static uint32_t
+signature_size (efi_guid_t hash_type)
+{
+	if (efi_guidcmp (hash_type, EfiHashSha1Guid) == 0)
+		return (SHA_DIGEST_LENGTH + sizeof(efi_guid_t));
+	else if (efi_guidcmp (hash_type, EfiHashSha224Guid) == 0)
+		return (SHA224_DIGEST_LENGTH + sizeof(efi_guid_t));
+	else if (efi_guidcmp (hash_type, EfiHashSha256Guid) == 0)
+		return (SHA256_DIGEST_LENGTH + sizeof(efi_guid_t));
+	else if (efi_guidcmp (hash_type, EfiHashSha384Guid) == 0)
+		return (SHA384_DIGEST_LENGTH + sizeof(efi_guid_t));
+	else if (efi_guidcmp (hash_type, EfiHashSha512Guid) == 0)
+		return (SHA512_DIGEST_LENGTH + sizeof(efi_guid_t));
+
+	return 0;
+}
+
 static MokListNode*
 build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 {
 	MokListNode *list;
 	EFI_SIGNATURE_LIST *CertList = data;
 	EFI_SIGNATURE_DATA *Cert;
-	efi_guid_t CertType = EfiCertX509Guid;
-	efi_guid_t HashType = EfiHashSha256Guid;
 	unsigned long dbsize = data_size;
 	unsigned long count = 0;
 
@@ -176,16 +191,20 @@ build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 	}
 
 	while ((dbsize > 0) && (dbsize >= CertList->SignatureListSize)) {
-		if ((efi_guidcmp (CertList->SignatureType, CertType) != 0) &&
-		    (efi_guidcmp (CertList->SignatureType, HashType) != 0)) {
+		if ((efi_guidcmp (CertList->SignatureType, EfiCertX509Guid) != 0) &&
+		    (efi_guidcmp (CertList->SignatureType, EfiHashSha1Guid) != 0) &&
+		    (efi_guidcmp (CertList->SignatureType, EfiHashSha224Guid) != 0) &&
+		    (efi_guidcmp (CertList->SignatureType, EfiHashSha256Guid) != 0) &&
+		    (efi_guidcmp (CertList->SignatureType, EfiHashSha384Guid) != 0) &&
+		    (efi_guidcmp (CertList->SignatureType, EfiHashSha512Guid) != 0)) {
 			dbsize -= CertList->SignatureListSize;
 			CertList = (EFI_SIGNATURE_LIST *)((uint8_t *) CertList +
 						  CertList->SignatureListSize);
 			continue;
 		}
 
-		if ((efi_guidcmp (CertList->SignatureType, HashType) == 0) &&
-		    (CertList->SignatureSize != 48)) {
+		if ((efi_guidcmp (CertList->SignatureType, EfiCertX509Guid) != 0) &&
+		    (CertList->SignatureSize != signature_size (CertList->SignatureType))) {
 			dbsize -= CertList->SignatureListSize;
 			CertList = (EFI_SIGNATURE_LIST *)((uint8_t *) CertList +
 						  CertList->SignatureListSize);
@@ -203,8 +222,18 @@ build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 		}
 
 		list[count].header = CertList;
-		list[count].mok_size = CertList->SignatureSize - sizeof(efi_guid_t);
-		list[count].mok = (void *)Cert->SignatureData;
+		if (efi_guidcmp (CertList->SignatureType, EfiCertX509Guid) == 0) {
+			/* X509 certificate */
+			list[count].mok_size = CertList->SignatureSize -
+					       sizeof(efi_guid_t);
+			list[count].mok = (void *)Cert->SignatureData;
+		} else {
+			/* hash array */
+			list[count].mok_size = CertList->SignatureListSize -
+					       sizeof(EFI_SIGNATURE_LIST) -
+					       CertList->SignatureHeaderSize;
+			list[count].mok = (void *)Cert;
+		}
 
 		count++;
 		dbsize -= CertList->SignatureListSize;
@@ -258,6 +287,64 @@ print_x509 (char *cert, int cert_size)
 }
 
 static int
+print_hash_array (efi_guid_t hash_type, void *hash_array, uint32_t array_size)
+{
+	uint32_t hash_size, remain;
+	uint32_t sig_size;
+	uint8_t *hash;
+	const char *name;
+	int i;
+
+	if (!hash_array || array_size == 0) {
+		fprintf (stderr, "invalid hash array\n");
+		return -1;
+	}
+
+	if (efi_guidcmp (hash_type, EfiHashSha1Guid) == 0) {
+		name = "SHA1";
+		hash_size = SHA_DIGEST_LENGTH;
+	} else if (efi_guidcmp (hash_type, EfiHashSha224Guid) == 0) {
+		name = "SHA224";
+		hash_size = SHA224_DIGEST_LENGTH;
+	} else if (efi_guidcmp (hash_type, EfiHashSha256Guid) == 0) {
+		name = "SHA256";
+		hash_size = SHA256_DIGEST_LENGTH;
+	} else if (efi_guidcmp (hash_type, EfiHashSha384Guid) == 0) {
+		name = "SHA384";
+		hash_size = SHA384_DIGEST_LENGTH;
+	} else if (efi_guidcmp (hash_type, EfiHashSha512Guid) == 0) {
+		name = "SHA512";
+		hash_size = SHA512_DIGEST_LENGTH;
+	} else {
+		fprintf (stderr, "unknown hash type\n");
+		return -1;
+	}
+	sig_size = hash_size + sizeof(efi_guid_t);
+
+	printf ("  [%s]\n", name);
+
+	remain = array_size;
+	hash = (uint8_t *)hash_array;
+
+	while (remain > 0) {
+		if (remain < sig_size) {
+			fprintf (stderr, "invalid array size\n");
+			return -1;
+		}
+
+		printf ("  ");
+		hash += sizeof(efi_guid_t);
+		for (i = 0; i<hash_size; i++)
+			printf ("%02x", *(hash + i));
+		printf ("\n");
+		hash += hash_size;
+		remain -= sig_size;
+	}
+
+	return 0;
+}
+
+static int
 list_keys (efi_variable_t *var)
 {
 	uint32_t mok_num;
@@ -271,7 +358,12 @@ list_keys (efi_variable_t *var)
 
 	for (i = 0; i < mok_num; i++) {
 		printf ("[key %d]\n", i+1);
-		print_x509 ((char *)list[i].mok, list[i].mok_size);
+		if (efi_guidcmp (list[i].header->SignatureType, EfiCertX509Guid) == 0) {
+			print_x509 ((char *)list[i].mok, list[i].mok_size);
+		} else {
+			print_hash_array (list[i].header->SignatureType,
+					  list[i].mok, list[i].mok_size);
+		}
 		if (i < mok_num - 1)
 			printf ("\n");
 	}
