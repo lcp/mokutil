@@ -177,18 +177,11 @@ signature_size (efi_guid_t hash_type)
 static MokListNode*
 build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 {
-	MokListNode *list;
+	MokListNode *list = NULL;
 	EFI_SIGNATURE_LIST *CertList = data;
 	EFI_SIGNATURE_DATA *Cert;
 	unsigned long dbsize = data_size;
 	unsigned long count = 0;
-
-	list = malloc(sizeof(MokListNode));
-
-	if (!list) {
-		fprintf(stderr, "Unable to allocate MOK list\n");
-		return NULL;
-	}
 
 	while ((dbsize > 0) && (dbsize >= CertList->SignatureListSize)) {
 		if ((efi_guidcmp (CertList->SignatureType, EfiCertX509Guid) != 0) &&
