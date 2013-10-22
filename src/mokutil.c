@@ -157,19 +157,50 @@ test_and_delete_var (const char *var_name)
 	return 0;
 }
 
+static const char*
+efi_hash_to_string (efi_guid_t hash_type)
+{
+	if (efi_guidcmp (hash_type, EfiHashSha1Guid) == 0) {
+		return "SHA1";
+	} else if (efi_guidcmp (hash_type, EfiHashSha224Guid) == 0) {
+		return "SHA224";
+	} else if (efi_guidcmp (hash_type, EfiHashSha256Guid) == 0) {
+		return "SHA256";
+	} else if (efi_guidcmp (hash_type, EfiHashSha384Guid) == 0) {
+		return "SHA384";
+	} else if (efi_guidcmp (hash_type, EfiHashSha512Guid) == 0) {
+		return "SHA512";
+	}
+
+	return NULL;
+}
+
+static uint32_t
+efi_hash_size (efi_guid_t hash_type)
+{
+	if (efi_guidcmp (hash_type, EfiHashSha1Guid) == 0) {
+		return SHA_DIGEST_LENGTH;
+	} else if (efi_guidcmp (hash_type, EfiHashSha224Guid) == 0) {
+		return SHA224_DIGEST_LENGTH;
+	} else if (efi_guidcmp (hash_type, EfiHashSha256Guid) == 0) {
+		return SHA256_DIGEST_LENGTH;
+	} else if (efi_guidcmp (hash_type, EfiHashSha384Guid) == 0) {
+		return SHA384_DIGEST_LENGTH;
+	} else if (efi_guidcmp (hash_type, EfiHashSha512Guid) == 0) {
+		return SHA512_DIGEST_LENGTH;
+	}
+
+	return 0;
+}
+
 static uint32_t
 signature_size (efi_guid_t hash_type)
 {
-	if (efi_guidcmp (hash_type, EfiHashSha1Guid) == 0)
-		return (SHA_DIGEST_LENGTH + sizeof(efi_guid_t));
-	else if (efi_guidcmp (hash_type, EfiHashSha224Guid) == 0)
-		return (SHA224_DIGEST_LENGTH + sizeof(efi_guid_t));
-	else if (efi_guidcmp (hash_type, EfiHashSha256Guid) == 0)
-		return (SHA256_DIGEST_LENGTH + sizeof(efi_guid_t));
-	else if (efi_guidcmp (hash_type, EfiHashSha384Guid) == 0)
-		return (SHA384_DIGEST_LENGTH + sizeof(efi_guid_t));
-	else if (efi_guidcmp (hash_type, EfiHashSha512Guid) == 0)
-		return (SHA512_DIGEST_LENGTH + sizeof(efi_guid_t));
+	uint32_t hash_size;
+
+	hash_size = efi_hash_size (hash_type);
+	if (hash_size)
+		return (hash_size + sizeof(efi_guid_t));
 
 	return 0;
 }
@@ -293,29 +324,16 @@ print_hash_array (efi_guid_t hash_type, void *hash_array, uint32_t array_size)
 		return -1;
 	}
 
-	if (efi_guidcmp (hash_type, EfiHashSha1Guid) == 0) {
-		name = "SHA1";
-		hash_size = SHA_DIGEST_LENGTH;
-	} else if (efi_guidcmp (hash_type, EfiHashSha224Guid) == 0) {
-		name = "SHA224";
-		hash_size = SHA224_DIGEST_LENGTH;
-	} else if (efi_guidcmp (hash_type, EfiHashSha256Guid) == 0) {
-		name = "SHA256";
-		hash_size = SHA256_DIGEST_LENGTH;
-	} else if (efi_guidcmp (hash_type, EfiHashSha384Guid) == 0) {
-		name = "SHA384";
-		hash_size = SHA384_DIGEST_LENGTH;
-	} else if (efi_guidcmp (hash_type, EfiHashSha512Guid) == 0) {
-		name = "SHA512";
-		hash_size = SHA512_DIGEST_LENGTH;
-	} else {
+	name = efi_hash_to_string (hash_type);
+	hash_size = efi_hash_size (hash_type);
+	sig_size = hash_size + sizeof(efi_guid_t);
+
+	if (!name) {
 		fprintf (stderr, "unknown hash type\n");
 		return -1;
 	}
-	sig_size = hash_size + sizeof(efi_guid_t);
 
 	printf ("  [%s]\n", name);
-
 	remain = array_size;
 	hash = (uint8_t *)hash_array;
 
@@ -829,36 +847,78 @@ is_valid_cert (void *cert, uint32_t cert_size)
 }
 
 static int
-is_duplicate (const void *cert, const uint32_t cert_size, const char *db_name,
-	      efi_guid_t guid)
+match_hash_array (efi_guid_t hash_type, const void *hash,
+		  const void *hash_array, const uint32_t array_size)
+{
+	uint32_t hash_size, hash_count;
+	uint32_t sig_size;
+	int i;
+	void *ptr;
+
+	hash_size = efi_hash_size (hash_type);
+	if (!hash_size)
+		return 0;
+
+	sig_size = hash_size + sizeof(efi_guid_t);
+	if ((array_size % sig_size) != 0) {
+		fprintf (stderr, "invalid hash array size\n");
+		return 0;
+	}
+
+	ptr = (void *)hash_array;
+	hash_count = array_size / sig_size;
+	for (i = 0; i < hash_count; i++) {
+		ptr += sizeof(efi_guid_t);
+		if (memcmp (ptr, hash, hash_size) == 0)
+			return 1;
+		ptr += hash_size;
+	}
+
+	return 0;
+}
+
+static int
+is_duplicate (efi_guid_t type, const void *data, const uint32_t data_size,
+	      efi_guid_t vendor, const char *db_name)
 {
 	efi_variable_t var;
-	uint32_t mok_num;
+	uint32_t node_num;
 	MokListNode *list;
 	int i, ret = 0;
 
-	if (!cert || cert_size == 0 || !db_name)
+	if (!data || data_size == 0 || !db_name)
 		return 0;
 
 	memset (&var, 0, sizeof(var));
 	var.VariableName = db_name;
-	var.VendorGuid = guid;
+	var.VendorGuid = vendor;
 
 	if (read_variable (&var) != EFI_SUCCESS)
 		return 0;
 
-	list = build_mok_list (var.Data, var.DataSize, &mok_num);
+	list = build_mok_list (var.Data, var.DataSize, &node_num);
 	if (list == NULL) {
 		goto done;
 	}
 
-	for (i = 0; i < mok_num; i++) {
-		if (list[i].mok_size != cert_size)
+	for (i = 0; i < node_num; i++) {
+		if (efi_guidcmp (list[i].header->SignatureType, type) != 0)
 			continue;
 
-		if (memcmp (list[i].mok, cert, cert_size) == 0) {
-			ret = 1;
-			break;
+		if (efi_guidcmp (type, EfiCertX509Guid) == 0) {
+			if (list[i].mok_size != data_size)
+				continue;
+
+			if (memcmp (list[i].mok, data, data_size) == 0) {
+				ret = 1;
+				break;
+			}
+		} else {
+			if (match_hash_array (type, data, list[i].mok,
+					      list[i].mok_size)) {
+				ret = 1;
+				break;
+			}
 		}
 	}
 
@@ -870,19 +930,19 @@ done:
 }
 
 static int
-is_valid_request (void *mok, uint32_t mok_size, uint8_t import)
+is_valid_request (efi_guid_t type, void *mok, uint32_t mok_size, uint8_t import)
 {
 	if (import) {
-		if (is_duplicate (mok, mok_size, "PK", EFI_GLOBAL_VARIABLE) ||
-		    is_duplicate (mok, mok_size, "KEK", EFI_GLOBAL_VARIABLE) ||
-		    is_duplicate (mok, mok_size, "db", EFI_IMAGE_SECURITY_DATABASE_GUID) ||
-		    is_duplicate (mok, mok_size, "MokListRT", SHIM_LOCK_GUID) ||
-		    is_duplicate (mok, mok_size, "MokNew", SHIM_LOCK_GUID)) {
+		if (is_duplicate (type, mok, mok_size, EFI_GLOBAL_VARIABLE, "PK") ||
+		    is_duplicate (type, mok, mok_size, EFI_GLOBAL_VARIABLE, "KEK") ||
+		    is_duplicate (type, mok, mok_size, EFI_IMAGE_SECURITY_DATABASE_GUID, "db") ||
+		    is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokListRT") ||
+		    is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokNew")) {
 			return 0;
 		}
 	} else {
-		if (!is_duplicate (mok, mok_size, "MokListRT", SHIM_LOCK_GUID) ||
-		    is_duplicate (mok, mok_size, "MokDel", SHIM_LOCK_GUID)) {
+		if (!is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokListRT") ||
+		    is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokDel")) {
 			return 0;
 		}
 	}
@@ -1008,7 +1068,7 @@ issue_mok_request (char **files, uint32_t total, uint8_t import,
 			         files[i]);
 		}
 
-		if (is_valid_request (ptr, sizes[i], import)) {
+		if (is_valid_request (EfiCertX509Guid, ptr, sizes[i], import)) {
 			ptr += sizes[i];
 			real_size += sizes[i] + sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
 		} else if (in_pending_request (ptr, sizes[i], import)) {
@@ -1359,11 +1419,7 @@ test_key (const char *key_file)
 		goto error;
 	}
 
-	if (!is_duplicate (key, read_size, "PK", EFI_GLOBAL_VARIABLE) &&
-	    !is_duplicate (key, read_size, "KEK", EFI_GLOBAL_VARIABLE) &&
-	    !is_duplicate (key, read_size, "db", EFI_GLOBAL_VARIABLE) &&
-	    !is_duplicate (key, read_size, "MokListRT", SHIM_LOCK_GUID) &&
-	    !is_duplicate (key, read_size, "MokNew", SHIM_LOCK_GUID)) {
+	if (!is_valid_request (EfiCertX509Guid, key, read_size, 1)) {
 		printf ("%s is not enrolled\n", key_file);
 		ret = 0;
 	} else {
