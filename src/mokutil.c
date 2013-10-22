@@ -1119,6 +1119,10 @@ export_moks ()
 	/* mode 644 */
 	mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
 	for (i = 0; i < mok_num; i++) {
+		if (efi_guidcmp (list[i].header->SignatureType, EfiCertX509Guid) != 0)
+			continue;
+
+		/* Dump X509 certificate to files */
 		snprintf (filename, PATH_MAX, "MOK-%04d.der", i+1);
 		fd = open (filename, O_CREAT | O_WRONLY, mode);
 		if (fd == -1) {
