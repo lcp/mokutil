@@ -1312,14 +1312,17 @@ issue_hash_request (const char *hash_str, MokRequest req,
 	void *new_list = NULL;
 	void *ptr;
 	unsigned long list_size = 0;
-	uint32_t sig_list_size;
+	uint32_t sig_size, sig_list_size;
 	int ret = -1;
 	EFI_SIGNATURE_LIST *CertList;
 	EFI_SIGNATURE_DATA *CertData;
 	efi_guid_t hash_type;
 	uint8_t db_hash[SHA512_DIGEST_LENGTH];
 	int hash_size;
+	int merge_ind = -1;
 	uint8_t valid = 0;
+	MokListNode *mok_list = NULL;
+	uint32_t mok_num;
 
 	if (!hash_str)
 		return -1;
@@ -1365,15 +1368,30 @@ issue_hash_request (const char *hash_str, MokRequest req,
 		goto error;
 	}
 
-	sig_list_size = sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t) + hash_size;
-	list_size += sig_list_size;
-
 	memset (&old_req, 0, sizeof(old_req));
 
 	old_req.VariableName = req_name;
 	old_req.VendorGuid = SHIM_LOCK_GUID;
-	if (read_variable (&old_req) == EFI_SUCCESS)
+	if (read_variable (&old_req) == EFI_SUCCESS) {
+		int i;
 		list_size += old_req.DataSize;
+
+		mok_list = build_mok_list (old_req.Data, old_req.DataSize,
+					   &mok_num);
+		if (mok_list == NULL)
+			goto error;
+
+		/* Check if there is a signature list with the same type */
+		for (i = 0; i < mok_num; i++) {
+			if (efi_guidcmp (mok_list[i].header->SignatureType,
+					 hash_type) == 0) {
+				merge_ind = i;
+				break;
+			}
+		}
+	}
+
+	list_size += sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t) + hash_size;
 
 	new_list = malloc (list_size);
 	if (!new_list) {
@@ -1382,20 +1400,53 @@ issue_hash_request (const char *hash_str, MokRequest req,
 	}
 	ptr = new_list;
 
-	CertList = ptr;
-	CertList->SignatureType = hash_type;
-	CertList->SignatureListSize = sig_list_size;
-	CertList->SignatureHeaderSize = 0;
-	CertList->SignatureSize = hash_size + sizeof(efi_guid_t);
+	if (merge_ind < 0) {
+		/* Create a new signature list for the hash */
+		sig_list_size = sizeof(EFI_SIGNATURE_LIST) +
+				sizeof(efi_guid_t) + hash_size;
+		CertList = ptr;
+		CertList->SignatureType = hash_type;
+		CertList->SignatureListSize = sig_list_size;
+		CertList->SignatureHeaderSize = 0;
+		CertList->SignatureSize = hash_size + sizeof(efi_guid_t);
 
-	CertData = (EFI_SIGNATURE_DATA *)(((uint8_t *)ptr) +
-					  sizeof(EFI_SIGNATURE_LIST));
-	CertData->SignatureOwner = SHIM_LOCK_GUID;
-	memcpy (CertData->SignatureData, db_hash, hash_size);
+		CertData = (EFI_SIGNATURE_DATA *)(((uint8_t *)ptr) +
+						  sizeof(EFI_SIGNATURE_LIST));
+		CertData->SignatureOwner = SHIM_LOCK_GUID;
+		memcpy (CertData->SignatureData, db_hash, hash_size);
 
-	/* append the keys to the previous request */
-	if (old_req.Data) {
-		memcpy (new_list + sig_list_size, old_req.Data, old_req.DataSize);
+		/* prepend the hash to the previous request */
+		ptr += sig_list_size;
+		if (old_req.Data) {
+			memcpy (ptr, old_req.Data, old_req.DataSize);
+		}
+	} else {
+		/* Merge the hash into an existed signature list */
+		int i;
+
+		for (i = 0; i < merge_ind; i++) {
+			sig_list_size = mok_list[i].header->SignatureListSize;
+			memcpy (ptr, (void *)mok_list[i].header, sig_list_size);
+			ptr += sig_list_size;
+		}
+
+		/* Append the hash to the list */
+		i = merge_ind;
+		sig_list_size = mok_list[i].header->SignatureListSize;
+		sig_size = hash_size + sizeof(efi_guid_t);
+		mok_list[i].header->SignatureListSize += sig_size;
+		memcpy (ptr, (void *)mok_list[i].header, sig_list_size);
+		ptr += sig_list_size;
+		memcpy (ptr, (void *)&hash_type, sizeof(efi_guid_t));
+		ptr += sizeof(efi_guid_t);
+		memcpy (ptr, db_hash, hash_size);
+		ptr += hash_size;
+
+		for (i = merge_ind + 1; i < mok_num; i++) {
+			sig_list_size = mok_list[i].header->SignatureListSize;
+			memcpy (ptr, (void *)mok_list[i].header, sig_list_size);
+			ptr += sig_list_size;
+		}
 	}
 
 	if (update_request (new_list, list_size, req, hash_file, root_pw) < 0) {
@@ -1406,6 +1457,8 @@ issue_hash_request (const char *hash_str, MokRequest req,
 error:
 	if (old_req.Data)
 		free (old_req.Data);
+	if (mok_list)
+		free (mok_list);
 	if (new_list)
 		free (new_list);
 
