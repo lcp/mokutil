@@ -1096,6 +1096,7 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 {
 	efi_variable_t old_req;
 	const char *req_name;
+	const char *reverse_req;
 	void *new_list = NULL;
 	void *ptr;
 	struct stat buf;
@@ -1114,15 +1115,19 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 	switch (req) {
 	case ENROLL_MOK:
 		req_name = "MokNew";
+		reverse_req = "MokDel";
 		break;
 	case DELETE_MOK:
 		req_name = "MokDel";
+		reverse_req = "MokNew";
 		break;
 	case ENROLL_BLACKLIST:
 		req_name = "MokXNew";
+		reverse_req = "MokXDel";
 		break;
 	case DELETE_BLACKLIST:
 		req_name = "MokXDel";
+		reverse_req = "MokXNew";
 		break;
 	default:
 		return -1;
@@ -1199,26 +1204,7 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 			ptr += sizes[i];
 			real_size += sizes[i] + sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
 		} else if (in_pending_request (EfiCertX509Guid, ptr, sizes[i], req)) {
-			const char *pending;
-			switch (req) {
-			case ENROLL_MOK:
-				pending = "MokDel";
-				break;
-			case DELETE_MOK:
-				pending = "MokNew";
-				break;
-			case ENROLL_BLACKLIST:
-				pending = "MokXDel";
-				break;
-			case DELETE_BLACKLIST:
-				pending = "MokXNew";
-				break;
-			default:
-				pending = "";
-				break;
-			}
-			printf ("Removed %s from %s\n", files[i], pending);
-
+			printf ("Removed %s from %s\n", files[i], reverse_req);
 			ptr -= sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
 		} else {
 			printf ("Skip %s\n", files[i]);
@@ -1322,6 +1308,7 @@ issue_hash_request (const char *hash_str, MokRequest req,
 {
 	efi_variable_t old_req;
 	const char *req_name;
+	const char *reverse_req;
 	void *new_list = NULL;
 	void *ptr;
 	unsigned long list_size = 0;
@@ -1347,18 +1334,35 @@ issue_hash_request (const char *hash_str, MokRequest req,
 	switch (req) {
 	case ENROLL_MOK:
 		req_name = "MokNew";
+		reverse_req = "MokDel";
 		break;
 	case DELETE_MOK:
 		req_name = "MokDel";
+		reverse_req = "MokNew";
 		break;
 	case ENROLL_BLACKLIST:
 		req_name = "MokXNew";
+		reverse_req = "MokXDel";
 		break;
 	case DELETE_BLACKLIST:
 		req_name = "MokXDel";
+		reverse_req = "MokXNew";
 		break;
 	default:
 		return -1;
+	}
+
+	if (is_valid_request (hash_type, db_hash, hash_size, req)) {
+		valid = 1;
+	} else if (in_pending_request (hash_type, db_hash, hash_size, req)) {
+		printf ("Removed hash from %s\n", reverse_req);
+	} else {
+		printf ("Skip hash\n");
+	}
+
+	if (!valid) {
+		ret = 0;
+		goto error;
 	}
 
 	sig_list_size = sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t) + hash_size;
@@ -1388,37 +1392,6 @@ issue_hash_request (const char *hash_str, MokRequest req,
 					  sizeof(EFI_SIGNATURE_LIST));
 	CertData->SignatureOwner = SHIM_LOCK_GUID;
 	memcpy (CertData->SignatureData, db_hash, hash_size);
-
-	if (is_valid_request (hash_type, db_hash, hash_size, req)) {
-		valid = 1;
-	} else if (in_pending_request (hash_type, db_hash, hash_size, req)) {
-		const char *pending;
-		switch (req) {
-		case ENROLL_MOK:
-			pending = "MokDel";
-			break;
-		case DELETE_MOK:
-			pending = "MokNew";
-			break;
-		case ENROLL_BLACKLIST:
-			pending = "MokXDel";
-			break;
-		case DELETE_BLACKLIST:
-			pending = "MokXNew";
-			break;
-		default:
-			pending = "";
-			break;
-		}
-		printf ("Removed hash from %s\n", pending);
-	} else {
-		printf ("Skip hash\n");
-	}
-
-	if (!valid) {
-		ret = 0;
-		goto error;
-	}
 
 	/* append the keys to the previous request */
 	if (old_req.Data) {
