@@ -1746,10 +1746,18 @@ main (int argc, char *argv[])
 
 			break;
 		case 'f':
+			if (hash_file) {
+				command |= HELP;
+				break;
+			}
 			hash_file = strdup (optarg);
 
 			break;
 		case 'g':
+			if (input_pw) {
+				command |= HELP;
+				break;
+			}
 			if (optarg)
 				input_pw = strdup (optarg);
 
@@ -1765,6 +1773,10 @@ main (int argc, char *argv[])
 			use_root_pw = 1;
 			break;
 		case 't':
+			if (key_file) {
+				command |= HELP;
+				break;
+			}
 			key_file = strdup (optarg);
 			if (key_file == NULL) {
 				fprintf (stderr, "Could not allocate space: %m\n");
