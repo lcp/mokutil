@@ -1334,6 +1334,8 @@ issue_hash_request (const char *hash_str, MokRequest req,
 	if (hex_str_to_binary (hash_str, db_hash, hash_size) < 0)
 		return -1;
 
+	memset (&old_req, 0, sizeof(old_req));
+
 	switch (req) {
 	case ENROLL_MOK:
 		req_name = "MokNew";
@@ -1367,8 +1369,6 @@ issue_hash_request (const char *hash_str, MokRequest req,
 		ret = 0;
 		goto error;
 	}
-
-	memset (&old_req, 0, sizeof(old_req));
 
 	old_req.VariableName = req_name;
 	old_req.VendorGuid = SHIM_LOCK_GUID;
