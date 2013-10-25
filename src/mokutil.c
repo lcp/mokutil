@@ -154,7 +154,8 @@ print_help ()
 	printf ("        \t\t\t\t(For --list-enrolled, --list-new,\n");
 	printf ("        \t\t\t\t --list-delete, --import, --delete,\n");
 	printf ("        \t\t\t\t --revoke-import, --revoke-delete,\n");
-	printf ("        \t\t\t\t --import-hash, and --delete-hash)\n");
+	printf ("        \t\t\t\t --import-hash, --delete-hash,\n");
+	printf ("        \t\t\t\t --reset, and --test-key)\n");
 }
 
 static int
@@ -1756,7 +1757,7 @@ read_file(int fd, void **bufp, size_t *lenptr) {
 }
 
 static int
-test_key (const char *key_file)
+test_key (MokRequest req, const char *key_file)
 {
 	void *key = NULL;
 	size_t read_size;
@@ -1774,7 +1775,7 @@ test_key (const char *key_file)
 		goto error;
 	}
 
-	if (!is_valid_request (EfiCertX509Guid, key, read_size, ENROLL_MOK)) {
+	if (!is_valid_request (EfiCertX509Guid, key, read_size, req)) {
 		printf ("%s is not enrolled\n", key_file);
 		ret = 0;
 	} else {
@@ -1793,9 +1794,9 @@ error:
 }
 
 static int
-reset_moks (const char *hash_file, const int root_pw)
+reset_moks (MokRequest req, const char *hash_file, const int root_pw)
 {
-	if (update_request (NULL, 0, ENROLL_MOK, hash_file, root_pw)) {
+	if (update_request (NULL, 0, req, hash_file, root_pw)) {
 		fprintf (stderr, "Failed to issue a reset request\n");
 		return -1;
 	}
@@ -2102,11 +2103,11 @@ main (int argc, char *argv[])
 			ret = sb_state ();
 			break;
 		case TEST_KEY:
-			ret = test_key (key_file);
+			ret = test_key (ENROLL_MOK, key_file);
 			break;
 		case RESET:
 		case RESET | SIMPLE_HASH:
-			ret = reset_moks (hash_file, use_root_pw);
+			ret = reset_moks (ENROLL_MOK, hash_file, use_root_pw);
 			break;
 		case GENERATE_PW_HASH:
 			ret = generate_pw_hash (input_pw);
@@ -2151,6 +2152,13 @@ main (int argc, char *argv[])
 			break;
 		case REVOKE_DELETE | MOKX:
 			ret = revoke_request (DELETE_BLACKLIST);
+			break;
+		case RESET | MOKX:
+		case RESET | SIMPLE_HASH | MOKX:
+			ret = reset_moks (ENROLL_BLACKLIST, hash_file, use_root_pw);
+			break;
+		case TEST_KEY | MOKX:
+			ret = test_key (ENROLL_BLACKLIST, key_file);
 			break;
 		default:
 			print_help ();
