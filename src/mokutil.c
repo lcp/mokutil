@@ -82,6 +82,7 @@ EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 
 #define MOKX               (1 << 20)
 #define IMPORT_HASH        (1 << 21)
 #define DELETE_HASH        (1 << 22)
+#define VERBOSITY          (1 << 23)
 
 #define DEFAULT_CRYPT_METHOD SHA512_BASED
 #define DEFAULT_SALT_SIZE    SHA512_SALT_MAX
@@ -136,6 +137,7 @@ print_help ()
 	printf ("  --use-db\t\t\t\tUse DB for validation\n");
 	printf ("  --import-hash <hash>\t\t\tImport a hash\n");
 	printf ("  --delete-hash <hash>\t\t\tDelete a specific hash\n");
+	printf ("  --set-verbosity <true/false>\t\tSet the verbosity bit for shim\n");
 	printf ("\n");
 	printf ("Supplimentary Options:\n");
 	printf ("  --hash-file <hash file>\t\tUse the specific password hash\n");
@@ -1856,6 +1858,31 @@ generate_pw_hash (const char *input_pw)
 	return 0;
 }
 
+static int
+set_verbosity (uint8_t verbosity)
+{
+	efi_variable_t var;
+
+	if (verbosity) {
+		var.VariableName = "SHIM_VERBOSE";
+		var.VendorGuid = SHIM_LOCK_GUID;
+		var.Data = (void *)&verbosity;
+		var.DataSize = sizeof(uint8_t);
+		var.Attributes = EFI_VARIABLE_NON_VOLATILE
+			| EFI_VARIABLE_BOOTSERVICE_ACCESS
+			| EFI_VARIABLE_RUNTIME_ACCESS;
+
+		if (edit_protected_variable (&var) != EFI_SUCCESS) {
+			fprintf (stderr, "Failed to set SHIM_VERBOSE\n");
+			return -1;
+		}
+	} else {
+		return test_and_delete_var ("SHIM_VERBOSE");
+	}
+
+	return 0;
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -1868,6 +1895,7 @@ main (int argc, char *argv[])
 	int c, i, f_ind, total = 0;
 	unsigned int command = 0;
 	int use_root_pw = 0;
+	uint8_t verbosity = 0;
 	int ret = -1;
 
 	use_simple_hash = 0;
@@ -1899,6 +1927,7 @@ main (int argc, char *argv[])
 			{"mokx",               no_argument,       0, 0  },
 			{"import-hash",        required_argument, 0, 0  },
 			{"delete-hash",        required_argument, 0, 0  },
+			{"set-verbosity",      required_argument, 0, 0  },
 			{0, 0, 0, 0}
 		};
 
@@ -1950,6 +1979,14 @@ main (int argc, char *argv[])
 					break;
 				}
 				hash_str = strdup (optarg);
+			} else if (strcmp (option, "set-verbosity") == 0) {
+				command |= VERBOSITY;
+				if (strcmp (optarg, "true") == 0)
+					verbosity = 1;
+				else if (strcmp (optarg, "false") == 0)
+					verbosity = 0;
+				else
+					command |= HELP;
 			}
 			break;
 		case 'd':
@@ -2159,6 +2196,9 @@ main (int argc, char *argv[])
 			break;
 		case TEST_KEY | MOKX:
 			ret = test_key (ENROLL_BLACKLIST, key_file);
+			break;
+		case VERBOSITY:
+			ret = set_verbosity (verbosity);
 			break;
 		default:
 			print_help ();
