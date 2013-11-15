@@ -1227,6 +1227,30 @@ enable_db()
 	return set_toggle("MokDB", 1);
 }
 
+static inline int
+read_file(int fd, char **bufp, size_t *lenptr) {
+    int alloced = 0, size = 0, i = 0;
+    char * buf = NULL;
+
+    do {
+	size += i;
+	if ((size + 1024) > alloced) {
+	    alloced += 4096;
+	    buf = realloc (buf, alloced + 1);
+	}
+    } while ((i = read (fd, buf + size, 1024)) > 0);
+
+    if (i < 0) {
+        free (buf);
+	return -1;
+    }
+
+    *bufp = buf;
+    *lenptr = size;
+
+    return 0;
+}
+
 static int
 test_key (const char *key_file)
 {
@@ -1235,21 +1259,14 @@ test_key (const char *key_file)
 	ssize_t read_size;
 	int fd, ret = -1;
 
-	if (stat (key_file, &buf) != 0) {
-		fprintf (stderr, "Failed to get file status, %s\n", key_file);
-		return -1;
-	}
-
-	key = malloc (buf.st_size);
-
 	fd = open (key_file, O_RDONLY);
 	if (fd < 0) {
 		fprintf (stderr, "Failed to open %s\n", key_file);
 		goto error;
 	}
 
-	read_size = read (fd, key, buf.st_size);
-	if (read_size < 0 || read_size != buf.st_size) {
+	int rc = read_file (fd, &key, &read_size);
+	if (rc < 0) {
 		fprintf (stderr, "Failed to read %s\n", key_file);
 		goto error;
 	}
