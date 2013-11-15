@@ -1256,7 +1256,8 @@ error:
 	if (key)
 		free (key);
 
-	close (fd);
+	if (fd >= 0)
+		close (fd);
 
 	return ret;
 }
