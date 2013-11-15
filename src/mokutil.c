@@ -343,6 +343,7 @@ delete_key_from_list (void *mok, uint32_t mok_size,
 
 	ret = 1;
 done:
+	free (list);
 	free (var.Data);
 
 	return ret;
@@ -763,6 +764,7 @@ is_duplicate (const void *cert, const uint32_t cert_size, const char *db_name,
 	}
 
 done:
+	free (list);
 	free (var.Data);
 
 	return ret;
@@ -1037,6 +1039,7 @@ export_moks ()
 
 	ret = 0;
 error:
+	free (list);
 	free (var.Data);
 
 	return ret;
