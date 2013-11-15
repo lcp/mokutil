@@ -29,6 +29,7 @@
  * version.  If you delete this exception statement from all source
  * files in the program, then also delete it here.
  */
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -567,7 +568,7 @@ static int
 get_hash_from_file (const char *file, pw_crypt_t *pw_crypt)
 {
 	char string[300];
-	ssize_t read_len;
+	ssize_t read_len = 0;
 	int fd;
 
 	fd = open (file, O_RDONLY);
@@ -575,10 +576,23 @@ get_hash_from_file (const char *file, pw_crypt_t *pw_crypt)
 		fprintf (stderr, "Failed to open %s\n", file);
 		return -1;
 	}
-	read_len = read (fd, string, 300);
+
+	while (read_len < 300) {
+		int rc = read (fd, string + read_len, 300 - read_len);
+		if (rc == EAGAIN)
+			continue;
+		if (rc < 0) {
+			fprintf (stderr, "Failed to read %s: %m\n", file);
+			close (fd);
+			return -1;
+		}
+		if (rc == 0)
+			break;
+		read_len += rc;
+	}
 	close (fd);
 
-	if (string[read_len] != '\0') {
+	if (string[read_len-1] != '\0') {
 		fprintf (stderr, "corrupted string\n");
 		return -1;
 	}
