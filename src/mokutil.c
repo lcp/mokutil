@@ -1312,7 +1312,7 @@ generate_pw_hash (const char *input_pw)
 	char *crypt_string;
 	const char *prefix;
 	int prefix_len;
-	int pw_len, salt_size, ret = -1;
+	int pw_len, salt_size;
 
 	if (input_pw) {
 		pw_len = strlen (input_pw);
@@ -1345,19 +1345,15 @@ generate_pw_hash (const char *input_pw)
 	settings[DEFAULT_SALT_SIZE + prefix_len] = '\0';
 
 	crypt_string = crypt (password, settings);
+	free (password);
 	if (!crypt_string) {
 		fprintf (stderr, "Failed to generate hash\n");
-		goto error;
+		return -1;
 	}
 
 	printf ("%s\n", crypt_string);
 
-	ret = 0;
-error:
-	if (password)
-		free (password);
-
-	return ret;
+	return 0;
 }
 
 int
@@ -1489,6 +1485,10 @@ main (int argc, char *argv[])
 			break;
 		case 't':
 			key_file = strdup (optarg);
+			if (key_file == NULL) {
+				fprintf (stderr, "Could not allocate space: %m\n");
+				exit(1);
+			}
 
 			command |= TEST_KEY;
 			break;
