@@ -212,7 +212,7 @@ decode_sha256_pass (const char *string, pw_crypt_t *pw_crypt)
 	tmp = ptr;
 	if (strlen (ptr) > SHA256_B64_LENGTH) {
 		while (*tmp != '$') {
-			if (tmp == '\0')
+			if (*tmp == '\0')
 				return -1;
 			count++;
 			tmp++;
@@ -264,7 +264,7 @@ decode_sha512_pass (const char *string, pw_crypt_t *pw_crypt)
 	tmp = ptr;
 	if (strlen (ptr) > SHA512_B64_LENGTH) {
 		while (*tmp != '$') {
-			if (tmp == '\0')
+			if (*tmp == '\0')
 				return -1;
 			count++;
 			tmp++;

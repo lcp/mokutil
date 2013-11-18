@@ -29,6 +29,7 @@
  * version.  If you delete this exception statement from all source
  * files in the program, then also delete it here.
  */
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -343,6 +344,7 @@ delete_key_from_list (void *mok, uint32_t mok_size,
 
 	ret = 1;
 done:
+	free (list);
 	free (var.Data);
 
 	return ret;
@@ -566,7 +568,7 @@ static int
 get_hash_from_file (const char *file, pw_crypt_t *pw_crypt)
 {
 	char string[300];
-	ssize_t read_len;
+	ssize_t read_len = 0;
 	int fd;
 
 	fd = open (file, O_RDONLY);
@@ -574,10 +576,23 @@ get_hash_from_file (const char *file, pw_crypt_t *pw_crypt)
 		fprintf (stderr, "Failed to open %s\n", file);
 		return -1;
 	}
-	read_len = read (fd, string, 300);
+
+	while (read_len < 300) {
+		int rc = read (fd, string + read_len, 300 - read_len);
+		if (rc == EAGAIN)
+			continue;
+		if (rc < 0) {
+			fprintf (stderr, "Failed to read %s: %m\n", file);
+			close (fd);
+			return -1;
+		}
+		if (rc == 0)
+			break;
+		read_len += rc;
+	}
 	close (fd);
 
-	if (string[read_len] != '\0') {
+	if (string[read_len-1] != '\0') {
 		fprintf (stderr, "corrupted string\n");
 		return -1;
 	}
@@ -763,6 +778,7 @@ is_duplicate (const void *cert, const uint32_t cert_size, const char *db_name,
 	}
 
 done:
+	free (list);
 	free (var.Data);
 
 	return ret;
@@ -1037,6 +1053,7 @@ export_moks ()
 
 	ret = 0;
 error:
+	free (list);
 	free (var.Data);
 
 	return ret;
@@ -1210,6 +1227,30 @@ enable_db()
 	return set_toggle("MokDB", 1);
 }
 
+static inline int
+read_file(int fd, char **bufp, size_t *lenptr) {
+    int alloced = 0, size = 0, i = 0;
+    char * buf = NULL;
+
+    do {
+	size += i;
+	if ((size + 1024) > alloced) {
+	    alloced += 4096;
+	    buf = realloc (buf, alloced + 1);
+	}
+    } while ((i = read (fd, buf + size, 1024)) > 0);
+
+    if (i < 0) {
+        free (buf);
+	return -1;
+    }
+
+    *bufp = buf;
+    *lenptr = size;
+
+    return 0;
+}
+
 static int
 test_key (const char *key_file)
 {
@@ -1218,21 +1259,14 @@ test_key (const char *key_file)
 	ssize_t read_size;
 	int fd, ret = -1;
 
-	if (stat (key_file, &buf) != 0) {
-		fprintf (stderr, "Failed to get file status, %s\n", key_file);
-		return -1;
-	}
-
-	key = malloc (buf.st_size);
-
 	fd = open (key_file, O_RDONLY);
 	if (fd < 0) {
 		fprintf (stderr, "Failed to open %s\n", key_file);
 		goto error;
 	}
 
-	read_size = read (fd, key, buf.st_size);
-	if (read_size < 0 || read_size != buf.st_size) {
+	int rc = read_file (fd, &key, &read_size);
+	if (rc < 0) {
 		fprintf (stderr, "Failed to read %s\n", key_file);
 		goto error;
 	}
@@ -1253,7 +1287,8 @@ error:
 	if (key)
 		free (key);
 
-	close (fd);
+	if (fd >= 0)
+		close (fd);
 
 	return ret;
 }
@@ -1277,7 +1312,7 @@ generate_pw_hash (const char *input_pw)
 	char *crypt_string;
 	const char *prefix;
 	int prefix_len;
-	int pw_len, salt_size, ret = -1;
+	int pw_len, salt_size;
 
 	if (input_pw) {
 		pw_len = strlen (input_pw);
@@ -1310,19 +1345,15 @@ generate_pw_hash (const char *input_pw)
 	settings[DEFAULT_SALT_SIZE + prefix_len] = '\0';
 
 	crypt_string = crypt (password, settings);
+	free (password);
 	if (!crypt_string) {
 		fprintf (stderr, "Failed to generate hash\n");
-		goto error;
+		return -1;
 	}
 
 	printf ("%s\n", crypt_string);
 
-	ret = 0;
-error:
-	if (password)
-		free (password);
-
-	return ret;
+	return 0;
 }
 
 int
@@ -1454,6 +1485,10 @@ main (int argc, char *argv[])
 			break;
 		case 't':
 			key_file = strdup (optarg);
+			if (key_file == NULL) {
+				fprintf (stderr, "Could not allocate space: %m\n");
+				exit(1);
+			}
 
 			command |= TEST_KEY;
 			break;
