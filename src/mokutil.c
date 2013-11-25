@@ -1229,26 +1229,26 @@ enable_db()
 
 static inline int
 read_file(int fd, void **bufp, size_t *lenptr) {
-    int alloced = 0, size = 0, i = 0;
-    void * buf = NULL;
+	int alloced = 0, size = 0, i = 0;
+	void * buf = NULL;
 
-    do {
-	size += i;
-	if ((size + 1024) > alloced) {
-	    alloced += 4096;
-	    buf = realloc (buf, alloced + 1);
+	do {
+		size += i;
+		if ((size + 1024) > alloced) {
+			alloced += 4096;
+			buf = realloc (buf, alloced + 1);
+		}
+	} while ((i = read (fd, buf + size, 1024)) > 0);
+
+	if (i < 0) {
+		free (buf);
+		return -1;
 	}
-    } while ((i = read (fd, buf + size, 1024)) > 0);
 
-    if (i < 0) {
-        free (buf);
-	return -1;
-    }
+	*bufp = buf;
+	*lenptr = size;
 
-    *bufp = buf;
-    *lenptr = size;
-
-    return 0;
+	return 0;
 }
 
 static int
