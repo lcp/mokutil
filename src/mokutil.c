@@ -1228,9 +1228,9 @@ enable_db()
 }
 
 static inline int
-read_file(int fd, char **bufp, size_t *lenptr) {
+read_file(int fd, void **bufp, size_t *lenptr) {
     int alloced = 0, size = 0, i = 0;
-    char * buf = NULL;
+    void * buf = NULL;
 
     do {
 	size += i;
@@ -1254,10 +1254,9 @@ read_file(int fd, char **bufp, size_t *lenptr) {
 static int
 test_key (const char *key_file)
 {
-	struct stat buf;
 	void *key = NULL;
-	ssize_t read_size;
-	int fd, ret = -1;
+	size_t read_size;
+	int fd, rc, ret = -1;
 
 	fd = open (key_file, O_RDONLY);
 	if (fd < 0) {
@@ -1265,7 +1264,7 @@ test_key (const char *key_file)
 		goto error;
 	}
 
-	int rc = read_file (fd, &key, &read_size);
+	rc = read_file (fd, &key, &read_size);
 	if (rc < 0) {
 		fprintf (stderr, "Failed to read %s\n", key_file);
 		goto error;
