@@ -1924,9 +1924,9 @@ main (int argc, char *argv[])
 	while (1) {
 		static struct option long_options[] = {
 			{"help",               no_argument,       0, 'h'},
-			{"list-enrolled",      no_argument,       0, 0  },
-			{"list-new",	       no_argument,       0, 0  },
-			{"list-delete",	       no_argument,       0, 0  },
+			{"list-enrolled",      no_argument,       0, 'l'},
+			{"list-new",	       no_argument,       0, 'N'},
+			{"list-delete",	       no_argument,       0, 'D'},
 			{"import",             required_argument, 0, 'i'},
 			{"delete",             required_argument, 0, 'd'},
 			{"revoke-import",      no_argument,       0, 0  },
@@ -1945,7 +1945,7 @@ main (int argc, char *argv[])
 			{"simple-hash",        no_argument,       0, 's'},
 			{"ignore-db",          no_argument,       0, 0  },
 			{"use-db",             no_argument,       0, 0  },
-			{"mokx",               no_argument,       0, 0  },
+			{"mokx",               no_argument,       0, 'X'},
 			{"import-hash",        required_argument, 0, 0  },
 			{"delete-hash",        required_argument, 0, 0  },
 			{"set-verbosity",      required_argument, 0, 0  },
@@ -1957,7 +1957,7 @@ main (int argc, char *argv[])
 		};
 
 		int option_index = 0;
-		c = getopt_long (argc, argv, "cd:f:g::hi:pst:xP",
+		c = getopt_long (argc, argv, "cd:f:g::hi:lpst:xDNPX",
 				 long_options, &option_index);
 
 		if (c == -1)
@@ -1966,13 +1966,7 @@ main (int argc, char *argv[])
 		switch (c) {
 		case 0:
 			option = long_options[option_index].name;
-			if (strcmp (option, "list-enrolled") == 0) {
-				command |= LIST_ENROLLED;
-			} else if (strcmp (option, "list-new") == 0) {
-				command |= LIST_NEW;
-			} else if (strcmp (option, "list-delete") == 0) {
-				command |= LIST_DELETE;
-			} else if (strcmp (option, "revoke-import") == 0) {
+			if (strcmp (option, "revoke-import") == 0) {
 				command |= REVOKE_IMPORT;
 			} else if (strcmp (option, "revoke-delete") == 0) {
 				command |= REVOKE_DELETE;
@@ -1988,13 +1982,6 @@ main (int argc, char *argv[])
 				command |= IGNORE_DB;
 			} else if (strcmp (option, "use-db") == 0) {
 				command |= USE_DB;
-			} else if (strcmp (option, "mokx") == 0) {
-				if (db_name != MOK_LIST_RT) {
-					command |= HELP;
-				} else {
-					command |= MOKX;
-					db_name = MOK_LIST_X_RT;
-				}
 			} else if (strcmp (option, "import-hash") == 0) {
 				command |= IMPORT_HASH;
 				if (hash_str) {
@@ -2047,6 +2034,15 @@ main (int argc, char *argv[])
 				}
 			}
 
+			break;
+		case 'l':
+			command |= LIST_ENROLLED;
+			break;
+		case 'N':
+			command |= LIST_NEW;
+			break;
+		case 'D':
+			command |= LIST_DELETE;
 			break;
 		case 'd':
 		case 'i':
@@ -2126,6 +2122,14 @@ main (int argc, char *argv[])
 		case 's':
 			command |= SIMPLE_HASH;
 			use_simple_hash = 1;
+			break;
+		case 'X':
+			if (db_name != MOK_LIST_RT) {
+				command |= HELP;
+			} else {
+				command |= MOKX;
+				db_name = MOK_LIST_X_RT;
+			}
 			break;
 		case 'h':
 		case '?':
