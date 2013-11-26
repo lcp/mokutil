@@ -1989,6 +1989,10 @@ main (int argc, char *argv[])
 					break;
 				}
 				hash_str = strdup (optarg);
+				if (hash_str == NULL) {
+					fprintf (stderr, "Could not allocate space: %m\n");
+					exit(1);
+				}
 			} else if (strcmp (option, "delete-hash") == 0) {
 				command |= DELETE_HASH;
 				if (hash_str) {
@@ -1996,6 +2000,10 @@ main (int argc, char *argv[])
 					break;
 				}
 				hash_str = strdup (optarg);
+				if (hash_str == NULL) {
+					fprintf (stderr, "Could not allocate space: %m\n");
+					exit(1);
+				}
 			} else if (strcmp (option, "set-verbosity") == 0) {
 				command |= VERBOSITY;
 				if (strcmp (optarg, "true") == 0)
@@ -2069,6 +2077,10 @@ main (int argc, char *argv[])
 			}
 
 			files = malloc (total * sizeof (char *));
+			if (files == NULL) {
+				fprintf (stderr, "Could not allocate space: %m\n");
+				exit(1);
+			}
 			for (i = 0; i < total; i++) {
 				f_ind = i + optind - 1;
 				files[i] = malloc (strlen(argv[f_ind]) + 1);
@@ -2082,6 +2094,10 @@ main (int argc, char *argv[])
 				break;
 			}
 			hash_file = strdup (optarg);
+			if (hash_file == NULL) {
+				fprintf (stderr, "Could not allocate space: %m\n");
+				exit(1);
+			}
 
 			break;
 		case 'g':
@@ -2089,8 +2105,13 @@ main (int argc, char *argv[])
 				command |= HELP;
 				break;
 			}
-			if (optarg)
+			if (optarg) {
 				input_pw = strdup (optarg);
+				if (input_pw == NULL) {
+					fprintf (stderr, "Could not allocate space: %m\n");
+					exit(1);
+				}
+			}
 
 			command |= GENERATE_PW_HASH;
 			break;
