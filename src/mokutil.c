@@ -141,23 +141,9 @@ print_help ()
 	printf ("\n");
 	printf ("Supplimentary Options:\n");
 	printf ("  --hash-file <hash file>\t\tUse the specific password hash\n");
-	printf ("                         \t\t(For --import, --delete, --password,\n");
-	printf ("                         \t\t --reset, --import-hash,\n");
-	printf ("                         \t\t and --delete-hash)\n");
 	printf ("  --root-pw\t\t\t\tUse the root password\n");
-	printf ("           \t\t\t\t(For --import, --delete, --password,\n");
-	printf ("           \t\t\t\t --reset, --import-hash,\n");
-	printf ("           \t\t\t\t and --delete-hash)\n");
 	printf ("  --simple-hash\t\t\t\tUse the old password hash method\n");
-	printf ("               \t\t\t\t(For --import, --delete, --password,\n");
-	printf ("               \t\t\t\t --clear-password, --reset,\n");
-	printf ("               \t\t\t\t --import-hash, and --delete-hash)\n");
 	printf ("  --mokx\t\t\t\tManipulate the MOK blacklist\n");
-	printf ("        \t\t\t\t(For --list-enrolled, --list-new,\n");
-	printf ("        \t\t\t\t --list-delete, --import, --delete,\n");
-	printf ("        \t\t\t\t --revoke-import, --revoke-delete,\n");
-	printf ("        \t\t\t\t --import-hash, --delete-hash,\n");
-	printf ("        \t\t\t\t --reset, and --test-key)\n");
 }
 
 static int
