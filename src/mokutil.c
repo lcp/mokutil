@@ -97,6 +97,15 @@ typedef enum {
 	ENROLL_BLACKLIST
 } MokRequest;
 
+typedef enum {
+	MOK_LIST_RT = 0,
+	MOK_LIST_X_RT,
+	PK,
+	KEK,
+	DB,
+	DBX,
+} DBName;
+
 typedef struct {
 	EFI_SIGNATURE_LIST *header;
 	uint32_t            mok_size;
@@ -138,6 +147,10 @@ print_help ()
 	printf ("  --import-hash <hash>\t\t\tImport a hash into MOK or MOKX\n");
 	printf ("  --delete-hash <hash>\t\t\tDelete a hash in MOK or MOKX\n");
 	printf ("  --set-verbosity <true/false>\t\tSet the verbosity bit for shim\n");
+	printf ("  --pk\t\t\t\t\tList the keys in PK\n");
+	printf ("  --kek\t\t\t\t\tList the keys in KEK\n");
+	printf ("  --db\t\t\t\t\tList the keys in db\n");
+	printf ("  --dbx\t\t\t\t\tList the keys in dbx\n");
 	printf ("\n");
 	printf ("Supplimentary Options:\n");
 	printf ("  --hash-file <hash file>\t\tUse the specific password hash\n");
@@ -523,7 +536,7 @@ done:
 }
 
 static int
-list_keys_in_var (const char *var_name)
+list_keys_in_var (const char *var_name, const efi_guid_t guid)
 {
 	efi_variable_t var;
 	efi_status_t status;
@@ -531,7 +544,7 @@ list_keys_in_var (const char *var_name)
 
 	memset (&var, 0, sizeof(var));
 	var.VariableName = var_name;
-	var.VendorGuid = SHIM_LOCK_GUID;
+	var.VendorGuid = guid;
 
 	status = read_variable (&var);
 	if (status != EFI_SUCCESS) {
@@ -1869,6 +1882,27 @@ set_verbosity (uint8_t verbosity)
 	return 0;
 }
 
+static inline int
+list_db (DBName db_name)
+{
+	switch (db_name) {
+		case MOK_LIST_RT:
+			return list_keys_in_var ("MokListRT", SHIM_LOCK_GUID);
+		case MOK_LIST_X_RT:
+			return list_keys_in_var ("MokListXRT", SHIM_LOCK_GUID);
+		case PK:
+			return list_keys_in_var ("PK", EFI_GLOBAL_VARIABLE);
+		case KEK:
+			return list_keys_in_var ("KEK", EFI_GLOBAL_VARIABLE);
+		case DB:
+			return list_keys_in_var ("db", EFI_IMAGE_SECURITY_DATABASE_GUID);
+		case DBX:
+			return list_keys_in_var ("dbx", EFI_IMAGE_SECURITY_DATABASE_GUID);
+	}
+
+	return -1;
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -1882,6 +1916,7 @@ main (int argc, char *argv[])
 	unsigned int command = 0;
 	int use_root_pw = 0;
 	uint8_t verbosity = 0;
+	DBName db_name = MOK_LIST_RT;
 	int ret = -1;
 
 	use_simple_hash = 0;
@@ -1914,6 +1949,10 @@ main (int argc, char *argv[])
 			{"import-hash",        required_argument, 0, 0  },
 			{"delete-hash",        required_argument, 0, 0  },
 			{"set-verbosity",      required_argument, 0, 0  },
+			{"pk",                 no_argument,       0, 0  },
+			{"kek",                no_argument,       0, 0  },
+			{"db",                 no_argument,       0, 0  },
+			{"dbx",                no_argument,       0, 0  },
 			{0, 0, 0, 0}
 		};
 
@@ -1950,7 +1989,12 @@ main (int argc, char *argv[])
 			} else if (strcmp (option, "use-db") == 0) {
 				command |= USE_DB;
 			} else if (strcmp (option, "mokx") == 0) {
-				command |= MOKX;
+				if (db_name != MOK_LIST_RT) {
+					command |= HELP;
+				} else {
+					command |= MOKX;
+					db_name = MOK_LIST_X_RT;
+				}
 			} else if (strcmp (option, "import-hash") == 0) {
 				command |= IMPORT_HASH;
 				if (hash_str) {
@@ -1973,7 +2017,36 @@ main (int argc, char *argv[])
 					verbosity = 0;
 				else
 					command |= HELP;
+			} else if (strcmp (option, "pk") == 0) {
+				if (db_name != MOK_LIST_RT) {
+					command |= HELP;
+				} else {
+					command |= LIST_ENROLLED;
+					db_name = PK;
+				}
+			} else if (strcmp (option, "kek") == 0) {
+				if (db_name != MOK_LIST_RT) {
+					command |= HELP;
+				} else {
+					command |= LIST_ENROLLED;
+					db_name = KEK;
+				}
+			} else if (strcmp (option, "db") == 0) {
+				if (db_name != MOK_LIST_RT) {
+					command |= HELP;
+				} else {
+					command |= LIST_ENROLLED;
+					db_name = DB;
+				}
+			} else if (strcmp (option, "dbx") == 0) {
+				if (db_name != MOK_LIST_RT) {
+					command |= HELP;
+				} else {
+					command |= LIST_ENROLLED;
+					db_name = DBX;
+				}
 			}
+
 			break;
 		case 'd':
 		case 'i':
@@ -2071,13 +2144,14 @@ main (int argc, char *argv[])
 
 	switch (command) {
 		case LIST_ENROLLED:
-			ret = list_keys_in_var ("MokListRT");
+		case LIST_ENROLLED | MOKX:
+			ret = list_db (db_name);
 			break;
 		case LIST_NEW:
-			ret = list_keys_in_var ("MokNew");
+			ret = list_keys_in_var ("MokNew", SHIM_LOCK_GUID);
 			break;
 		case LIST_DELETE:
-			ret = list_keys_in_var ("MokDel");
+			ret = list_keys_in_var ("MokDel", SHIM_LOCK_GUID);
 			break;
 		case IMPORT:
 		case IMPORT | SIMPLE_HASH:
@@ -2141,14 +2215,11 @@ main (int argc, char *argv[])
 		case USE_DB:
 			ret = enable_db ();
 			break;
-		case LIST_ENROLLED | MOKX:
-			ret = list_keys_in_var ("MokListXRT");
-			break;
 		case LIST_NEW | MOKX:
-			ret = list_keys_in_var ("MokXNew");
+			ret = list_keys_in_var ("MokXNew", SHIM_LOCK_GUID);
 			break;
 		case LIST_DELETE | MOKX:
-			ret = list_keys_in_var ("MokXDel");
+			ret = list_keys_in_var ("MokXDel", SHIM_LOCK_GUID);
 			break;
 		case IMPORT | MOKX:
 		case IMPORT | SIMPLE_HASH | MOKX:
