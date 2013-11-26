@@ -5,22 +5,27 @@ mokutil \- utility to manipulate machine owner keys
 
 .SH SYNOPSIS
 \fBmokutil\fR [--list-enrolled]
+        ([--mokx])
 .br
 \fBmokutil\fR [--list-new]
+        ([--mokx])
 .br
 \fBmokutil\fR [--list-delete]
+        ([--mokx])
 .br
 \fBmokutil\fR [--import \fIkeylist\fR| -i \fIkeylist\fR]
         ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
-         [--simple-hash | -s])
+         [--simple-hash | -s] | [--mokx])
 .br
 \fBmokutil\fR [--delete \fIkeylist\fR | -d \fIkeylist\fR]
         ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
-         [--simple-hash | -s])
+         [--simple-hash | -s] | [--mokx])
 .br
 \fBmokutil\fR [--revoke-import]
+        ([--mokx])
 .br
 \fBmokutil\fR [--revoke-delete]
+        ([--mokx])
 .br
 \fBmokutil\fR [--export | -x]
 .br
@@ -41,9 +46,15 @@ mokutil \- utility to manipulate machine owner keys
 .br
 \fBmokutil\fR [--reset]
         ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
-         [--simple-hash | -s])
+         [--simple-hash | -s] | [--mok])
 .br
 \fBmokutil\fR [--generate-hash=\fIpassword\fR | -g\fIpassword\fR]
+.br
+\fBmokutil\fR [--ignore-db]
+.br
+\fBmokutil\fR [--use-db]
+.br
+\fBmokutil\fR [--set-verbosity (\fItrue\fR | \fIfalse\fR)]
 .br
 
 .SH DESCRIPTION
@@ -108,3 +119,16 @@ Use the root password hash from /etc/shadow
 Use the old SHA256 password hash method to hash the password
 .br
 Note: --root-pw invalidates --simple-hash
+.TP
+\fB--ignore-db\fR
+Tell shim to not use the keys in db to verify EFI images
+.TP
+\fB--use-db\fR
+Tell shim to use the keys in db to verify EFI images (default)
+.TP
+\fB--mokx\fR
+Manipulate the MOK blacklist (MOKX) instead of the MOK list
+.TP
+\fB--set-verbosity\fR
+Set the SHIM_VERBOSE to make shim more or less verbose
+.TP

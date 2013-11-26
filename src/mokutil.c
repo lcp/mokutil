@@ -135,8 +135,8 @@ print_help ()
 	printf ("  --generate-hash[=password]\t\tGenerate the password hash\n");
 	printf ("  --ignore-db\t\t\t\tIgnore DB for validation\n");
 	printf ("  --use-db\t\t\t\tUse DB for validation\n");
-	printf ("  --import-hash <hash>\t\t\tImport a hash\n");
-	printf ("  --delete-hash <hash>\t\t\tDelete a specific hash\n");
+	printf ("  --import-hash <hash>\t\t\tImport a hash into MOK or MOKX\n");
+	printf ("  --delete-hash <hash>\t\t\tDelete a hash in MOK or MOKX\n");
 	printf ("  --set-verbosity <true/false>\t\tSet the verbosity bit for shim\n");
 	printf ("\n");
 	printf ("Supplimentary Options:\n");
