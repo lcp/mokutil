@@ -1776,7 +1776,7 @@ test_key (MokRequest req, const char *key_file)
 		goto error;
 	}
 
-	if (!is_valid_request (EfiCertX509Guid, key, read_size, req)) {
+	if (is_valid_request (EfiCertX509Guid, key, read_size, req)) {
 		printf ("%s is not enrolled\n", key_file);
 		ret = 0;
 	} else {
