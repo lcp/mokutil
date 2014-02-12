@@ -513,6 +513,24 @@ delete_data_from_list (efi_guid_t type, void *data, uint32_t data_size,
 	if (start == NULL)
 		return 0;
 
+	/* all keys are removed */
+	if (total == 0) {
+		test_and_delete_var (var_name);
+
+		/* delete the password */
+		if (strcmp (var_name, "MokNew") == 0)
+			test_and_delete_var ("MokAuth");
+		else if (strcmp (var_name, "MokXNew") == 0)
+			test_and_delete_var ("MokXAuth");
+		else if (strcmp (var_name, "MokDel") == 0)
+			test_and_delete_var ("MokDelAuth");
+		else if (strcmp (var_name, "MokXDel") == 0)
+			test_and_delete_var ("MokXDelAuth");
+
+		ret = 1;
+		goto done;
+	}
+
 	/* remove the key or hash  */
 	if (remain > 0)
 		memmove (start, end, remain);
