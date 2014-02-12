@@ -1374,6 +1374,9 @@ issue_hash_request (const char *hash_str, MokRequest req,
 
 	old_req.VariableName = req_name;
 	old_req.VendorGuid = SHIM_LOCK_GUID;
+
+	list_size = sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t) + hash_size;
+
 	if (read_variable (&old_req) == EFI_SUCCESS) {
 		int i;
 		list_size += old_req.DataSize;
@@ -1388,12 +1391,11 @@ issue_hash_request (const char *hash_str, MokRequest req,
 			if (efi_guidcmp (mok_list[i].header->SignatureType,
 					 hash_type) == 0) {
 				merge_ind = i;
+				list_size -= sizeof(EFI_SIGNATURE_LIST);
 				break;
 			}
 		}
 	}
-
-	list_size += sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t) + hash_size;
 
 	new_list = malloc (list_size);
 	if (!new_list) {
