@@ -501,6 +501,7 @@ delete_data_from_list (efi_guid_t type, void *data, uint32_t data_size,
 				start += sizeof(EFI_SIGNATURE_LIST) + sig_size * del_ind;
 				end = start + sig_size;
 				total -= sig_size;
+				list[i].header->SignatureListSize -= sig_size;
 				remain += sig_list_size - sizeof(EFI_SIGNATURE_LIST) -
 					  (del_ind + 1) * sig_size;
 			}
