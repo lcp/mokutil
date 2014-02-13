@@ -1272,7 +1272,7 @@ test_key (const char *key_file)
 
 	if (!is_duplicate (key, read_size, "PK", EFI_GLOBAL_VARIABLE) &&
 	    !is_duplicate (key, read_size, "KEK", EFI_GLOBAL_VARIABLE) &&
-	    !is_duplicate (key, read_size, "db", EFI_GLOBAL_VARIABLE) &&
+	    !is_duplicate (key, read_size, "db", EFI_IMAGE_SECURITY_DATABASE_GUID) &&
 	    !is_duplicate (key, read_size, "MokListRT", SHIM_LOCK_GUID) &&
 	    !is_duplicate (key, read_size, "MokNew", SHIM_LOCK_GUID)) {
 		printf ("%s is not enrolled\n", key_file);
