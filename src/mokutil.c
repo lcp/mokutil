@@ -931,7 +931,8 @@ issue_mok_request (char **files, uint32_t total, uint8_t import,
 
 			ptr -= sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
 		} else {
-			printf ("Skip %s\n", files[i]);
+			printf ("%s is already enrolled or in %s request\n", files[i],
+				import?"an enrollment":"a deletion");
 			ptr -= sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
 		}
 
