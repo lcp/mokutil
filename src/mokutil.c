@@ -1113,24 +1113,41 @@ in_pending_request (efi_guid_t type, void *data, uint32_t data_size,
 
 static void
 print_skip_message (const char *filename, void *mok, uint32_t mok_size,
-		    uint8_t import)
+		    MokRequest req)
 {
-	if (import) {
-		if (is_duplicate (mok, mok_size, "PK", EFI_GLOBAL_VARIABLE))
+	efi_guid_t type = EfiCertX509Guid;
+
+	switch (req) {
+	case ENROLL_MOK:
+		if (is_duplicate (type, mok, mok_size, EFI_GLOBAL_VARIABLE, "PK"))
 			printf ("SKIP: %s is already in PK\n", filename);
-		else if (is_duplicate (mok, mok_size, "KEK", EFI_GLOBAL_VARIABLE))
+		else if (is_duplicate (type, mok, mok_size, EFI_GLOBAL_VARIABLE, "KEK"))
 			printf ("SKIP: %s is already in KEK\n", filename);
-		else if (is_duplicate (mok, mok_size, "db", EFI_IMAGE_SECURITY_DATABASE_GUID))
+		else if (is_duplicate (type, mok, mok_size, EFI_IMAGE_SECURITY_DATABASE_GUID, "db"))
 			printf ("SKIP: %s is already in db\n", filename);
-		else if (is_duplicate (mok, mok_size, "MokListRT", SHIM_LOCK_GUID))
+		else if (is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokListRT"))
 			printf ("SKIP: %s is already enrolled\n", filename);
-		else if (is_duplicate (mok, mok_size, "MokNew", SHIM_LOCK_GUID))
+		else if (is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokNew"))
 			printf ("SKIP: %s is already in the enrollement request\n", filename);
-	} else {
-		if (!is_duplicate (mok, mok_size, "MokListRT", SHIM_LOCK_GUID))
+		break;
+	case DELETE_MOK:
+		if (!is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokListRT"))
 			printf ("SKIP: %s is not in MokList\n", filename);
-		else if (is_duplicate (mok, mok_size, "MokDel", SHIM_LOCK_GUID))
+		else if (is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokDel"))
 			printf ("SKIP: %s is already in the deletion request\n", filename);
+		break;
+	case ENROLL_BLACKLIST:
+		if (is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokListXRT"))
+			printf ("SKIP: %s is already in MokListX\n", filename);
+		else if (is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokXNew"))
+			printf ("SKIP: %s is already in the MokX enrollment request\n", filename);
+		break;
+	case DELETE_BLACKLIST:
+		if (!is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokListXRT"))
+			printf ("SKIP: %s is not in MokListX\n", filename);
+		else if (is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokXDel"))
+			printf ("SKIP: %s is already in the MokX deletion request\n", filename);
+		break;
 	}
 }
 
@@ -1251,7 +1268,7 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 			printf ("Removed %s from %s\n", files[i], reverse_req);
 			ptr -= sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
 		} else {
-			print_skip_message (files[i], ptr, sizes[i], import);
+			print_skip_message (files[i], ptr, sizes[i], req);
 			ptr -= sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
 		}
 
