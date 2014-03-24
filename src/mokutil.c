@@ -1536,6 +1536,23 @@ main (int argc, char *argv[])
 	if (hash_file && use_root_pw)
 		command |= HELP;
 
+	if (!(command & HELP)) {
+		/* Check whether the machine supports Secure Boot or not */
+		efi_variable_t var;
+		efi_status_t status;
+
+		memset (&var, 0, sizeof(var));
+		var.VariableName = "SecureBoot";
+		var.VendorGuid = EFI_GLOBAL_VARIABLE;
+		status = read_variable (&var);
+		if (status != EFI_SUCCESS) {
+			fprintf (stderr, "This system doesn't support Secure Boot\n");
+			ret = -1;
+			goto out;
+		}
+		free (var.Data);
+	}
+
 	switch (command) {
 		case LIST_ENROLLED:
 			ret = list_keys_in_var ("MokListRT");
@@ -1613,6 +1630,7 @@ main (int argc, char *argv[])
 			break;
 	}
 
+out:
 	if (files) {
 		for (i = 0; i < total; i++)
 			free (files[i]);
