@@ -833,6 +833,29 @@ in_pending_request (void *mok, uint32_t mok_size, uint8_t import)
 	return 0;
 }
 
+static void
+print_skip_message (const char *filename, void *mok, uint32_t mok_size,
+		    uint8_t import)
+{
+	if (import) {
+		if (is_duplicate (mok, mok_size, "PK", EFI_GLOBAL_VARIABLE))
+			printf ("SKIP: %s is already in PK\n", filename);
+		else if (is_duplicate (mok, mok_size, "KEK", EFI_GLOBAL_VARIABLE))
+			printf ("SKIP: %s is already in KEK\n", filename);
+		else if (is_duplicate (mok, mok_size, "db", EFI_IMAGE_SECURITY_DATABASE_GUID))
+			printf ("SKIP: %s is already in db\n", filename);
+		else if (is_duplicate (mok, mok_size, "MokListRT", SHIM_LOCK_GUID))
+			printf ("SKIP: %s is already enrolled\n", filename);
+		else if (is_duplicate (mok, mok_size, "MokNew", SHIM_LOCK_GUID))
+			printf ("SKIP: %s is already in the enrollement request\n", filename);
+	} else {
+		if (!is_duplicate (mok, mok_size, "MokListRT", SHIM_LOCK_GUID))
+			printf ("SKIP: %s is not in MokList\n", filename);
+		else if (is_duplicate (mok, mok_size, "MokDel", SHIM_LOCK_GUID))
+			printf ("SKIP: %s is already in the deletion request\n", filename);
+	}
+}
+
 static int
 issue_mok_request (char **files, uint32_t total, uint8_t import,
 		   const char *hash_file, const int root_pw)
@@ -931,8 +954,7 @@ issue_mok_request (char **files, uint32_t total, uint8_t import,
 
 			ptr -= sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
 		} else {
-			printf ("%s is already enrolled or in %s request\n", files[i],
-				import?"an enrollment":"a deletion");
+			print_skip_message (files[i], ptr, sizes[i], import);
 			ptr -= sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
 		}
 
