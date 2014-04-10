@@ -1265,8 +1265,9 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 			goto error;
 		}
 		if (!is_valid_cert (ptr, read_size)) {
-			fprintf (stderr, "Warning!!! %s is not a valid x509 certificate in DER format\n",
+			fprintf (stderr, "Abort!!! %s is not a valid x509 certificate in DER format\n",
 			         files[i]);
+			goto error;
 		}
 
 		if (is_valid_request (EfiCertX509Guid, ptr, sizes[i], req)) {
