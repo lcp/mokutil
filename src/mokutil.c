@@ -79,12 +79,32 @@ EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 
 #define SIMPLE_HASH        (1 << 17)
 #define IGNORE_DB          (1 << 18)
 #define USE_DB             (1 << 19)
+#define MOKX               (1 << 20)
+#define IMPORT_HASH        (1 << 21)
+#define DELETE_HASH        (1 << 22)
+#define VERBOSITY          (1 << 23)
 
 #define DEFAULT_CRYPT_METHOD SHA512_BASED
 #define DEFAULT_SALT_SIZE    SHA512_SALT_MAX
 #define SETTINGS_LEN         (DEFAULT_SALT_SIZE*2)
 
 static int use_simple_hash;
+
+typedef enum {
+	DELETE_MOK = 0,
+	ENROLL_MOK,
+	DELETE_BLACKLIST,
+	ENROLL_BLACKLIST
+} MokRequest;
+
+typedef enum {
+	MOK_LIST_RT = 0,
+	MOK_LIST_X_RT,
+	PK,
+	KEK,
+	DB,
+	DBX,
+} DBName;
 
 typedef struct {
 	EFI_SIGNATURE_LIST *header;
@@ -124,17 +144,19 @@ print_help ()
 	printf ("  --generate-hash[=password]\t\tGenerate the password hash\n");
 	printf ("  --ignore-db\t\t\t\tIgnore DB for validation\n");
 	printf ("  --use-db\t\t\t\tUse DB for validation\n");
+	printf ("  --import-hash <hash>\t\t\tImport a hash into MOK or MOKX\n");
+	printf ("  --delete-hash <hash>\t\t\tDelete a hash in MOK or MOKX\n");
+	printf ("  --set-verbosity <true/false>\t\tSet the verbosity bit for shim\n");
+	printf ("  --pk\t\t\t\t\tList the keys in PK\n");
+	printf ("  --kek\t\t\t\t\tList the keys in KEK\n");
+	printf ("  --db\t\t\t\t\tList the keys in db\n");
+	printf ("  --dbx\t\t\t\t\tList the keys in dbx\n");
 	printf ("\n");
 	printf ("Supplimentary Options:\n");
 	printf ("  --hash-file <hash file>\t\tUse the specific password hash\n");
-	printf ("                         \t\t(For --import, --delete, --password,\n");
-	printf ("                         \t\t and --reset)\n");
 	printf ("  --root-pw\t\t\t\tUse the root password\n");
-	printf ("           \t\t\t\t(For --import, --delete, --password,\n");
-	printf ("           \t\t\t\t and --reset)\n");
 	printf ("  --simple-hash\t\t\t\tUse the old password hash method\n");
-	printf ("               \t\t\t\t(For --import, --delete, --password,\n");
-	printf ("               \t\t\t\t --clear-password and --reset)\n");
+	printf ("  --mokx\t\t\t\tManipulate the MOK blacklist\n");
 }
 
 static int
@@ -157,35 +179,78 @@ test_and_delete_var (const char *var_name)
 	return 0;
 }
 
+static const char*
+efi_hash_to_string (efi_guid_t hash_type)
+{
+	if (efi_guidcmp (hash_type, EfiHashSha1Guid) == 0) {
+		return "SHA1";
+	} else if (efi_guidcmp (hash_type, EfiHashSha224Guid) == 0) {
+		return "SHA224";
+	} else if (efi_guidcmp (hash_type, EfiHashSha256Guid) == 0) {
+		return "SHA256";
+	} else if (efi_guidcmp (hash_type, EfiHashSha384Guid) == 0) {
+		return "SHA384";
+	} else if (efi_guidcmp (hash_type, EfiHashSha512Guid) == 0) {
+		return "SHA512";
+	}
+
+	return NULL;
+}
+
+static uint32_t
+efi_hash_size (efi_guid_t hash_type)
+{
+	if (efi_guidcmp (hash_type, EfiHashSha1Guid) == 0) {
+		return SHA_DIGEST_LENGTH;
+	} else if (efi_guidcmp (hash_type, EfiHashSha224Guid) == 0) {
+		return SHA224_DIGEST_LENGTH;
+	} else if (efi_guidcmp (hash_type, EfiHashSha256Guid) == 0) {
+		return SHA256_DIGEST_LENGTH;
+	} else if (efi_guidcmp (hash_type, EfiHashSha384Guid) == 0) {
+		return SHA384_DIGEST_LENGTH;
+	} else if (efi_guidcmp (hash_type, EfiHashSha512Guid) == 0) {
+		return SHA512_DIGEST_LENGTH;
+	}
+
+	return 0;
+}
+
+static uint32_t
+signature_size (efi_guid_t hash_type)
+{
+	uint32_t hash_size;
+
+	hash_size = efi_hash_size (hash_type);
+	if (hash_size)
+		return (hash_size + sizeof(efi_guid_t));
+
+	return 0;
+}
+
 static MokListNode*
 build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 {
-	MokListNode *list;
+	MokListNode *list = NULL;
 	EFI_SIGNATURE_LIST *CertList = data;
 	EFI_SIGNATURE_DATA *Cert;
-	efi_guid_t CertType = EfiCertX509Guid;
-	efi_guid_t HashType = EfiHashSha256Guid;
 	unsigned long dbsize = data_size;
 	unsigned long count = 0;
 
-	list = malloc(sizeof(MokListNode));
-
-	if (!list) {
-		fprintf(stderr, "Unable to allocate MOK list\n");
-		return NULL;
-	}
-
 	while ((dbsize > 0) && (dbsize >= CertList->SignatureListSize)) {
-		if ((efi_guidcmp (CertList->SignatureType, CertType) != 0) &&
-		    (efi_guidcmp (CertList->SignatureType, HashType) != 0)) {
+		if ((efi_guidcmp (CertList->SignatureType, EfiCertX509Guid) != 0) &&
+		    (efi_guidcmp (CertList->SignatureType, EfiHashSha1Guid) != 0) &&
+		    (efi_guidcmp (CertList->SignatureType, EfiHashSha224Guid) != 0) &&
+		    (efi_guidcmp (CertList->SignatureType, EfiHashSha256Guid) != 0) &&
+		    (efi_guidcmp (CertList->SignatureType, EfiHashSha384Guid) != 0) &&
+		    (efi_guidcmp (CertList->SignatureType, EfiHashSha512Guid) != 0)) {
 			dbsize -= CertList->SignatureListSize;
 			CertList = (EFI_SIGNATURE_LIST *)((uint8_t *) CertList +
 						  CertList->SignatureListSize);
 			continue;
 		}
 
-		if ((efi_guidcmp (CertList->SignatureType, HashType) == 0) &&
-		    (CertList->SignatureSize != 48)) {
+		if ((efi_guidcmp (CertList->SignatureType, EfiCertX509Guid) != 0) &&
+		    (CertList->SignatureSize != signature_size (CertList->SignatureType))) {
 			dbsize -= CertList->SignatureListSize;
 			CertList = (EFI_SIGNATURE_LIST *)((uint8_t *) CertList +
 						  CertList->SignatureListSize);
@@ -203,8 +268,18 @@ build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 		}
 
 		list[count].header = CertList;
-		list[count].mok_size = CertList->SignatureSize - sizeof(efi_guid_t);
-		list[count].mok = (void *)Cert->SignatureData;
+		if (efi_guidcmp (CertList->SignatureType, EfiCertX509Guid) == 0) {
+			/* X509 certificate */
+			list[count].mok_size = CertList->SignatureSize -
+					       sizeof(efi_guid_t);
+			list[count].mok = (void *)Cert->SignatureData;
+		} else {
+			/* hash array */
+			list[count].mok_size = CertList->SignatureListSize -
+					       sizeof(EFI_SIGNATURE_LIST) -
+					       CertList->SignatureHeaderSize;
+			list[count].mok = (void *)Cert;
+		}
 
 		count++;
 		dbsize -= CertList->SignatureListSize;
@@ -258,6 +333,51 @@ print_x509 (char *cert, int cert_size)
 }
 
 static int
+print_hash_array (efi_guid_t hash_type, void *hash_array, uint32_t array_size)
+{
+	uint32_t hash_size, remain;
+	uint32_t sig_size;
+	uint8_t *hash;
+	const char *name;
+	int i;
+
+	if (!hash_array || array_size == 0) {
+		fprintf (stderr, "invalid hash array\n");
+		return -1;
+	}
+
+	name = efi_hash_to_string (hash_type);
+	hash_size = efi_hash_size (hash_type);
+	sig_size = hash_size + sizeof(efi_guid_t);
+
+	if (!name) {
+		fprintf (stderr, "unknown hash type\n");
+		return -1;
+	}
+
+	printf ("  [%s]\n", name);
+	remain = array_size;
+	hash = (uint8_t *)hash_array;
+
+	while (remain > 0) {
+		if (remain < sig_size) {
+			fprintf (stderr, "invalid array size\n");
+			return -1;
+		}
+
+		printf ("  ");
+		hash += sizeof(efi_guid_t);
+		for (i = 0; i<hash_size; i++)
+			printf ("%02x", *(hash + i));
+		printf ("\n");
+		hash += hash_size;
+		remain -= sig_size;
+	}
+
+	return 0;
+}
+
+static int
 list_keys (efi_variable_t *var)
 {
 	uint32_t mok_num;
@@ -271,7 +391,12 @@ list_keys (efi_variable_t *var)
 
 	for (i = 0; i < mok_num; i++) {
 		printf ("[key %d]\n", i+1);
-		print_x509 ((char *)list[i].mok, list[i].mok_size);
+		if (efi_guidcmp (list[i].header->SignatureType, EfiCertX509Guid) == 0) {
+			print_x509 ((char *)list[i].mok, list[i].mok_size);
+		} else {
+			print_hash_array (list[i].header->SignatureType,
+					  list[i].mok, list[i].mok_size);
+		}
 		if (i < mok_num - 1)
 			printf ("\n");
 	}
@@ -281,17 +406,50 @@ list_keys (efi_variable_t *var)
 	return 0;
 }
 
+/* match the hash in the hash array and return the index if matched */
 static int
-delete_key_from_list (void *mok, uint32_t mok_size,
-		      const char *var_name, efi_guid_t guid)
+match_hash_array (efi_guid_t hash_type, const void *hash,
+		  const void *hash_array, const uint32_t array_size)
+{
+	uint32_t hash_size, hash_count;
+	uint32_t sig_size;
+	int i;
+	void *ptr;
+
+	hash_size = efi_hash_size (hash_type);
+	if (!hash_size)
+		return -1;
+
+	sig_size = hash_size + sizeof(efi_guid_t);
+	if ((array_size % sig_size) != 0) {
+		fprintf (stderr, "invalid hash array size\n");
+		return -1;
+	}
+
+	ptr = (void *)hash_array;
+	hash_count = array_size / sig_size;
+	for (i = 0; i < hash_count; i++) {
+		ptr += sizeof(efi_guid_t);
+		if (memcmp (ptr, hash, hash_size) == 0)
+			return i;
+		ptr += hash_size;
+	}
+
+	return -1;
+}
+
+static int
+delete_data_from_list (efi_guid_t type, void *data, uint32_t data_size,
+		       const char *var_name, efi_guid_t guid)
 {
 	efi_variable_t var;
 	MokListNode *list;
 	uint32_t mok_num, total, remain;
-	void *ptr, *data = NULL;
+	void *end, *start = NULL;
 	int i, del_ind, ret = 0;
+	uint32_t sig_list_size, sig_size;
 
-	if (!var_name || !mok || mok_size == 0)
+	if (!var_name || !data || data_size == 0)
 		return 0;
 
 	memset (&var, 0, sizeof(var));
@@ -307,30 +465,75 @@ delete_key_from_list (void *mok, uint32_t mok_size,
 	if (list == NULL)
 		goto done;
 
+	remain = total;
 	for (i = 0; i < mok_num; i++) {
-		if (list[i].mok_size != mok_size)
+		remain -= list[i].header->SignatureListSize;
+		if (efi_guidcmp (list[i].header->SignatureType, type) != 0)
 			continue;
 
-		if (memcmp (list[i].mok, mok, mok_size) == 0) {
-			/* Remove this key */
-			del_ind = i;
-			data = (void *)list[i].header;
-			ptr = data + list[i].header->SignatureListSize;
-			total -= list[i].header->SignatureListSize;
+		sig_list_size = list[i].header->SignatureListSize;
+
+		if (efi_guidcmp (type, EfiCertX509Guid) == 0) {
+			if (list[i].mok_size != data_size)
+				continue;
+
+			if (memcmp (list[i].mok, data, data_size) == 0) {
+				/* Remove this key */
+				start = (void *)list[i].header;
+				end = start + sig_list_size;
+				total -= sig_list_size;
+				break;
+			}
+		} else {
+			del_ind = match_hash_array (type, data, list[i].mok,
+						    list[i].mok_size);
+			if (del_ind < 0)
+				continue;
+
+			start = (void *)list[i].header;
+			sig_size = signature_size (type);
+			if (sig_list_size == (sizeof(EFI_SIGNATURE_LIST) + sig_size)) {
+				/* Only one hash in the list */
+				end = start + sig_list_size;
+				total -= sig_list_size;
+			} else {
+				/* More than one hash in the list */
+				start += sizeof(EFI_SIGNATURE_LIST) + sig_size * del_ind;
+				end = start + sig_size;
+				total -= sig_size;
+				list[i].header->SignatureListSize -= sig_size;
+				remain += sig_list_size - sizeof(EFI_SIGNATURE_LIST) -
+					  (del_ind + 1) * sig_size;
+			}
 			break;
 		}
 	}
 
-	/* the key is not in this list */
-	if (data == NULL)
+	/* the key or hash is not in this list */
+	if (start == NULL)
 		return 0;
 
-	/* Move the rest of the keys */
-	remain = 0;
-	for (i = del_ind + 1; i < mok_num; i++)
-		remain += list[i].header->SignatureListSize;
+	/* all keys are removed */
+	if (total == 0) {
+		test_and_delete_var (var_name);
+
+		/* delete the password */
+		if (strcmp (var_name, "MokNew") == 0)
+			test_and_delete_var ("MokAuth");
+		else if (strcmp (var_name, "MokXNew") == 0)
+			test_and_delete_var ("MokXAuth");
+		else if (strcmp (var_name, "MokDel") == 0)
+			test_and_delete_var ("MokDelAuth");
+		else if (strcmp (var_name, "MokXDel") == 0)
+			test_and_delete_var ("MokXDelAuth");
+
+		ret = 1;
+		goto done;
+	}
+
+	/* remove the key or hash  */
 	if (remain > 0)
-		memmove (data, ptr, remain);
+		memmove (start, end, remain);
 
 	var.DataSize = total;
 	var.Attributes = EFI_VARIABLE_NON_VOLATILE
@@ -344,14 +547,15 @@ delete_key_from_list (void *mok, uint32_t mok_size,
 
 	ret = 1;
 done:
-	free (list);
+	if (list)
+		free (list);
 	free (var.Data);
 
 	return ret;
 }
 
 static int
-list_keys_in_var (const char *var_name)
+list_keys_in_var (const char *var_name, const efi_guid_t guid)
 {
 	efi_variable_t var;
 	efi_status_t status;
@@ -359,7 +563,7 @@ list_keys_in_var (const char *var_name)
 
 	memset (&var, 0, sizeof(var));
 	var.VariableName = var_name;
-	var.VendorGuid = SHIM_LOCK_GUID;
+	var.VendorGuid = guid;
 
 	status = read_variable (&var);
 	if (status != EFI_SUCCESS) {
@@ -621,7 +825,7 @@ get_password_from_shadow (pw_crypt_t *pw_crypt)
 }
 
 static int
-update_request (void *new_list, int list_len, uint8_t import,
+update_request (void *new_list, int list_len, MokRequest req,
 		const char *hash_file, const int root_pw)
 {
 	efi_variable_t var;
@@ -636,12 +840,25 @@ update_request (void *new_list, int list_len, uint8_t import,
 	bzero (&pw_crypt, sizeof(pw_crypt_t));
 	pw_crypt.method = DEFAULT_CRYPT_METHOD;
 
-	if (import) {
+	switch (req) {
+	case ENROLL_MOK:
 		req_name = "MokNew";
 		auth_name = "MokAuth";
-	} else {
+		break;
+	case DELETE_MOK:
 		req_name = "MokDel";
 		auth_name = "MokDelAuth";
+		break;
+	case ENROLL_BLACKLIST:
+		req_name = "MokXNew";
+		auth_name = "MokXAuth";
+		break;
+	case DELETE_BLACKLIST:
+		req_name = "MokXDel";
+		auth_name = "MokXDelAuth";
+		break;
+	default:
+		return -1;
 	}
 
 	if (hash_file) {
@@ -673,7 +890,7 @@ update_request (void *new_list, int list_len, uint8_t import,
 	}
 
 	if (new_list) {
-		/* Write MokNew*/
+		/* Write MokNew, MokDel, MokXNew, or MokXDel*/
 		var.Data = new_list;
 		var.DataSize = list_len;
 		var.VariableName = req_name;
@@ -684,15 +901,27 @@ update_request (void *new_list, int list_len, uint8_t import,
 			| EFI_VARIABLE_RUNTIME_ACCESS;
 
 		if (edit_variable (&var) != EFI_SUCCESS) {
-			fprintf (stderr, "Failed to %s keys\n",
-				 import ? "enroll new" : "delete");
+			switch (req) {
+			case ENROLL_MOK:
+				fprintf (stderr, "Failed to enroll new keys\n");
+				break;
+			case ENROLL_BLACKLIST:
+				fprintf (stderr, "Failed to enroll blacklist\n");
+				break;
+			case DELETE_MOK:
+				fprintf (stderr, "Failed to delete keys\n");
+				break;
+			case DELETE_BLACKLIST:
+				fprintf (stderr, "Failed to delete blacklist\n");
+				break;
+			}
 			goto error;
 		}
 	} else {
 		test_and_delete_var (req_name);
 	}
 
-	/* Write MokAuth or MokDelAuth */
+	/* Write MokAuth, MokDelAuth, MokXAuth, or MokXDelAuth */
 	if (!use_simple_hash) {
 		var.Data = (void *)&pw_crypt;
 		var.DataSize = PASSWORD_CRYPT_SIZE;
@@ -744,79 +973,127 @@ is_valid_cert (void *cert, uint32_t cert_size)
 }
 
 static int
-is_duplicate (const void *cert, const uint32_t cert_size, const char *db_name,
-	      efi_guid_t guid)
+is_duplicate (efi_guid_t type, const void *data, const uint32_t data_size,
+	      efi_guid_t vendor, const char *db_name)
 {
 	efi_variable_t var;
-	uint32_t mok_num;
+	uint32_t node_num;
 	MokListNode *list;
 	int i, ret = 0;
 
-	if (!cert || cert_size == 0 || !db_name)
+	if (!data || data_size == 0 || !db_name)
 		return 0;
 
 	memset (&var, 0, sizeof(var));
 	var.VariableName = db_name;
-	var.VendorGuid = guid;
+	var.VendorGuid = vendor;
 
 	if (read_variable (&var) != EFI_SUCCESS)
 		return 0;
 
-	list = build_mok_list (var.Data, var.DataSize, &mok_num);
+	list = build_mok_list (var.Data, var.DataSize, &node_num);
 	if (list == NULL) {
 		goto done;
 	}
 
-	for (i = 0; i < mok_num; i++) {
-		if (list[i].mok_size != cert_size)
+	for (i = 0; i < node_num; i++) {
+		if (efi_guidcmp (list[i].header->SignatureType, type) != 0)
 			continue;
 
-		if (memcmp (list[i].mok, cert, cert_size) == 0) {
-			ret = 1;
-			break;
+		if (efi_guidcmp (type, EfiCertX509Guid) == 0) {
+			if (list[i].mok_size != data_size)
+				continue;
+
+			if (memcmp (list[i].mok, data, data_size) == 0) {
+				ret = 1;
+				break;
+			}
+		} else {
+			if (match_hash_array (type, data, list[i].mok,
+					      list[i].mok_size) >= 0) {
+				ret = 1;
+				break;
+			}
 		}
 	}
 
 done:
-	free (list);
+	if (list)
+		free (list);
 	free (var.Data);
 
 	return ret;
 }
 
 static int
-is_valid_request (void *mok, uint32_t mok_size, uint8_t import)
+is_valid_request (efi_guid_t type, void *mok, uint32_t mok_size, MokRequest req)
 {
-	if (import) {
-		if (is_duplicate (mok, mok_size, "PK", EFI_GLOBAL_VARIABLE) ||
-		    is_duplicate (mok, mok_size, "KEK", EFI_GLOBAL_VARIABLE) ||
-		    is_duplicate (mok, mok_size, "db", EFI_IMAGE_SECURITY_DATABASE_GUID) ||
-		    is_duplicate (mok, mok_size, "MokListRT", SHIM_LOCK_GUID) ||
-		    is_duplicate (mok, mok_size, "MokNew", SHIM_LOCK_GUID)) {
+	switch (req) {
+	case ENROLL_MOK:
+		if (is_duplicate (type, mok, mok_size, EFI_GLOBAL_VARIABLE, "PK") ||
+		    is_duplicate (type, mok, mok_size, EFI_GLOBAL_VARIABLE, "KEK") ||
+		    is_duplicate (type, mok, mok_size, EFI_IMAGE_SECURITY_DATABASE_GUID, "db") ||
+		    is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokListRT") ||
+		    is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokNew")) {
 			return 0;
 		}
-	} else {
-		if (!is_duplicate (mok, mok_size, "MokListRT", SHIM_LOCK_GUID) ||
-		    is_duplicate (mok, mok_size, "MokDel", SHIM_LOCK_GUID)) {
+		break;
+	case DELETE_MOK:
+		if (!is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokListRT") ||
+		    is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokDel")) {
 			return 0;
 		}
+		break;
+	case ENROLL_BLACKLIST:
+		if (is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokListXRT") ||
+		    is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokXNew")) {
+			return 0;
+		}
+		break;
+	case DELETE_BLACKLIST:
+		if (!is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokListXRT") ||
+		    is_duplicate (type, mok, mok_size, SHIM_LOCK_GUID, "MokXDel")) {
+			return 0;
+		}
+		break;
 	}
 
 	return 1;
 }
 
 static int
-in_pending_request (void *mok, uint32_t mok_size, uint8_t import)
+in_pending_request (efi_guid_t type, void *data, uint32_t data_size,
+		    MokRequest req)
 {
 	efi_variable_t authvar;
-	const char *var_name = import ? "MokDel" : "MokNew";
+	const char *var_name;
 
-	if (!mok || mok_size == 0)
+	if (!data || data_size == 0)
 		return 0;
 
 	memset (&authvar, 0, sizeof(authvar));
-	authvar.VariableName = import ? "MokDelAuth" : "MokAuth";
 	authvar.VendorGuid = SHIM_LOCK_GUID;
+
+	switch (req) {
+	case ENROLL_MOK:
+		var_name = "MokDel";
+		authvar.VariableName = "MokDelAuth";
+		break;
+	case DELETE_MOK:
+		var_name = "MokNew";
+		authvar.VariableName = "MokAuth";
+		break;
+	case ENROLL_BLACKLIST:
+		var_name = "MokXDel";
+		authvar.VariableName = "MokXDelAuth";
+		break;
+	case DELETE_BLACKLIST:
+		var_name = "MokXNew";
+		authvar.VariableName = "MokXAuth";
+		break;
+	default:
+		return 0;
+	}
 
 	if (read_variable (&authvar) != EFI_SUCCESS) {
 		return 0;
@@ -827,8 +1104,9 @@ in_pending_request (void *mok, uint32_t mok_size, uint8_t import)
 	if (authvar.DataSize == SHA256_DIGEST_LENGTH)
 		return 0;
 
-	if (delete_key_from_list (mok, mok_size, var_name, SHIM_LOCK_GUID))
-		return 1;
+	if (delete_data_from_list (type, data, data_size, var_name,
+				   SHIM_LOCK_GUID))
+			return 1;
 
 	return 0;
 }
@@ -857,11 +1135,12 @@ print_skip_message (const char *filename, void *mok, uint32_t mok_size,
 }
 
 static int
-issue_mok_request (char **files, uint32_t total, uint8_t import,
+issue_mok_request (char **files, uint32_t total, MokRequest req,
 		   const char *hash_file, const int root_pw)
 {
 	efi_variable_t old_req;
 	const char *req_name;
+	const char *reverse_req;
 	void *new_list = NULL;
 	void *ptr;
 	struct stat buf;
@@ -877,7 +1156,26 @@ issue_mok_request (char **files, uint32_t total, uint8_t import,
 	if (!files)
 		return -1;
 
-	req_name = import ? "MokNew" : "MokDel";
+	switch (req) {
+	case ENROLL_MOK:
+		req_name = "MokNew";
+		reverse_req = "MokDel";
+		break;
+	case DELETE_MOK:
+		req_name = "MokDel";
+		reverse_req = "MokNew";
+		break;
+	case ENROLL_BLACKLIST:
+		req_name = "MokXNew";
+		reverse_req = "MokXDel";
+		break;
+	case DELETE_BLACKLIST:
+		req_name = "MokXDel";
+		reverse_req = "MokXNew";
+		break;
+	default:
+		return -1;
+	}
 
 	sizes = malloc (total * sizeof(uint32_t));
 
@@ -946,12 +1244,11 @@ issue_mok_request (char **files, uint32_t total, uint8_t import,
 			         files[i]);
 		}
 
-		if (is_valid_request (ptr, sizes[i], import)) {
+		if (is_valid_request (EfiCertX509Guid, ptr, sizes[i], req)) {
 			ptr += sizes[i];
 			real_size += sizes[i] + sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
-		} else if (in_pending_request (ptr, sizes[i], import)) {
-			printf ("Removed %s from %s\n", files[i], import ? "MokDel" : "MokNew");
-
+		} else if (in_pending_request (EfiCertX509Guid, ptr, sizes[i], req)) {
+			printf ("Removed %s from %s\n", files[i], reverse_req);
 			ptr -= sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
 		} else {
 			print_skip_message (files[i], ptr, sizes[i], import);
@@ -973,7 +1270,7 @@ issue_mok_request (char **files, uint32_t total, uint8_t import,
 		real_size += old_req.DataSize;
 	}
 
-	if (update_request (new_list, real_size, import, hash_file, root_pw) < 0) {
+	if (update_request (new_list, real_size, req, hash_file, root_pw) < 0) {
 		goto error;
 	}
 
@@ -990,32 +1287,258 @@ error:
 }
 
 static int
-import_moks (char **files, uint32_t total, const char *hash_file,
-	     const int root_pw)
+identify_hash_type (const char *hash_str, efi_guid_t *type)
 {
-	return issue_mok_request (files, total, 1, hash_file, root_pw);
+	int len = strlen (hash_str);
+	int hash_size;
+	int i;
+
+	for (i = 0; i < len; i++) {
+		if ((hash_str[i] > '9' || hash_str[i] < '0') &&
+		    (hash_str[i] > 'f' || hash_str[i] < 'a') &&
+		    (hash_str[i] > 'F' || hash_str[i] < 'A'))
+		return -1;
+	}
+
+	switch (len) {
+	case SHA_DIGEST_LENGTH*2:
+		*type = EfiHashSha1Guid;
+		hash_size = SHA_DIGEST_LENGTH;
+		break;
+	case SHA224_DIGEST_LENGTH*2:
+		*type = EfiHashSha224Guid;
+		hash_size = SHA224_DIGEST_LENGTH;
+		break;
+	case SHA256_DIGEST_LENGTH*2:
+		*type = EfiHashSha256Guid;
+		hash_size = SHA256_DIGEST_LENGTH;
+		break;
+	case SHA384_DIGEST_LENGTH*2:
+		*type = EfiHashSha384Guid;
+		hash_size = SHA384_DIGEST_LENGTH;
+		break;
+	case SHA512_DIGEST_LENGTH*2:
+		*type = EfiHashSha512Guid;
+		hash_size = SHA512_DIGEST_LENGTH;
+		break;
+	default:
+		return -1;
+	}
+
+	return hash_size;
 }
 
 static int
-delete_moks (char **files, uint32_t total, const char *hash_file,
-	     const int root_pw)
+hex_str_to_binary (const char *hex_str, uint8_t *array, int len)
 {
-	return issue_mok_request (files, total, 0, hash_file, root_pw);
+	char *pos;
+	int i;
+
+	if (!hex_str || !array)
+		return -1;
+
+	pos = (char *)hex_str;
+	for (i = 0; i < len; i++) {
+		sscanf (pos, "%2hhx", &array[i]);
+		pos += 2;
+	}
+
+	return 0;
 }
 
 static int
-revoke_request (uint8_t import)
+issue_hash_request (const char *hash_str, MokRequest req,
+		    const char *hash_file, const int root_pw)
 {
-	if (import == 1) {
+	efi_variable_t old_req;
+	const char *req_name;
+	const char *reverse_req;
+	void *new_list = NULL;
+	void *ptr;
+	unsigned long list_size = 0;
+	uint32_t sig_size, sig_list_size;
+	int ret = -1;
+	EFI_SIGNATURE_LIST *CertList;
+	EFI_SIGNATURE_DATA *CertData;
+	efi_guid_t hash_type;
+	uint8_t db_hash[SHA512_DIGEST_LENGTH];
+	int hash_size;
+	int merge_ind = -1;
+	uint8_t valid = 0;
+	MokListNode *mok_list = NULL;
+	uint32_t mok_num;
+
+	if (!hash_str)
+		return -1;
+
+	hash_size = identify_hash_type (hash_str, &hash_type);
+	if (hash_size < 0)
+		return -1;
+
+	if (hex_str_to_binary (hash_str, db_hash, hash_size) < 0)
+		return -1;
+
+	memset (&old_req, 0, sizeof(old_req));
+
+	switch (req) {
+	case ENROLL_MOK:
+		req_name = "MokNew";
+		reverse_req = "MokDel";
+		break;
+	case DELETE_MOK:
+		req_name = "MokDel";
+		reverse_req = "MokNew";
+		break;
+	case ENROLL_BLACKLIST:
+		req_name = "MokXNew";
+		reverse_req = "MokXDel";
+		break;
+	case DELETE_BLACKLIST:
+		req_name = "MokXDel";
+		reverse_req = "MokXNew";
+		break;
+	default:
+		return -1;
+	}
+
+	if (is_valid_request (hash_type, db_hash, hash_size, req)) {
+		valid = 1;
+	} else if (in_pending_request (hash_type, db_hash, hash_size, req)) {
+		printf ("Removed hash from %s\n", reverse_req);
+	} else {
+		printf ("Skip hash\n");
+	}
+
+	if (!valid) {
+		ret = 0;
+		goto error;
+	}
+
+	old_req.VariableName = req_name;
+	old_req.VendorGuid = SHIM_LOCK_GUID;
+
+	list_size = sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t) + hash_size;
+
+	if (read_variable (&old_req) == EFI_SUCCESS) {
+		int i;
+		list_size += old_req.DataSize;
+
+		mok_list = build_mok_list (old_req.Data, old_req.DataSize,
+					   &mok_num);
+		if (mok_list == NULL)
+			goto error;
+
+		/* Check if there is a signature list with the same type */
+		for (i = 0; i < mok_num; i++) {
+			if (efi_guidcmp (mok_list[i].header->SignatureType,
+					 hash_type) == 0) {
+				merge_ind = i;
+				list_size -= sizeof(EFI_SIGNATURE_LIST);
+				break;
+			}
+		}
+	}
+
+	new_list = malloc (list_size);
+	if (!new_list) {
+		fprintf (stderr, "Failed to allocate space for %s\n", req_name);
+		goto error;
+	}
+	ptr = new_list;
+
+	if (merge_ind < 0) {
+		/* Create a new signature list for the hash */
+		sig_list_size = sizeof(EFI_SIGNATURE_LIST) +
+				sizeof(efi_guid_t) + hash_size;
+		CertList = ptr;
+		CertList->SignatureType = hash_type;
+		CertList->SignatureListSize = sig_list_size;
+		CertList->SignatureHeaderSize = 0;
+		CertList->SignatureSize = hash_size + sizeof(efi_guid_t);
+
+		CertData = (EFI_SIGNATURE_DATA *)(((uint8_t *)ptr) +
+						  sizeof(EFI_SIGNATURE_LIST));
+		CertData->SignatureOwner = SHIM_LOCK_GUID;
+		memcpy (CertData->SignatureData, db_hash, hash_size);
+
+		/* prepend the hash to the previous request */
+		ptr += sig_list_size;
+		if (old_req.Data) {
+			memcpy (ptr, old_req.Data, old_req.DataSize);
+		}
+	} else {
+		/* Merge the hash into an existed signature list */
+		int i;
+
+		for (i = 0; i < merge_ind; i++) {
+			sig_list_size = mok_list[i].header->SignatureListSize;
+			memcpy (ptr, (void *)mok_list[i].header, sig_list_size);
+			ptr += sig_list_size;
+		}
+
+		/* Append the hash to the list */
+		i = merge_ind;
+		sig_list_size = mok_list[i].header->SignatureListSize;
+		sig_size = hash_size + sizeof(efi_guid_t);
+		mok_list[i].header->SignatureListSize += sig_size;
+		memcpy (ptr, (void *)mok_list[i].header, sig_list_size);
+		ptr += sig_list_size;
+		memcpy (ptr, (void *)&hash_type, sizeof(efi_guid_t));
+		ptr += sizeof(efi_guid_t);
+		memcpy (ptr, db_hash, hash_size);
+		ptr += hash_size;
+
+		for (i = merge_ind + 1; i < mok_num; i++) {
+			sig_list_size = mok_list[i].header->SignatureListSize;
+			memcpy (ptr, (void *)mok_list[i].header, sig_list_size);
+			ptr += sig_list_size;
+		}
+	}
+
+	if (update_request (new_list, list_size, req, hash_file, root_pw) < 0) {
+		goto error;
+	}
+
+	ret = 0;
+error:
+	if (old_req.Data)
+		free (old_req.Data);
+	if (mok_list)
+		free (mok_list);
+	if (new_list)
+		free (new_list);
+
+	return ret;
+}
+
+static int
+revoke_request (MokRequest req)
+{
+	switch (req) {
+	case ENROLL_MOK:
 		if (test_and_delete_var ("MokNew") < 0)
 			return -1;
 		if (test_and_delete_var ("MokAuth") < 0)
 			return -1;
-	} else {
+		break;
+	case DELETE_MOK:
 		if (test_and_delete_var ("MokDel") < 0)
 			return -1;
 		if (test_and_delete_var ("MokDelAuth") < 0)
 			return -1;
+		break;
+	case ENROLL_BLACKLIST:
+		if (test_and_delete_var ("MokXNew") < 0)
+			return -1;
+		if (test_and_delete_var ("MokXAuth") < 0)
+			return -1;
+		break;
+	case DELETE_BLACKLIST:
+		if (test_and_delete_var ("MokXDel") < 0)
+			return -1;
+		if (test_and_delete_var ("MokXDelAuth") < 0)
+			return -1;
+		break;
 	}
 
 	return 0;
@@ -1057,6 +1580,10 @@ export_moks ()
 	/* mode 644 */
 	mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
 	for (i = 0; i < mok_num; i++) {
+		if (efi_guidcmp (list[i].header->SignatureType, EfiCertX509Guid) != 0)
+			continue;
+
+		/* Dump X509 certificate to files */
 		snprintf (filename, PATH_MAX, "MOK-%04d.der", i+1);
 		fd = open (filename, O_CREAT | O_WRONLY, mode);
 		if (fd == -1) {
@@ -1275,7 +1802,7 @@ read_file(int fd, void **bufp, size_t *lenptr) {
 }
 
 static int
-test_key (const char *key_file)
+test_key (MokRequest req, const char *key_file)
 {
 	void *key = NULL;
 	size_t read_size;
@@ -1293,11 +1820,7 @@ test_key (const char *key_file)
 		goto error;
 	}
 
-	if (!is_duplicate (key, read_size, "PK", EFI_GLOBAL_VARIABLE) &&
-	    !is_duplicate (key, read_size, "KEK", EFI_GLOBAL_VARIABLE) &&
-	    !is_duplicate (key, read_size, "db", EFI_IMAGE_SECURITY_DATABASE_GUID) &&
-	    !is_duplicate (key, read_size, "MokListRT", SHIM_LOCK_GUID) &&
-	    !is_duplicate (key, read_size, "MokNew", SHIM_LOCK_GUID)) {
+	if (is_valid_request (EfiCertX509Guid, key, read_size, req)) {
 		printf ("%s is not enrolled\n", key_file);
 		ret = 0;
 	} else {
@@ -1316,9 +1839,9 @@ error:
 }
 
 static int
-reset_moks (const char *hash_file, const int root_pw)
+reset_moks (MokRequest req, const char *hash_file, const int root_pw)
 {
-	if (update_request (NULL, 0, 1, hash_file, root_pw)) {
+	if (update_request (NULL, 0, req, hash_file, root_pw)) {
 		fprintf (stderr, "Failed to issue a reset request\n");
 		return -1;
 	}
@@ -1378,6 +1901,52 @@ generate_pw_hash (const char *input_pw)
 	return 0;
 }
 
+static int
+set_verbosity (uint8_t verbosity)
+{
+	efi_variable_t var;
+
+	if (verbosity) {
+		var.VariableName = "SHIM_VERBOSE";
+		var.VendorGuid = SHIM_LOCK_GUID;
+		var.Data = (void *)&verbosity;
+		var.DataSize = sizeof(uint8_t);
+		var.Attributes = EFI_VARIABLE_NON_VOLATILE
+			| EFI_VARIABLE_BOOTSERVICE_ACCESS
+			| EFI_VARIABLE_RUNTIME_ACCESS;
+
+		if (edit_protected_variable (&var) != EFI_SUCCESS) {
+			fprintf (stderr, "Failed to set SHIM_VERBOSE\n");
+			return -1;
+		}
+	} else {
+		return test_and_delete_var ("SHIM_VERBOSE");
+	}
+
+	return 0;
+}
+
+static inline int
+list_db (DBName db_name)
+{
+	switch (db_name) {
+		case MOK_LIST_RT:
+			return list_keys_in_var ("MokListRT", SHIM_LOCK_GUID);
+		case MOK_LIST_X_RT:
+			return list_keys_in_var ("MokListXRT", SHIM_LOCK_GUID);
+		case PK:
+			return list_keys_in_var ("PK", EFI_GLOBAL_VARIABLE);
+		case KEK:
+			return list_keys_in_var ("KEK", EFI_GLOBAL_VARIABLE);
+		case DB:
+			return list_keys_in_var ("db", EFI_IMAGE_SECURITY_DATABASE_GUID);
+		case DBX:
+			return list_keys_in_var ("dbx", EFI_IMAGE_SECURITY_DATABASE_GUID);
+	}
+
+	return -1;
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -1385,10 +1954,13 @@ main (int argc, char *argv[])
 	char *key_file = NULL;
 	char *hash_file = NULL;
 	char *input_pw = NULL;
+	char *hash_str = NULL;
 	const char *option;
 	int c, i, f_ind, total = 0;
 	unsigned int command = 0;
 	int use_root_pw = 0;
+	uint8_t verbosity = 0;
+	DBName db_name = MOK_LIST_RT;
 	int ret = -1;
 
 	use_simple_hash = 0;
@@ -1396,9 +1968,9 @@ main (int argc, char *argv[])
 	while (1) {
 		static struct option long_options[] = {
 			{"help",               no_argument,       0, 'h'},
-			{"list-enrolled",      no_argument,       0, 0  },
-			{"list-new",	       no_argument,       0, 0  },
-			{"list-delete",	       no_argument,       0, 0  },
+			{"list-enrolled",      no_argument,       0, 'l'},
+			{"list-new",	       no_argument,       0, 'N'},
+			{"list-delete",	       no_argument,       0, 'D'},
 			{"import",             required_argument, 0, 'i'},
 			{"delete",             required_argument, 0, 'd'},
 			{"revoke-import",      no_argument,       0, 0  },
@@ -1417,11 +1989,19 @@ main (int argc, char *argv[])
 			{"simple-hash",        no_argument,       0, 's'},
 			{"ignore-db",          no_argument,       0, 0  },
 			{"use-db",             no_argument,       0, 0  },
+			{"mokx",               no_argument,       0, 'X'},
+			{"import-hash",        required_argument, 0, 0  },
+			{"delete-hash",        required_argument, 0, 0  },
+			{"set-verbosity",      required_argument, 0, 0  },
+			{"pk",                 no_argument,       0, 0  },
+			{"kek",                no_argument,       0, 0  },
+			{"db",                 no_argument,       0, 0  },
+			{"dbx",                no_argument,       0, 0  },
 			{0, 0, 0, 0}
 		};
 
 		int option_index = 0;
-		c = getopt_long (argc, argv, "cd:f:g::hi:pst:xP",
+		c = getopt_long (argc, argv, "cd:f:g::hi:lpst:xDNPX",
 				 long_options, &option_index);
 
 		if (c == -1)
@@ -1430,13 +2010,7 @@ main (int argc, char *argv[])
 		switch (c) {
 		case 0:
 			option = long_options[option_index].name;
-			if (strcmp (option, "list-enrolled") == 0) {
-				command |= LIST_ENROLLED;
-			} else if (strcmp (option, "list-new") == 0) {
-				command |= LIST_NEW;
-			} else if (strcmp (option, "list-delete") == 0) {
-				command |= LIST_DELETE;
-			} else if (strcmp (option, "revoke-import") == 0) {
+			if (strcmp (option, "revoke-import") == 0) {
 				command |= REVOKE_IMPORT;
 			} else if (strcmp (option, "revoke-delete") == 0) {
 				command |= REVOKE_DELETE;
@@ -1452,7 +2026,75 @@ main (int argc, char *argv[])
 				command |= IGNORE_DB;
 			} else if (strcmp (option, "use-db") == 0) {
 				command |= USE_DB;
+			} else if (strcmp (option, "import-hash") == 0) {
+				command |= IMPORT_HASH;
+				if (hash_str) {
+					command |= HELP;
+					break;
+				}
+				hash_str = strdup (optarg);
+				if (hash_str == NULL) {
+					fprintf (stderr, "Could not allocate space: %m\n");
+					exit(1);
+				}
+			} else if (strcmp (option, "delete-hash") == 0) {
+				command |= DELETE_HASH;
+				if (hash_str) {
+					command |= HELP;
+					break;
+				}
+				hash_str = strdup (optarg);
+				if (hash_str == NULL) {
+					fprintf (stderr, "Could not allocate space: %m\n");
+					exit(1);
+				}
+			} else if (strcmp (option, "set-verbosity") == 0) {
+				command |= VERBOSITY;
+				if (strcmp (optarg, "true") == 0)
+					verbosity = 1;
+				else if (strcmp (optarg, "false") == 0)
+					verbosity = 0;
+				else
+					command |= HELP;
+			} else if (strcmp (option, "pk") == 0) {
+				if (db_name != MOK_LIST_RT) {
+					command |= HELP;
+				} else {
+					command |= LIST_ENROLLED;
+					db_name = PK;
+				}
+			} else if (strcmp (option, "kek") == 0) {
+				if (db_name != MOK_LIST_RT) {
+					command |= HELP;
+				} else {
+					command |= LIST_ENROLLED;
+					db_name = KEK;
+				}
+			} else if (strcmp (option, "db") == 0) {
+				if (db_name != MOK_LIST_RT) {
+					command |= HELP;
+				} else {
+					command |= LIST_ENROLLED;
+					db_name = DB;
+				}
+			} else if (strcmp (option, "dbx") == 0) {
+				if (db_name != MOK_LIST_RT) {
+					command |= HELP;
+				} else {
+					command |= LIST_ENROLLED;
+					db_name = DBX;
+				}
 			}
+
+			break;
+		case 'l':
+			command |= LIST_ENROLLED;
+			break;
+		case 'N':
+			command |= LIST_NEW;
+			break;
+		case 'D':
+			command |= LIST_DELETE;
 			break;
 		case 'd':
 		case 'i':
@@ -1479,6 +2121,10 @@ main (int argc, char *argv[])
 			}
 
 			files = malloc (total * sizeof (char *));
+			if (files == NULL) {
+				fprintf (stderr, "Could not allocate space: %m\n");
+				exit(1);
+			}
 			for (i = 0; i < total; i++) {
 				f_ind = i + optind - 1;
 				files[i] = malloc (strlen(argv[f_ind]) + 1);
@@ -1487,12 +2133,29 @@ main (int argc, char *argv[])
 
 			break;
 		case 'f':
+			if (hash_file) {
+				command |= HELP;
+				break;
+			}
 			hash_file = strdup (optarg);
+			if (hash_file == NULL) {
+				fprintf (stderr, "Could not allocate space: %m\n");
+				exit(1);
+			}
 
 			break;
 		case 'g':
-			if (optarg)
+			if (input_pw) {
+				command |= HELP;
+				break;
+			}
+			if (optarg) {
 				input_pw = strdup (optarg);
+				if (input_pw == NULL) {
+					fprintf (stderr, "Could not allocate space: %m\n");
+					exit(1);
+				}
+			}
 
 			command |= GENERATE_PW_HASH;
 			break;
@@ -1506,6 +2169,10 @@ main (int argc, char *argv[])
 			use_root_pw = 1;
 			break;
 		case 't':
+			if (key_file) {
+				command |= HELP;
+				break;
+			}
 			key_file = strdup (optarg);
 			if (key_file == NULL) {
 				fprintf (stderr, "Could not allocate space: %m\n");
@@ -1521,6 +2188,14 @@ main (int argc, char *argv[])
 			command |= SIMPLE_HASH;
 			use_simple_hash = 1;
 			break;
+		case 'X':
+			if (db_name != MOK_LIST_RT) {
+				command |= HELP;
+			} else {
+				command |= MOKX;
+				db_name = MOK_LIST_X_RT;
+			}
+			break;
 		case 'h':
 		case '?':
 			command |= HELP;
@@ -1531,7 +2206,7 @@ main (int argc, char *argv[])
 	}
 
 	if (use_root_pw == 1 && use_simple_hash == 1)
-		use_simple_hash = 0;;
+		use_simple_hash = 0;
 
 	if (hash_file && use_root_pw)
 		command |= HELP;
@@ -1555,43 +2230,47 @@ main (int argc, char *argv[])
 
 	switch (command) {
 		case LIST_ENROLLED:
-			ret = list_keys_in_var ("MokListRT");
+		case LIST_ENROLLED | MOKX:
+			ret = list_db (db_name);
 			break;
 		case LIST_NEW:
-			ret = list_keys_in_var ("MokNew");
+			ret = list_keys_in_var ("MokNew", SHIM_LOCK_GUID);
 			break;
 		case LIST_DELETE:
-			ret = list_keys_in_var ("MokDel");
+			ret = list_keys_in_var ("MokDel", SHIM_LOCK_GUID);
 			break;
 		case IMPORT:
 		case IMPORT | SIMPLE_HASH:
-			if (use_root_pw)
-				ret = import_moks (files, total, NULL, 1);
-			else
-				ret = import_moks (files, total, hash_file, 0);
+			ret = issue_mok_request (files, total, ENROLL_MOK,
+						 hash_file, use_root_pw);
 			break;
 		case DELETE:
 		case DELETE | SIMPLE_HASH:
-			if (use_root_pw)
-				ret = delete_moks (files, total, NULL, 1);
-			else
-				ret = delete_moks (files, total, hash_file, 0);
+			ret = issue_mok_request (files, total, DELETE_MOK,
+						 hash_file, use_root_pw);
+			break;
+		case IMPORT_HASH:
+		case IMPORT_HASH | SIMPLE_HASH:
+			ret = issue_hash_request (hash_str, ENROLL_MOK,
+						  hash_file, use_root_pw);
+			break;
+		case DELETE_HASH:
+		case DELETE_HASH | SIMPLE_HASH:
+			ret = issue_hash_request (hash_str, DELETE_MOK,
+						  hash_file, use_root_pw);
 			break;
 		case REVOKE_IMPORT:
-			ret = revoke_request (1);
+			ret = revoke_request (ENROLL_MOK);
 			break;
 		case REVOKE_DELETE:
-			ret = revoke_request (0);
+			ret = revoke_request (DELETE_MOK);
 			break;
 		case EXPORT:
 			ret = export_moks ();
 			break;
 		case PASSWORD:
 		case PASSWORD | SIMPLE_HASH:
-			if (use_root_pw)
-				ret = set_password (NULL, 1, 0);
-			else
-				ret = set_password (hash_file, 0, 0);
+			ret = set_password (hash_file, use_root_pw, 0);
 			break;
 		case CLEAR_PASSWORD:
 		case CLEAR_PASSWORD | SIMPLE_HASH:
@@ -1607,14 +2286,11 @@ main (int argc, char *argv[])
 			ret = sb_state ();
 			break;
 		case TEST_KEY:
-			ret = test_key (key_file);
+			ret = test_key (ENROLL_MOK, key_file);
 			break;
 		case RESET:
 		case RESET | SIMPLE_HASH:
-			if (use_root_pw)
-				ret = reset_moks (NULL, 1);
-			else
-				ret = reset_moks (hash_file, 0);
+			ret = reset_moks (ENROLL_MOK, hash_file, use_root_pw);
 			break;
 		case GENERATE_PW_HASH:
 			ret = generate_pw_hash (input_pw);
@@ -1624,6 +2300,48 @@ main (int argc, char *argv[])
 			break;
 		case USE_DB:
 			ret = enable_db ();
+			break;
+		case LIST_NEW | MOKX:
+			ret = list_keys_in_var ("MokXNew", SHIM_LOCK_GUID);
+			break;
+		case LIST_DELETE | MOKX:
+			ret = list_keys_in_var ("MokXDel", SHIM_LOCK_GUID);
+			break;
+		case IMPORT | MOKX:
+		case IMPORT | SIMPLE_HASH | MOKX:
+			ret = issue_mok_request (files, total, ENROLL_BLACKLIST,
+						 hash_file, use_root_pw);
+			break;
+		case DELETE | MOKX:
+		case DELETE | SIMPLE_HASH | MOKX:
+			ret = issue_mok_request (files, total, DELETE_BLACKLIST,
+						 hash_file, use_root_pw);
+			break;
+		case IMPORT_HASH | MOKX:
+		case IMPORT_HASH | SIMPLE_HASH | MOKX:
+			ret = issue_hash_request (hash_str, ENROLL_BLACKLIST,
+						  hash_file, use_root_pw);
+			break;
+		case DELETE_HASH | MOKX:
+		case DELETE_HASH | SIMPLE_HASH | MOKX:
+			ret = issue_hash_request (hash_str, DELETE_BLACKLIST,
+						  hash_file, use_root_pw);
+			break;
+		case REVOKE_IMPORT | MOKX:
+			ret = revoke_request (ENROLL_BLACKLIST);
+			break;
+		case REVOKE_DELETE | MOKX:
+			ret = revoke_request (DELETE_BLACKLIST);
+			break;
+		case RESET | MOKX:
+		case RESET | SIMPLE_HASH | MOKX:
+			ret = reset_moks (ENROLL_BLACKLIST, hash_file, use_root_pw);
+			break;
+		case TEST_KEY | MOKX:
+			ret = test_key (ENROLL_BLACKLIST, key_file);
+			break;
+		case VERBOSITY:
+			ret = set_verbosity (verbosity);
 			break;
 		default:
 			print_help ();
@@ -1645,6 +2363,9 @@ out:
 
 	if (input_pw)
 		free (input_pw);
+
+	if (hash_str)
+		free (hash_str);
 
 	return ret;
 }

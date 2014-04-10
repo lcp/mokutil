@@ -4,23 +4,28 @@
 mokutil \- utility to manipulate machine owner keys
 
 .SH SYNOPSIS
-\fBmokutil\fR [--list-enrolled]
+\fBmokutil\fR [--list-enrolled | -l]
+        ([--mokx | -X])
 .br
-\fBmokutil\fR [--list-new]
+\fBmokutil\fR [--list-new | -N]
+        ([--mokx | -X])
 .br
-\fBmokutil\fR [--list-delete]
+\fBmokutil\fR [--list-delete | -D]
+        ([--mokx | -X])
 .br
 \fBmokutil\fR [--import \fIkeylist\fR| -i \fIkeylist\fR]
         ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
-         [--simple-hash | -s])
+         [--simple-hash | -s] | [--mokx | -X])
 .br
 \fBmokutil\fR [--delete \fIkeylist\fR | -d \fIkeylist\fR]
         ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
-         [--simple-hash | -s])
+         [--simple-hash | -s] | [--mokx |- X])
 .br
 \fBmokutil\fR [--revoke-import]
+        ([--mokx | -X])
 .br
 \fBmokutil\fR [--revoke-delete]
+        ([--mokx | -X])
 .br
 \fBmokutil\fR [--export | -x]
 .br
@@ -37,13 +42,28 @@ mokutil \- utility to manipulate machine owner keys
 .br
 \fBmokutil\fR [--sb-state]
 .br
-\fBmokutil\fR [--test-key | -t] ...
+\fBmokutil\fR [--test-key \fIkeyfile\fR | -t \fIkeyfile\fR]
+        ([--mokx | -X])
 .br
 \fBmokutil\fR [--reset]
         ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
-         [--simple-hash | -s])
+         [--simple-hash | -s] | [--mok | -X])
 .br
 \fBmokutil\fR [--generate-hash=\fIpassword\fR | -g\fIpassword\fR]
+.br
+\fBmokutil\fR [--ignore-db]
+.br
+\fBmokutil\fR [--use-db]
+.br
+\fBmokutil\fR [--set-verbosity (\fItrue\fR | \fIfalse\fR)]
+.br
+\fBmokutil\fR [--pk]
+.br
+\fBmokutil\fR [--kek]
+.br
+\fBmokutil\fR [--db]
+.br
+\fBmokutil\fR [--dbx]
 .br
 
 .SH DESCRIPTION
@@ -52,18 +72,22 @@ mokutil \- utility to manipulate machine owner keys
 
 .SH OPTIONS
 .TP
-\fB--list-enrolled\fR
+\fB-l, --list-enrolled\fR
 List the keys the already stored in the database
 .TP
-\fB--list-new\fR
+\fB-N, --list-new\fR
 List the keys to be enrolled
 .TP
-\fB--list-delete\fR
+\fB-D, --list-delete\fR
 List the keys to be deleted
 .TP
-\fB--import\fR
-Collect the followed files and form a request to shim. The files must be in DER
-format.
+\fB-i, --import\fR
+Collect the followed files and form a enrolling request to shim. The files must
+be in DER format.
+.TP
+\fB-d, --delete\fR
+Collect the followed files and form a deleting request to shim. The files must be
+in DER format.
 .TP
 \fB--revoke-import\fR
 Revoke the current import request (MokNew)
@@ -71,13 +95,13 @@ Revoke the current import request (MokNew)
 \fB--revoke-delete\fR
 Revoke the current delete request (MokDel)
 .TP
-\fB--export\fR
+\fB-x, --export\fR
 Export the keys stored in MokListRT
 .TP
-\fB--password\fR
+\fB-p, --password\fR
 Setup the password for MokManager (MokPW)
 .TP
-\fB--clear-password\fR
+\fB-c, --clear-password\fR
 Clear the password for MokManager (MokPW)
 .TP
 \fB--disable-validation\fR
@@ -89,7 +113,7 @@ Enable the validation process in shim
 \fB--sb-state\fR
 Show SecureBoot State
 .TP
-\fB--test-key\fR
+\fB-t, --test-key\fR
 Test if the key is enrolled or not
 .TP
 \fB--reset\fR
@@ -101,10 +125,35 @@ Generate the password hash
 \fB--hash-file\fR
 Use the password hash from a specific file
 .TP
-\fB--root-pw\fR
+\fB-P, --root-pw\fR
 Use the root password hash from /etc/shadow
 .TP
-\fB--simple-hash\fR
+\fB-s, --simple-hash\fR
 Use the old SHA256 password hash method to hash the password
 .br
 Note: --root-pw invalidates --simple-hash
+.TP
+\fB--ignore-db\fR
+Tell shim to not use the keys in db to verify EFI images
+.TP
+\fB--use-db\fR
+Tell shim to use the keys in db to verify EFI images (default)
+.TP
+\fB-X, --mokx\fR
+Manipulate the MOK blacklist (MOKX) instead of the MOK list
+.TP
+\fB--set-verbosity\fR
+Set the SHIM_VERBOSE to make shim more or less verbose
+.TP
+\fB--pk\fR
+List the keys in the public Platform Key (PK)
+.TP
+\fB--kek\fR
+List the keys in the Key Exchange Key Signature database (KEK)
+.TP
+\fB--db\fR
+List the keys in the secure boot signature store (db)
+.TP
+\fB--dbx\fR
+List the keys in the secure boot blacklist signature store (dbx)
+.TP
