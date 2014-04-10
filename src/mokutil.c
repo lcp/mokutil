@@ -237,6 +237,14 @@ build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 	unsigned long count = 0;
 
 	while ((dbsize > 0) && (dbsize >= CertList->SignatureListSize)) {
+		if (CertList->SignatureListSize == 0 ||
+		    CertList->SignatureListSize <= CertList->SignatureSize) {
+			fprintf (stderr, "Corrupted signature list\n");
+			if (list)
+				free (list);
+			return NULL;
+		}
+
 		if ((efi_guidcmp (CertList->SignatureType, EfiCertX509Guid) != 0) &&
 		    (efi_guidcmp (CertList->SignatureType, EfiHashSha1Guid) != 0) &&
 		    (efi_guidcmp (CertList->SignatureType, EfiHashSha224Guid) != 0) &&
