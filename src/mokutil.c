@@ -87,6 +87,7 @@ EFI_GUID (0x605dab50, 0xe046, 0x4300, 0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 
 #define DEFAULT_CRYPT_METHOD SHA512_BASED
 #define DEFAULT_SALT_SIZE    SHA512_SALT_MAX
 #define SETTINGS_LEN         (DEFAULT_SALT_SIZE*2)
+#define BUF_SIZE             300
 
 static int use_simple_hash;
 
@@ -779,7 +780,7 @@ generate_hash (pw_crypt_t *pw_crypt, char *password, int pw_len)
 static int
 get_hash_from_file (const char *file, pw_crypt_t *pw_crypt)
 {
-	char string[300];
+	char string[BUF_SIZE];
 	ssize_t read_len = 0;
 	int fd;
 
@@ -789,22 +790,25 @@ get_hash_from_file (const char *file, pw_crypt_t *pw_crypt)
 		return -1;
 	}
 
-	while (read_len < 300) {
-		int rc = read (fd, string + read_len, 300 - read_len);
-		if (rc == EAGAIN)
-			continue;
+	bzero (string, BUF_SIZE);
+
+	while (read_len < BUF_SIZE) {
+		ssize_t rc = read (fd, string + read_len, BUF_SIZE - read_len);
 		if (rc < 0) {
+			if (errno == EINTR || errno == EAGAIN)
+				continue;
+
 			fprintf (stderr, "Failed to read %s: %m\n", file);
 			close (fd);
 			return -1;
-		}
-		if (rc == 0)
+		} else if (rc == 0) {
 			break;
+		}
 		read_len += rc;
 	}
 	close (fd);
 
-	if (string[read_len-1] != '\0') {
+	if (string[read_len] != '\0') {
 		fprintf (stderr, "corrupted string\n");
 		return -1;
 	}
