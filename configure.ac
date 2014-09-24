@@ -37,6 +37,8 @@ else
 	default_strict=no
 fi
 
+WARNINGFLAGS_C="$WARNINGFLAGS_C -std=gnu11"
+
 AC_ARG_ENABLE(strict, AS_HELP_STRING([--enable-strict],[Enable strict compilation options]), enable_strict=$enableval,
 		enable_strict=$default_strict)
 if test x$enable_strict != xno; then
@@ -67,7 +69,7 @@ if test "$GCC" = "yes"; then
 	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wuninitialized"
 	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wunused"
 	WARNINGFLAGS_C="$WARNINGFLAGS_C -Waggregate-return"
-	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wdeclaration-after-statement"
+#	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wdeclaration-after-statement"
 #	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wshadow"
 	WARNINGFLAGS_C="$WARNINGFLAGS_C -Werror=strict-aliasing"
 #	WARNINGFLAGS_C="$WARNINGFLAGS_C -Winline"
