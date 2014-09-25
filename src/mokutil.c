@@ -629,10 +629,12 @@ read_hidden_line (char **line, size_t *n)
 }
 
 static int
-get_password (char **password, int *len, int min, int max)
+get_password (char **password, unsigned int *len,
+	      unsigned int min, unsigned int max)
 {
 	char *password_1, *password_2;
-	int len_1, len_2, fail, ret = -1;
+	unsigned int len_1, len_2;
+	int fail, ret = -1;
 	size_t n;
 
 	password_1 = password_2 = NULL;
@@ -689,8 +691,8 @@ error:
 }
 
 static int
-generate_auth (void *new_list, int list_len, char *password, int pw_len,
-	       uint8_t *auth)
+generate_auth (void *new_list, int list_len, char *password,
+	       unsigned int pw_len, uint8_t *auth)
 {
 	efi_char16_t efichar_pass[PASSWORD_MAX+1];
 	unsigned long efichar_len;
@@ -700,7 +702,7 @@ generate_auth (void *new_list, int list_len, char *password, int pw_len,
 		return -1;
 
 	efichar_len = efichar_from_char (efichar_pass, password,
-					 (PASSWORD_MAX+1)*sizeof(efi_char16_t));
+					 pw_len * sizeof(efi_char16_t));
 
 	SHA256_Init (&ctx);
 
@@ -736,7 +738,7 @@ generate_salt (char salt[], unsigned int salt_size)
 }
 
 static int
-generate_hash (pw_crypt_t *pw_crypt, char *password, int pw_len)
+generate_hash (pw_crypt_t *pw_crypt, char *password, unsigned int pw_len)
 {
 	pw_crypt_t new_crypt;
 	char settings[SETTINGS_LEN];
@@ -744,7 +746,7 @@ generate_hash (pw_crypt_t *pw_crypt, char *password, int pw_len)
 	const char *prefix;
 	int hash_len, prefix_len;
 
-	if (!password || !pw_crypt)
+	if (!password || !pw_crypt || password[pw_len] != '\0')
 		return -1;
 
 	prefix = get_crypt_prefix (pw_crypt->method);
@@ -850,7 +852,7 @@ update_request (void *new_list, int list_len, MokRequest req,
 	pw_crypt_t pw_crypt;
 	uint8_t auth[SHA256_DIGEST_LENGTH];
 	char *password = NULL;
-	int pw_len;
+	unsigned int pw_len;
 	int auth_ret;
 	int ret = -1;
 	uint32_t attributes = EFI_VARIABLE_NON_VOLATILE
@@ -1653,7 +1655,7 @@ set_password (const char *hash_file, const int root_pw, const int clear)
 	pw_crypt_t pw_crypt;
 	uint8_t auth[SHA256_DIGEST_LENGTH];
 	char *password = NULL;
-	int pw_len;
+	unsigned int pw_len;
 	int auth_ret;
 	int ret = -1;
 
@@ -1719,7 +1721,7 @@ set_toggle (const char * VarName, uint32_t state)
 	uint32_t attributes;
 	MokToggleVar tvar;
 	char *password = NULL;
-	int pw_len;
+	unsigned int pw_len;
 	efi_char16_t efichar_pass[SB_PASSWORD_MAX];
 	int ret = -1;
 
@@ -1899,7 +1901,7 @@ generate_pw_hash (const char *input_pw)
 	char *crypt_string;
 	const char *prefix;
 	int prefix_len;
-	int pw_len, salt_size;
+	unsigned int pw_len, salt_size;
 
 	if (input_pw) {
 		pw_len = strlen (input_pw);
