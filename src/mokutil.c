@@ -191,7 +191,7 @@ test_and_delete_var (const char *var_name)
 static unsigned long
 efichar_from_char (efi_char16_t *dest, const char *src, size_t dest_len)
 {
-	int i, src_len = strlen(src);
+	unsigned int i, src_len = strlen(src);
 	for (i=0; i < src_len && i < (dest_len/sizeof(*dest)) - 1; i++) {
 		dest[i] = src[i];
 	}
@@ -309,7 +309,6 @@ print_x509 (char *cert, int cert_size)
 	BIO *cert_bio;
 	SHA_CTX ctx;
 	uint8_t fingerprint[SHA_DIGEST_LENGTH];
-	int i;
 
 	cert_bio = BIO_new (BIO_s_mem ());
 	BIO_write (cert_bio, cert, cert_size);
@@ -329,7 +328,7 @@ print_x509 (char *cert, int cert_size)
 	SHA1_Final (fingerprint, &ctx);
 
 	printf ("SHA1 Fingerprint: ");
-	for (i = 0; i < SHA_DIGEST_LENGTH; i++) {
+	for (unsigned int i = 0; i < SHA_DIGEST_LENGTH; i++) {
 		printf ("%02x", fingerprint[i]);
 		if (i < SHA_DIGEST_LENGTH - 1)
 			printf (":");
@@ -349,7 +348,6 @@ print_hash_array (efi_guid_t *hash_type, void *hash_array, uint32_t array_size)
 	uint32_t sig_size;
 	uint8_t *hash;
 	char *name;
-	int i;
 
 	if (!hash_array || array_size == 0) {
 		fprintf (stderr, "invalid hash array\n");
@@ -380,7 +378,7 @@ print_hash_array (efi_guid_t *hash_type, void *hash_array, uint32_t array_size)
 
 		printf ("  ");
 		hash += sizeof(efi_guid_t);
-		for (i = 0; i<hash_size; i++)
+		for (unsigned int i = 0; i<hash_size; i++)
 			printf ("%02x", *(hash + i));
 		printf ("\n");
 		hash += hash_size;
@@ -395,14 +393,13 @@ list_keys (uint8_t *data, size_t data_size)
 {
 	uint32_t mok_num;
 	MokListNode *list;
-	int i;
 
 	list = build_mok_list (data, data_size, &mok_num);
 	if (list == NULL) {
 		return -1;
 	}
 
-	for (i = 0; i < mok_num; i++) {
+	for (unsigned int i = 0; i < mok_num; i++) {
 		printf ("[key %d]\n", i+1);
 		if (efi_guid_cmp (&list[i].header->SignatureType, &efi_guid_x509_cert) == 0) {
 			print_x509 ((char *)list[i].mok, list[i].mok_size);
@@ -426,7 +423,6 @@ match_hash_array (efi_guid_t *hash_type, const void *hash,
 {
 	uint32_t hash_size, hash_count;
 	uint32_t sig_size;
-	int i;
 	void *ptr;
 
 	hash_size = efi_hash_size (hash_type);
@@ -441,7 +437,7 @@ match_hash_array (efi_guid_t *hash_type, const void *hash,
 
 	ptr = (void *)hash_array;
 	hash_count = array_size / sig_size;
-	for (i = 0; i < hash_count; i++) {
+	for (unsigned int i = 0; i < hash_count; i++) {
 		ptr += sizeof(efi_guid_t);
 		if (memcmp (ptr, hash, hash_size) == 0)
 			return i;
@@ -461,7 +457,7 @@ delete_data_from_list (efi_guid_t *var_guid, const char *var_name,
 	MokListNode *list;
 	uint32_t mok_num, total, remain;
 	void *end, *start = NULL;
-	int i, del_ind, ret = 0;
+	int del_ind, ret = 0;
 	uint32_t sig_list_size, sig_size;
 
 	if (!var_name || !data || data_size == 0)
@@ -484,7 +480,7 @@ delete_data_from_list (efi_guid_t *var_guid, const char *var_name,
 		goto done;
 
 	remain = total;
-	for (i = 0; i < mok_num; i++) {
+	for (unsigned int i = 0; i < mok_num; i++) {
 		remain -= list[i].header->SignatureListSize;
 		if (efi_guid_cmp (&list[i].header->SignatureType, type) != 0)
 			continue;
@@ -995,7 +991,7 @@ is_duplicate (efi_guid_t *type, const void *data, const uint32_t data_size,
 	uint32_t attributes;
 	uint32_t node_num;
 	MokListNode *list;
-	int i, ret = 0;
+	int ret = 0;
 
 	if (!data || data_size == 0 || !db_name)
 		return 0;
@@ -1010,7 +1006,7 @@ is_duplicate (efi_guid_t *type, const void *data, const uint32_t data_size,
 		goto done;
 	}
 
-	for (i = 0; i < node_num; i++) {
+	for (unsigned int i = 0; i < node_num; i++) {
 		if (efi_guid_cmp (&list[i].header->SignatureType, type) != 0)
 			continue;
 
@@ -1182,7 +1178,7 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 	uint32_t *sizes = NULL;
 	int fd = -1;
 	ssize_t read_size;
-	int i, ret = -1;
+	int ret = -1;
 	EFI_SIGNATURE_LIST *CertList;
 	EFI_SIGNATURE_DATA *CertData;
 	const char *req_names[] = {
@@ -1208,7 +1204,7 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 	}
 
 	/* get the sizes of the key files */
-	for (i = 0; i < total; i++) {
+	for (unsigned int i = 0; i < total; i++) {
 		if (stat (files[i], &buf) != 0) {
 			fprintf (stderr, "Failed to get file status, %s\n",
 			         files[i]);
@@ -1243,7 +1239,7 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 	}
 	ptr = new_list;
 
-	for (i = 0; i < total; i++) {
+	for (unsigned int i = 0; i < total; i++) {
 		CertList = ptr;
 		CertData = (EFI_SIGNATURE_DATA *)(((uint8_t *)ptr) +
 						  sizeof(EFI_SIGNATURE_LIST));
@@ -1321,11 +1317,10 @@ error:
 static int
 identify_hash_type (const char *hash_str, efi_guid_t *type)
 {
-	int len = strlen (hash_str);
+	unsigned int len = strlen (hash_str);
 	int hash_size;
-	int i;
 
-	for (i = 0; i < len; i++) {
+	for (unsigned int i = 0; i < len; i++) {
 		if ((hash_str[i] > '9' || hash_str[i] < '0') &&
 		    (hash_str[i] > 'f' || hash_str[i] < 'a') &&
 		    (hash_str[i] > 'F' || hash_str[i] < 'A'))
@@ -1361,16 +1356,15 @@ identify_hash_type (const char *hash_str, efi_guid_t *type)
 }
 
 static int
-hex_str_to_binary (const char *hex_str, uint8_t *array, int len)
+hex_str_to_binary (const char *hex_str, uint8_t *array, unsigned int len)
 {
 	char *pos;
-	int i;
 
 	if (!hex_str || !array)
 		return -1;
 
 	pos = (char *)hex_str;
-	for (i = 0; i < len; i++) {
+	for (unsigned int i = 0; i < len; i++) {
 		sscanf (pos, "%2hhx", &array[i]);
 		pos += 2;
 	}
@@ -1457,15 +1451,13 @@ issue_hash_request (const char *hash_str, MokRequest req,
 			goto error;
 		}
 	} else {
-		int i;
-
 		list_size += old_req_data_size;
 		mok_list = build_mok_list (old_req_data, old_req_data_size,
 					   &mok_num);
 		if (mok_list == NULL)
 			goto error;
 		/* Check if there is a signature list with the same type */
-		for (i = 0; i < mok_num; i++) {
+		for (unsigned int i = 0; i < mok_num; i++) {
 			if (efi_guid_cmp (&mok_list[i].header->SignatureType,
 					 &hash_type) == 0) {
 				merge_ind = i;
@@ -1506,9 +1498,9 @@ issue_hash_request (const char *hash_str, MokRequest req,
 		}
 	} else {
 		/* Merge the hash into an existed signature list */
-		int i;
+		unsigned int i;
 
-		for (i = 0; i < merge_ind; i++) {
+		for (i = 0; i < (unsigned int)merge_ind; i++) {
 			sig_list_size = mok_list[i].header->SignatureListSize;
 			memcpy (ptr, (void *)mok_list[i].header, sig_list_size);
 			ptr += sig_list_size;
@@ -1526,7 +1518,7 @@ issue_hash_request (const char *hash_str, MokRequest req,
 		memcpy (ptr, db_hash, hash_size);
 		ptr += hash_size;
 
-		for (i = merge_ind + 1; i < mok_num; i++) {
+		for (i = (unsigned int)merge_ind + 1; i < mok_num; i++) {
 			sig_list_size = mok_list[i].header->SignatureListSize;
 			memcpy (ptr, (void *)mok_list[i].header, sig_list_size);
 			ptr += sig_list_size;
@@ -1591,7 +1583,7 @@ export_moks ()
 	char filename[PATH_MAX];
 	uint32_t mok_num;
 	MokListNode *list;
-	int i, fd;
+	int fd;
 	mode_t mode;
 	int ret = -1;
 
@@ -1615,7 +1607,7 @@ export_moks ()
 
 	/* mode 644 */
 	mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-	for (i = 0; i < mok_num; i++) {
+	for (unsigned i = 0; i < mok_num; i++) {
 		off_t offset = 0;
 		ssize_t write_size;
 
