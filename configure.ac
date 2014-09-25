@@ -46,34 +46,35 @@ if test x$enable_strict != xno; then
 fi
 
 if test "$GCC" = "yes"; then
-	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wall"
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wall -Wextra"
 	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wcast-align -Wno-uninitialized"
-#	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wmissing-declarations"
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wmissing-declarations"
 #	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wredundant-decls"
 #	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wpointer-arith"
 	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wcast-align"
 	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wwrite-strings"
 	WARNINGFLAGS_C="$WARNINGFLAGS_C -Winit-self"
 	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wreturn-type"
-	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wformat-nonliteral"
-	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wformat-security"
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Werror=format-nonliteral"
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Werror=format-security"
 #	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wmissing-include-dirs"
 	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wmissing-format-attribute"
 #	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wclobbered"
 #	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wempty-body"
 #	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wignored-qualifiers"
-#	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wsign-compare"
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Werror=sign-compare"
 #	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wtype-limits"
 	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wuninitialized"
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wunused"
 	WARNINGFLAGS_C="$WARNINGFLAGS_C -Waggregate-return"
 	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wdeclaration-after-statement"
 #	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wshadow"
-	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wno-strict-aliasing"
+	WARNINGFLAGS_C="$WARNINGFLAGS_C -Werror=strict-aliasing"
 #	WARNINGFLAGS_C="$WARNINGFLAGS_C -Winline"
 #	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wmissing-parameter-type"
 #	WARNINGFLAGS_C="$WARNINGFLAGS_C -Woverride-init"
 else
-	WARNINGFLAGS_C=""
+	WARNINGFLAGS_C="$WARNINGFLAGS_C"
 fi
 AC_SUBST(WARNINGFLAGS_C)
 
