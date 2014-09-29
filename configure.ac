@@ -84,6 +84,7 @@ AC_SUBST(WARNINGFLAGS_C)
 AC_CHECK_FUNCS([memset])
 
 PKG_CHECK_MODULES(OPENSSL, [openssl >= 0.9.8])
+PKG_CHECK_MODULES(EFIVAR, [efivar >= 0.12])
 
 AC_CONFIG_FILES([Makefile
                  src/Makefile
