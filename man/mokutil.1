@@ -55,6 +55,14 @@ mokutil \- utility to manipulate machine owner keys
 .br
 \fBmokutil\fR [--use-db]
 .br
+\fBmokutil\fR [--import-hash \fIhash\fR]
+        ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
+         [--simple-hash | -s] | [--mokx | -X])
+.br
+\fBmokutil\fR [--delete-hash \fIhash\fR]
+        ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
+         [--simple-hash | -s] | [--mokx | -X])
+.br
 \fBmokutil\fR [--set-verbosity (\fItrue\fR | \fIfalse\fR)]
 .br
 \fBmokutil\fR [--pk]
@@ -141,6 +149,14 @@ Tell shim to use the keys in db to verify EFI images (default)
 .TP
 \fB-X, --mokx\fR
 Manipulate the MOK blacklist (MOKX) instead of the MOK list
+.TP
+\fB-i, --import-hash\fR
+Create an enrolling request for the hash of a key in DER format. Note that
+this is not the password hash.
+.TP
+\fB-d, --delete-hash\fR
+Create an deleting request for the hash of a key in DER format. Note that
+this is not the password hash.
 .TP
 \fB--set-verbosity\fR
 Set the SHIM_VERBOSE to make shim more or less verbose
