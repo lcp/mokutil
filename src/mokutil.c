@@ -238,9 +238,11 @@ build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 	EFI_SIGNATURE_DATA *Cert;
 	unsigned long dbsize = data_size;
 	unsigned long count = 0;
+	void *end = data + data_size;
 
 	while ((dbsize > 0) && (dbsize >= CertList->SignatureListSize)) {
-		if (CertList->SignatureListSize == 0 ||
+		if ((void *)(CertList + 1) > end ||
+		    CertList->SignatureListSize == 0 ||
 		    CertList->SignatureListSize <= CertList->SignatureSize) {
 			fprintf (stderr, "Corrupted signature list\n");
 			if (list)
@@ -271,6 +273,14 @@ build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 		Cert = (EFI_SIGNATURE_DATA *) (((uint8_t *) CertList) +
 		  sizeof (EFI_SIGNATURE_LIST) + CertList->SignatureHeaderSize);
 
+		if ((void *)(Cert + 1) > end ||
+		    CertList->SignatureSize <= sizeof(efi_guid_t)) {
+			if (list)
+				free (list);
+			fprintf (stderr, "Corrupted signature\n");
+			return NULL;
+		}
+
 		list_new = realloc(list, sizeof(MokListNode) * (count + 1));
 		if (list_new) {
 			list = list_new;
@@ -293,6 +303,13 @@ build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 					       sizeof(EFI_SIGNATURE_LIST) -
 					       CertList->SignatureHeaderSize;
 			list[count].mok = (void *)Cert;
+		}
+
+		if (list[count].mok_size > (unsigned long)end -
+					   (unsigned long)list[count].mok) {
+			fprintf (stderr, "Corrupted data\n");
+			free (list);
+			return NULL;
 		}
 
 		count++;
