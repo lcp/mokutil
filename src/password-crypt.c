@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2012-2013 Gary Lin <glin@suse.com>
+ * Copyright (C) 2012-2014 Gary Lin <glin@suse.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
