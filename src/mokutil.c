@@ -233,6 +233,7 @@ static MokListNode*
 build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 {
 	MokListNode *list = NULL;
+	MokListNode *list_new = NULL;
 	EFI_SIGNATURE_LIST *CertList = data;
 	EFI_SIGNATURE_DATA *Cert;
 	unsigned long dbsize = data_size;
@@ -270,9 +271,12 @@ build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 		Cert = (EFI_SIGNATURE_DATA *) (((uint8_t *) CertList) +
 		  sizeof (EFI_SIGNATURE_LIST) + CertList->SignatureHeaderSize);
 
-		list = realloc(list, sizeof(MokListNode) * (count + 1));
-
-		if (!list) {
+		list_new = realloc(list, sizeof(MokListNode) * (count + 1));
+		if (list_new) {
+			list = list_new;
+		} else {
+			if (list)
+				free (list);
 			fprintf(stderr, "Unable to allocate MOK list\n");
 			return NULL;
 		}
@@ -1824,13 +1828,21 @@ enable_db()
 static inline int
 read_file(int fd, void **bufp, size_t *lenptr) {
 	int alloced = 0, size = 0, i = 0;
-	void * buf = NULL;
+	void *buf = NULL;
+	void *buf_new = NULL;
 
 	do {
 		size += i;
 		if ((size + 1024) > alloced) {
 			alloced += 4096;
-			buf = realloc (buf, alloced + 1);
+			buf_new = realloc (buf, alloced + 1);
+			if (buf_new) {
+				buf = buf_new;
+			} else {
+				if (buf)
+					free (buf);
+				return -1;
+			}
 		}
 	} while ((i = read (fd, buf + size, 1024)) > 0);
 
