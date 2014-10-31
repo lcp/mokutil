@@ -1,5 +1,2 @@
 * Show the detail of the DER file when enrolling (?)
 * Add an option to slience the output (?)
-* List hashes in MokListRT
-* Support MokX
-* Import hash into MokNew, NokDel, MokXNew
