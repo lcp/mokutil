@@ -1743,7 +1743,7 @@ set_toggle (const char * VarName, uint32_t state)
 	MokToggleVar tvar;
 	char *password = NULL;
 	unsigned int pw_len;
-	efi_char16_t efichar_pass[SB_PASSWORD_MAX];
+	efi_char16_t efichar_pass[SB_PASSWORD_MAX+1];
 	int ret = -1;
 
 	printf ("password length: %d~%d\n", SB_PASSWORD_MIN, SB_PASSWORD_MAX);
@@ -1757,8 +1757,7 @@ set_toggle (const char * VarName, uint32_t state)
 	efichar_from_char (efichar_pass, password,
 			   SB_PASSWORD_MAX * sizeof(efi_char16_t));
 
-	memcpy(tvar.password, efichar_pass,
-	       SB_PASSWORD_MAX * sizeof(efi_char16_t));
+	memcpy(tvar.password, efichar_pass, sizeof(tvar.password));
 
 	tvar.mok_toggle_state = state;
 
