@@ -1284,7 +1284,7 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 
 		/* Mok */
 		read_size = read (fd, ptr, sizes[i]);
-		if (read_size < 0 || read_size != sizes[i]) {
+		if (read_size < 0 || read_size != (int64_t)sizes[i]) {
 			fprintf (stderr, "Failed to read %s\n", files[i]);
 			goto error;
 		}
@@ -1645,7 +1645,7 @@ export_moks ()
 			goto error;
 		}
 
-		while (offset < list[i].mok_size) {
+		while (offset < (int64_t)list[i].mok_size) {
 			write_size = write (fd, list[i].mok + offset,
 						list[i].mok_size - offset);
 			if (write_size < 0) {
