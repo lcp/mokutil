@@ -1351,10 +1351,12 @@ identify_hash_type (const char *hash_str, efi_guid_t *type)
 	}
 
 	switch (len) {
+#if 0
 	case SHA_DIGEST_LENGTH*2:
 		*type = efi_guid_sha1;
 		hash_size = SHA_DIGEST_LENGTH;
 		break;
+#endif
 	case SHA224_DIGEST_LENGTH*2:
 		*type = efi_guid_sha224;
 		hash_size = SHA224_DIGEST_LENGTH;
