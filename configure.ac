@@ -37,7 +37,7 @@ else
 	default_strict=no
 fi
 
-WARNINGFLAGS_C="$WARNINGFLAGS_C -std=gnu11"
+WARNINGFLAGS_C="$WARNINGFLAGS_C -std=gnu11 -fshort-wchar"
 
 AC_ARG_ENABLE(strict, AS_HELP_STRING([--enable-strict],[Enable strict compilation options]), enable_strict=$enableval,
 		enable_strict=$default_strict)
