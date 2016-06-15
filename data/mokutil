@@ -1,0 +1,37 @@
+#!/bin/bash
+
+_mokutil()
+{
+	local cur=${COMP_WORDS[COMP_CWORD]}
+
+	if [[ "$cur" == -* ]]; then
+		#COMPREPLY=( $( compgen -W "--help --list-enrolled --list-new --list-delete --import --delete --revoke-import --revoke-delete --export --password --clear-password --disable-validation --enable-validation --sb-state --test-key --reset --generate-hash --hash-file --root-pw --simple-hash" -- $cur ) )
+		COMPREPLY=( $( compgen -W '$( _parse_help "$1" --long-help ) -h -l -N -D -i -d -x -p -c -t -f -g -P -s -X' -- "$cur" ) )
+		[[ $COMPREPLY == *= ]] && compopt -o nospace
+		return 0
+	fi
+
+	case "${COMP_WORDS[COMP_CWORD-1]}" in
+	--import|-i|--delete|-d|--test-key|-t|--hash-file|-f)
+		_filedir
+		return 0
+		;;
+	--import-hash|--delete-hash)
+		COMPREPLY=( $( compgen -W "" ) )
+		return 0
+		;;
+	--set-verbosity)
+		COMPREPLY=( $( compgen -W "true false") )
+		return 0
+		;;
+	--generate-hash|-g)
+		COMPREPLY=( $( compgen -o nospace -P= -W "") )
+		return 0
+		;;
+	*)
+		return 0
+		;;
+	esac
+}
+
+complete -F _mokutil mokutil
