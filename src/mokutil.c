@@ -574,7 +574,8 @@ delete_data_from_list (const efi_guid_t *var_guid, const char *var_name,
 		     | EFI_VARIABLE_BOOTSERVICE_ACCESS
 		     | EFI_VARIABLE_RUNTIME_ACCESS;
 	ret = efi_set_variable (*var_guid, var_name,
-				var_data, total, attributes);
+				var_data, total, attributes,
+				S_IRUSR | S_IWUSR);
 	if (ret < 0) {
 		fprintf (stderr, "Failed to write variable \"%s\": %m\n",
 			 var_name);
@@ -938,7 +939,8 @@ update_request (void *new_list, int list_len, MokRequest req,
 		data_size = list_len;
 
 		if (efi_set_variable (efi_guid_shim, req_name,
-				      data, data_size, attributes) < 0) {
+				      data, data_size, attributes,
+				      S_IRUSR | S_IWUSR) < 0) {
 			switch (req) {
 			case ENROLL_MOK:
 				fprintf (stderr, "Failed to enroll new keys\n");
