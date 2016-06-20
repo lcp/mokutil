@@ -2297,7 +2297,7 @@ main (int argc, char *argv[])
 		rc = efi_get_variable (efi_guid_global, "SecureBoot",
 				       &data, &data_size, &attributes);
 		if (rc < 0) {
-			fprintf(stderr, "This system does't support Secure Boot\n");
+			fprintf(stderr, "This system doesn't support Secure Boot\n");
 			ret = -1;
 			goto out;
 		}
