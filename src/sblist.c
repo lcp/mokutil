@@ -674,7 +674,7 @@ main (int argc, char *argv[])
 	sig = NULL;
 	command = 0;
 	force = 0;
-	ret = -1;
+	ret = 1;
 
 	while (1) {
 		static struct option long_options[] = {
@@ -731,7 +731,7 @@ main (int argc, char *argv[])
 
 	if (command & OPT_HELP) {
 		print_help ();
-		return 0;
+		goto exit;
 	}
 
 	if (command & OPT_BIN_INPUT) {
