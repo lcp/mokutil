@@ -43,6 +43,8 @@
 #define OPT_SIGNATURE (1 << 5)
 #define OPT_WRITE     (1 << 6)
 #define OPT_FORCE     (1 << 7)
+#define OPT_CERT      (1 << 8)
+#define OPT_VERIFY    (1 << 9)
 
 typedef int (*import_func_ptr)(const void *, const off_t, void **, uint64_t *);
 
@@ -595,6 +597,8 @@ alloc_sig (const void *content, const off_t size, void **sig, uint64_t *sig_size
 {
 	void *ptr;
 
+	/* TODO check PKC#7 format */
+
 	ptr = malloc (size);
 	if (ptr == NULL) {
 		fprintf (stderr, "Failed to alloacte signature\n");
@@ -613,6 +617,48 @@ static int
 import_sig (const char *filename, void **sig, uint64_t *sig_size)
 {
 	return import_file (filename, sig, sig_size, &alloc_sig);
+}
+
+static int
+alloc_cert (const void *content, const off_t size, void **cert, uint64_t *cert_size)
+{
+	void *ptr;
+
+	/* TODO check x509 format */
+
+	ptr = malloc (size);
+	if (ptr == NULL) {
+		fprintf (stderr, "Failed to alloacte certificate\n");
+		return -1;
+	}
+
+	memcpy (ptr, content, size);
+
+	*cert = ptr;
+	*cert_size = size;
+
+	return 0;
+}
+
+static int
+import_cert (const char *filename, void **cert, uint64_t *cert_size)
+{
+	return import_file (filename, cert, cert_size, &alloc_cert);
+}
+
+static int
+verify_sig (const void *req, const uint64_t req_size, const void *sig,
+	    const uint64_t sig_size, const void *cert, const uint64_t cert_size)
+{
+	if (req == NULL || sig == NULL || cert == NULL ||
+	    req_size > INT_MAX || sig_size > INT_MAX || cert_size > INT_MAX) {
+		fprintf (stderr, "%s: invalid argument\n", __FUNCTION__);
+		return -1;
+	}
+
+	/* TODO verify the signature */
+
+	return 0;
 }
 
 static int
@@ -684,17 +730,18 @@ print_var (const void *var, const uint64_t var_size)
 int
 main (int argc, char *argv[])
 {
-	uint32_t command;
+	uint32_t command, mask1, mask2;
 	int opt, ret;
 	int option_index;
-	char *bin_in, *txt_in, *sig_in, *bin_out;
-	void *req, *sig;
-	uint64_t req_size, sig_size;
+	char *bin_in, *txt_in, *sig_in, *cert_in, *bin_out;
+	void *req, *sig, *cert;
+	uint64_t req_size, sig_size, cert_size;
 	uint8_t force;
 
 	bin_in = NULL;
 	txt_in = NULL;
 	sig_in = NULL;
+	cert_in = NULL;
 	bin_out = NULL;
 	req = NULL;
 	sig = NULL;
@@ -712,11 +759,13 @@ main (int argc, char *argv[])
 			{"signature",       required_argument, 0, 's'},
 			{"write-variables", no_argument,       0, 'w'},
 			{"force",           no_argument,       0, 'f'},
+			{"verify",          no_argument,       0, 'V'},
+			{"cert",            required_argument, 0, 'c'},
 			{0, 0, 0, 0}
 		};
 
 		option_index = 0;
-		opt = getopt_long (argc, argv, "b:fhe:s:t:w",
+		opt = getopt_long (argc, argv, "c:fhe:s:w",
 				   long_options, &option_index);
 
 		if (opt == -1)
@@ -743,10 +792,17 @@ main (int argc, char *argv[])
 			command |= OPT_SIGNATURE;
 			break;
 		case 'w': /* write-variables */
-			command |= OPT_WRITE;
+			command |= OPT_WRITE | OPT_VERIFY;
 			break;
 		case 'f': /* force */
 			force = 1;
+			break;
+		case 'V': /* verify */
+			command |= OPT_VERIFY;
+			break;
+		case 'c': /* cert */
+			cert_in = strdup (optarg);
+			command |= OPT_CERT;
 			break;
 		case 'h': /* help */
 		default:
@@ -760,11 +816,32 @@ main (int argc, char *argv[])
 		goto exit;
 	}
 
-	if ((command & OPT_WRITE) && !(command & OPT_SIGNATURE)) {
+	/* Filter out the illegal commands */
+	mask1 = OPT_BIN_INPUT | OPT_TXT_INPUT;
+	if ((command & mask1) == mask1) {
+		fprintf (stderr, "Please use either the binary list "
+				 "or the text list\n");
+		goto exit;
+	}
+
+	if ((command & (OPT_WRITE | OPT_VERIFY)) && !(command & OPT_SIGNATURE)) {
 		fprintf (stderr, "Signature not available\n");
 		goto exit;
 	}
 
+	mask1 = OPT_EXPORT | OPT_SHOW | OPT_VERIFY;
+	mask2 = OPT_BIN_INPUT | OPT_TXT_INPUT;
+	if ((command & mask1) && !(command & mask2)) {
+		fprintf (stderr, "Security List not available\n");
+		goto exit;
+	}
+
+	if ((command & OPT_VERIFY) && !(command & OPT_CERT)) {
+		fprintf (stderr, "Certificate not available\n");
+		goto exit;
+	}
+
+	/* Execute the commands */
 	if (command & OPT_BIN_INPUT) {
 		if (import_bin_list (bin_in, &req, &req_size) < 0) {
 			fprintf (stderr, "Failed to import binary list: %s\n",
@@ -796,6 +873,20 @@ main (int argc, char *argv[])
 		}
 	}
 
+	if (command & OPT_VERIFY) {
+		if (import_cert (cert_in, &cert, &cert_size) < 0) {
+			fprintf (stderr, "Failed to import certificate: %s\n",
+					 cert_in);
+			goto exit;
+		}
+		if (verify_sig (req, req_size, sig, sig_size, cert, cert_size) < 0) {
+			printf ("Signature does not match\n");
+			goto exit;
+		} else {
+			printf ("Signature matches\n");
+		}
+	}
+
 	if (command & OPT_WRITE) {
 		if (set_security_variables (req, req_size, sig, sig_size) < 0) {
 			fprintf (stderr, "Failed to set variables\n");
@@ -814,6 +905,12 @@ exit:
 	if (txt_in)
 		free (txt_in);
 
+	if (sig_in)
+		free (sig_in);
+
+	if (cert_in)
+		free (cert_in);
+
 	if (bin_out)
 		free (bin_out);
 
@@ -822,6 +919,9 @@ exit:
 
 	if (sig)
 		free (sig);
+
+	if (cert)
+		free (cert);
 
 	return ret;
 }
