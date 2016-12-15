@@ -57,7 +57,7 @@ print_help ()
 }
 
 static int
-import_list (const char *filename, void **var, uint64_t *var_size,
+import_file (const char *filename, void **var, uint64_t *var_size,
 	     import_func_ptr import_func)
 {
 	int fd, ret;
@@ -466,7 +466,7 @@ error:
 static int
 import_txt_list (const char *filename, void **var, uint64_t *var_size)
 {
-	return import_list (filename, var, var_size, &parse_txt_list);
+	return import_file (filename, var, var_size, &parse_txt_list);
 }
 
 static int
@@ -534,7 +534,7 @@ error:
 static int
 import_bin_list (const char *filename, void **var, uint64_t *var_size)
 {
-	return import_list (filename, var, var_size, &parse_bin_list);
+	return import_file (filename, var, var_size, &parse_bin_list);
 }
 
 static int
@@ -588,6 +588,31 @@ exit:
 	close (fd);
 
 	return ret;
+}
+
+static int
+alloc_sig (const void *content, const off_t size, void **sig, uint64_t *sig_size)
+{
+	void *ptr;
+
+	ptr = malloc (size);
+	if (ptr == NULL) {
+		fprintf (stderr, "Failed to alloacte signature\n");
+		return -1;
+	}
+
+	memcpy (ptr, content, size);
+
+	*sig = ptr;
+	*sig_size = size;
+
+	return 0;
+}
+
+static int
+import_sig (const char *filename, void **sig, uint64_t *sig_size)
+{
+	return import_file (filename, sig, sig_size, &alloc_sig);
 }
 
 static int
@@ -662,13 +687,14 @@ main (int argc, char *argv[])
 	uint32_t command;
 	int opt, ret;
 	int option_index;
-	char *bin_in, *txt_in, *bin_out;
+	char *bin_in, *txt_in, *sig_in, *bin_out;
 	void *req, *sig;
 	uint64_t req_size, sig_size;
 	uint8_t force;
 
 	bin_in = NULL;
 	txt_in = NULL;
+	sig_in = NULL;
 	bin_out = NULL;
 	req = NULL;
 	sig = NULL;
@@ -716,6 +742,8 @@ main (int argc, char *argv[])
 			command |= OPT_SHOW;
 			break;
 		case 's': /* signature */
+			sig_in = strdup (optarg);
+			command |= OPT_SIGNATURE;
 			break;
 		case 'w': /* write-variables */
 			command |= OPT_WRITE;
@@ -731,6 +759,11 @@ main (int argc, char *argv[])
 
 	if (command & OPT_HELP) {
 		print_help ();
+		goto exit;
+	}
+
+	if ((command & OPT_WRITE) && !(command & OPT_SIGNATURE)) {
+		fprintf (stderr, "Signature not available\n");
 		goto exit;
 	}
 
@@ -754,6 +787,13 @@ main (int argc, char *argv[])
 		if (export_bin_list (bin_out, req, req_size, force) < 0) {
 			fprintf (stderr, "Failed to export binary list: %s\n",
 					 bin_out);
+			goto exit;
+		}
+	}
+
+	if (command & OPT_SIGNATURE) {
+		if (import_sig (sig_in, &sig, &sig_size) < 0) {
+			fprintf (stderr, "Failed to import signature: %s\n", sig_in);
 			goto exit;
 		}
 	}
