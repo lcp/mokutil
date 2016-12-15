@@ -723,9 +723,6 @@ main (int argc, char *argv[])
 			break;
 
 		switch (opt) {
-		case 'h': /* help */
-			command |= OPT_HELP;
-			break;
 		case 0: /* bin */
 			bin_in = strdup (optarg);
 			command |= OPT_BIN_INPUT;
@@ -751,6 +748,7 @@ main (int argc, char *argv[])
 		case 'f': /* force */
 			force = 1;
 			break;
+		case 'h': /* help */
 		default:
 			command |= OPT_HELP;
 			break;
