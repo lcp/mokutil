@@ -590,6 +590,43 @@ exit:
 	return ret;
 }
 
+static int
+set_security_variables (const void *req, const uint64_t req_size, const void *sig,
+			const uint64_t sig_size)
+{
+	uint32_t attributes;
+
+	if (req == NULL || sig == NULL) {
+		fprintf (stderr, "%s: invalid argument\n", __FUNCTION__);
+		return -1;
+	}
+
+	if (!efi_variables_supported ()) {
+		fprintf (stderr, "EFI variables are not supported on this system\n");
+		return -1;
+	}
+
+	attributes = EFI_VARIABLE_NON_VOLATILE
+		     | EFI_VARIABLE_BOOTSERVICE_ACCESS
+		     | EFI_VARIABLE_RUNTIME_ACCESS;
+
+	if (efi_set_variable (efi_guid_shim, "SecurityListRequest",
+			      (uint8_t *)req, req_size, attributes,
+			      S_IRUSR | S_IWUSR) < 0) {
+		fprintf (stderr, "Failed to set SecurityListRequest\n");
+		return -1;
+	}
+
+	if (efi_set_variable (efi_guid_shim, "SecurityListSig",
+			      (uint8_t *)sig, sig_size, attributes,
+			      S_IRUSR | S_IWUSR) < 0) {
+		fprintf (stderr, "Failed to set SecurityListRequest\n");
+		return -1;
+	}
+
+	return 0;
+}
+
 static void
 print_var (const void *var, const uint64_t var_size)
 {
@@ -626,14 +663,15 @@ main (int argc, char *argv[])
 	int opt, ret;
 	int option_index;
 	char *bin_in, *txt_in, *bin_out;
-	void *var;
-	uint64_t var_size;
+	void *req, *sig;
+	uint64_t req_size, sig_size;
 	uint8_t force;
 
 	bin_in = NULL;
 	txt_in = NULL;
 	bin_out = NULL;
-	var = NULL;
+	req = NULL;
+	sig = NULL;
 	command = 0;
 	force = 0;
 	ret = -1;
@@ -680,6 +718,7 @@ main (int argc, char *argv[])
 		case 's': /* signature */
 			break;
 		case 'w': /* write-variables */
+			command |= OPT_WRITE;
 			break;
 		case 'f': /* force */
 			force = 1;
@@ -696,7 +735,7 @@ main (int argc, char *argv[])
 	}
 
 	if (command & OPT_BIN_INPUT) {
-		if (import_bin_list (bin_in, &var, &var_size) < 0) {
+		if (import_bin_list (bin_in, &req, &req_size) < 0) {
 			fprintf (stderr, "Failed to import binary list: %s\n",
 					 bin_in);
 			goto exit;
@@ -704,7 +743,7 @@ main (int argc, char *argv[])
 	}
 
 	if (command & OPT_TXT_INPUT) {
-		if (import_txt_list (txt_in, &var, &var_size) < 0) {
+		if (import_txt_list (txt_in, &req, &req_size) < 0) {
 			fprintf (stderr, "Failed to import text list: %s\n",
 					 txt_in);
 			goto exit;
@@ -712,15 +751,22 @@ main (int argc, char *argv[])
 	}
 
 	if (command & OPT_EXPORT) {
-		if (export_bin_list (bin_out, var, var_size, force) < 0) {
+		if (export_bin_list (bin_out, req, req_size, force) < 0) {
 			fprintf (stderr, "Failed to export binary list: %s\n",
 					 bin_out);
 			goto exit;
 		}
 	}
 
+	if (command & OPT_WRITE) {
+		if (set_security_variables (req, req_size, sig, sig_size) < 0) {
+			fprintf (stderr, "Failed to set variables\n");
+			goto exit;
+		}
+	}
+
 	if (command & OPT_SHOW)
-		print_var (var, var_size);
+		print_var (req, req_size);
 
 	ret = 0;
 exit:
@@ -733,8 +779,11 @@ exit:
 	if (bin_out)
 		free (bin_out);
 
-	if (var)
-		free (var);
+	if (req)
+		free (req);
+
+	if (sig)
+		free (sig);
 
 	return ret;
 }
