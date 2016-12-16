@@ -1065,9 +1065,8 @@ main (int argc, char *argv[])
 		if (verify_sig (req, req_size, sig, sig_size, cert, cert_size) < 0) {
 			printf ("Signature does not match\n");
 			goto exit;
-		} else {
-			printf ("Signature matches\n");
 		}
+		printf ("Signature matches\n");
 	}
 
 	if (command & OPT_WRITE) {
