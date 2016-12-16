@@ -821,12 +821,9 @@ verify_sig (const void *req, const uint64_t req_size, const void *sig,
 	cert_store = NULL;
 
 	/* Register necessary digest algorithms */
-	if (!EVP_add_digest (EVP_md5 ()) ||
-	    !EVP_add_digest (EVP_sha1 ()) ||
-	    !EVP_add_digest (EVP_sha256 ()) ||
+	if (!EVP_add_digest (EVP_sha256 ()) ||
 	    !EVP_add_digest (EVP_sha384 ()) ||
-	    !EVP_add_digest (EVP_sha512 ()) ||
-	    !EVP_add_digest_alias (SN_sha1WithRSAEncryption, SN_sha1WithRSA)) {
+	    !EVP_add_digest (EVP_sha512 ())) {
 		return -1;
 	}
 
