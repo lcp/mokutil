@@ -74,7 +74,25 @@ print_help ()
 	printf ("  sblist OPTIONS [ARGS...]\n");
 	printf ("\n");
 	printf ("Options:\n");
-	printf ("  --help\t\t\t\tShow help\n");
+	printf ("  --help\t\t\tShow help\n");
+	printf ("  --bin <binary list>\t\tUse the binary list\n");
+	printf ("  --txt <text list>\t\tUse the text list\n");
+	printf ("  --show\t\t\tShow the list in text form\n");
+	printf ("  --export <binary list>\tExport the list to a binary list\n");
+	printf ("  --force\t\t\tOverwrite the file forcibly\n");
+	printf ("  --signature <PKCS#7>\t\tUse the PKCS7 signature\n");
+	printf ("  --verify\t\t\tVerify the signature\n");
+	printf ("  --cert <certificate>\t\tUse this ceritifcate as the signer\n");
+	printf ("  --write-variables\t\tWrite the EFI variables\n");
+	printf ("\n");
+	printf ("Export the list:\n");
+	printf (" sblist --txt list.csv -e list.bin\n");
+	printf ("\n");
+	printf ("Import the list:\n");
+	printf (" sblist -w --bin list.bin -s list.sig -c signer.der\n");
+	printf ("\n");
+	printf ("Verify the list:\n");
+	printf (" sblist -V --bin list.bin -s list.sig -c signer.der\n");
 }
 
 static int
