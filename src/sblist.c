@@ -630,22 +630,20 @@ exit:
 }
 
 static int
-alloc_sig (const void *content, const off_t size, void **sig, uint64_t *sig_size)
+copy_data (const void *content, const off_t size, void **data, uint64_t *data_size)
 {
 	void *ptr;
 
-	/* TODO check PKC#7 format */
-
 	ptr = malloc (size);
 	if (ptr == NULL) {
-		fprintf (stderr, "Failed to alloacte signature\n");
+		fprintf (stderr, "Failed to alloacte memory\n");
 		return -1;
 	}
 
 	memcpy (ptr, content, size);
 
-	*sig = ptr;
-	*sig_size = size;
+	*data = ptr;
+	*data_size = size;
 
 	return 0;
 }
@@ -653,34 +651,13 @@ alloc_sig (const void *content, const off_t size, void **sig, uint64_t *sig_size
 static int
 import_sig (const char *filename, void **sig, uint64_t *sig_size)
 {
-	return import_file (filename, sig, sig_size, &alloc_sig);
-}
-
-static int
-alloc_cert (const void *content, const off_t size, void **cert, uint64_t *cert_size)
-{
-	void *ptr;
-
-	/* TODO check x509 format */
-
-	ptr = malloc (size);
-	if (ptr == NULL) {
-		fprintf (stderr, "Failed to alloacte certificate\n");
-		return -1;
-	}
-
-	memcpy (ptr, content, size);
-
-	*cert = ptr;
-	*cert_size = size;
-
-	return 0;
+	return import_file (filename, sig, sig_size, &copy_data);
 }
 
 static int
 import_cert (const char *filename, void **cert, uint64_t *cert_size)
 {
-	return import_file (filename, cert, cert_size, &alloc_cert);
+	return import_file (filename, cert, cert_size, &copy_data);
 }
 
 static int
