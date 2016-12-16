@@ -13,6 +13,20 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ * In addition, as a special exception, the copyright holders give
+ * permission to link the code of portions of this program with the
+ * OpenSSL library under certain conditions as described in each
+ * individual source file, and distribute linked combinations
+ * including the two.
+ *
+ * You must obey the GNU General Public License in all respects
+ * for all of the code used other than OpenSSL.  If you modify
+ * file(s) with this exception, you may extend this exception to your
+ * version of the file(s), but you are not obligated to do so.  If you
+ * do not wish to do so, delete this exception statement from your
+ * version.  If you delete this exception statement from all source
+ * files in the program, then also delete it here.
  */
 #include <ctype.h>
 #include <errno.h>
@@ -30,6 +44,11 @@
 #include <getopt.h>
 
 #include <efivar.h>
+
+#include <openssl/evp.h>
+#include <openssl/pkcs7.h>
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
 
 #include "sbversion.h"
 
@@ -647,18 +666,215 @@ import_cert (const char *filename, void **cert, uint64_t *cert_size)
 }
 
 static int
+wrap_pkcs7_data (const uint8_t *p7data, const uint64_t p7_size, uint8_t *flag,
+		 uint8_t **wrap, uint64_t *wrap_size)
+{
+	uint8_t wrapped, *signed_data;
+	uint8_t oid[9] = { 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x02 };
+
+	wrapped = 0;
+	if ((p7data[4] == 0x06 && p7data[5] == 0x09) &&
+	    (memcmp (p7data + 6, oid, sizeof(oid)) == 0) &&
+	    (p7data[15] == 0xA0 && p7data[16] == 0x82)) {
+		wrapped = 1;
+	}
+
+	if (wrapped) {
+		*wrap = (uint8_t *)p7data;
+		*wrap_size = p7_size;
+		goto exit;
+	}
+
+	/* Wrap PKCS#7 signeddata to a ContentInfo structure:
+	 * add a header in 19 bytes*/
+
+	*wrap_size = p7_size + 19;
+	*wrap = malloc (*wrap_size);
+	if (wrap == NULL)
+		return -1;
+
+	signed_data = *wrap;
+
+	/* Part1: 0x30, 0x82 */
+	signed_data[0] = 0x30;
+	signed_data[1] = 0x82;
+
+	/* Part2: Length1 = p7_size + 19 - 4, in big endian */
+	signed_data[2] = (uint8_t) (((uint16_t) (*wrap_size - 4)) >> 8);
+	signed_data[3] = (uint8_t) (((uint16_t) (*wrap_size - 4)) & 0xff);
+
+	/* Part3: 0x06, 0x09 */
+	signed_data[4] = 0x06;
+	signed_data[5] = 0x09;
+
+	/* Part4: OID value -- 0x2A 0x86 0x48 0x86 0xF7 0x0D 0x01 0x07 0x02 */
+	memcpy (signed_data + 6, oid, sizeof(oid));
+
+	/* Part5: 0xA0, 0x82 */
+	signed_data[15] = 0xA0;
+	signed_data[16] = 0x82;
+
+	/* Part6: Length2 = p7_size, in big endian */
+	signed_data[17] = (uint8_t) (((uint16_t) (p7_size)) >> 8);
+	signed_data[18] = (uint8_t) (((uint16_t) (p7_size)) & 0xff);
+
+	/* Part7: P7Data */
+	memcpy (signed_data + 19, p7data, p7_size);
+
+exit:
+	*flag = wrapped;
+	return 0;
+}
+
+static int
+x509_verify_cb (int status, X509_STORE_CTX *context)
+{
+	X509_OBJECT *obj;
+	int64_t error, i, count;
+
+	obj = NULL;
+	error = (int64_t) X509_STORE_CTX_get_error (context);
+
+	if ((error == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT) ||
+	    (error == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY)) {
+		obj = (X509_OBJECT *) malloc (sizeof(X509_OBJECT));
+		if (obj == NULL)
+			return 0;
+
+		obj->type = X509_LU_X509;
+		obj->data.x509 = context->current_cert;
+
+		CRYPTO_w_lock (CRYPTO_LOCK_X509_STORE);
+
+		if (X509_OBJECT_retrieve_match (context->ctx->objs, obj)) {
+			status = -1;
+		} else if (error == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY) {
+			/* If any certificate in the chain is enrolled as trusted
+			 * certificate, pass the certificate verification.*/
+			count = (int64_t) sk_X509_num (context->chain);
+			for (i = 0; i < count; i++) {
+				obj->data.x509 = sk_X509_value (context->chain,
+								(int)i);
+				if (X509_OBJECT_retrieve_match (context->ctx->objs,
+								obj)) {
+					status = 1;
+					break;
+				}
+			}
+		}
+
+		CRYPTO_w_unlock (CRYPTO_LOCK_X509_STORE);
+	}
+
+	if ((error == X509_V_ERR_CERT_UNTRUSTED) ||
+	    (error == X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE)) {
+		status = 1;
+	}
+
+	if (obj)
+		OPENSSL_free (obj);
+
+	return status;
+}
+
+static int
 verify_sig (const void *req, const uint64_t req_size, const void *sig,
 	    const uint64_t sig_size, const void *cert, const uint64_t cert_size)
 {
+	PKCS7 *pkcs7;
+	BIO *req_bio;
+	X509 *x509_cert;
+	X509_STORE *cert_store;
+	uint8_t *signed_data;
+	uint64_t signed_data_size;
+	uint8_t wrapped;
+	const uint8_t *tmp;
+	int ret;
+
 	if (req == NULL || sig == NULL || cert == NULL ||
 	    req_size > INT_MAX || sig_size > INT_MAX || cert_size > INT_MAX) {
 		fprintf (stderr, "%s: invalid argument\n", __FUNCTION__);
 		return -1;
 	}
 
-	/* TODO verify the signature */
+	pkcs7 = NULL;
+	req_bio = NULL;
+	x509_cert = NULL;
+	cert_store = NULL;
 
-	return 0;
+	/* Register necessary digest algorithms */
+	if (!EVP_add_digest (EVP_md5 ()) ||
+	    !EVP_add_digest (EVP_sha1 ()) ||
+	    !EVP_add_digest (EVP_sha256 ()) ||
+	    !EVP_add_digest (EVP_sha384 ()) ||
+	    !EVP_add_digest (EVP_sha512 ()) ||
+	    !EVP_add_digest_alias (SN_sha1WithRSAEncryption, SN_sha1WithRSA)) {
+		return -1;
+	}
+
+	if (wrap_pkcs7_data (sig, sig_size, &wrapped, &signed_data,
+			     &signed_data_size) < 0)
+		return -1;
+
+	ret = -1;
+
+	/* Retrieve PKCS#7 Data (DER encoding) */
+	if (signed_data_size > INT_MAX)
+		goto exit;
+
+	tmp = signed_data;
+	pkcs7 = d2i_PKCS7 (NULL, &tmp, (int) signed_data_size);
+	if (pkcs7 == NULL)
+		goto exit;
+
+	/* Check if it's PKCS#7 Signed Data */
+	if (!PKCS7_type_is_signed (pkcs7))
+		goto exit;
+
+	/* Read DER-encoded root certificate and Construct X509 Certificate */
+	tmp = cert;
+	x509_cert = d2i_X509 (NULL, &tmp, cert_size);
+	if (x509_cert == NULL)
+		goto exit;
+
+	/* Setup X509 store for trusted certificate */
+	cert_store = X509_STORE_new ();
+	if (cert_store == NULL)
+		goto exit;
+
+	if (!X509_STORE_add_cert (cert_store, x509_cert))
+		goto exit;
+
+	cert_store->verify_cb = x509_verify_cb;
+
+	/* For generic PKCS#7 handling, req may be NULL if the content is present
+	 * in PKCS#7 structure. So ignore NULL checking here. */
+	req_bio = BIO_new (BIO_s_mem ());
+	if (req_bio == NULL)
+		goto exit;
+
+	if (BIO_write (req_bio, req, (int)req_size) <=0)
+		goto exit;
+
+	/* OpenSSL PKCS7 Verification by default checks for SMIME (email signing)
+	 * and doesn't support the extended key usage for Authenticode Code Signing.
+	 * Bypass the certificate purpose checking by enabling any purposes setting.
+	 * */
+	X509_STORE_set_purpose (cert_store, X509_PURPOSE_ANY);
+
+	/* Verifies the PKCS#7 signedData structure */
+	if(PKCS7_verify (pkcs7, NULL, cert_store, req_bio, NULL, PKCS7_BINARY))
+		ret = 0;
+exit:
+	BIO_free (req_bio);
+	X509_free (x509_cert);
+	X509_STORE_free (cert_store);
+	PKCS7_free (pkcs7);
+
+	if (!wrapped)
+		OPENSSL_free (signed_data);
+
+	return ret;
 }
 
 static int
@@ -765,7 +981,7 @@ main (int argc, char *argv[])
 		};
 
 		option_index = 0;
-		opt = getopt_long (argc, argv, "c:fhe:s:w",
+		opt = getopt_long (argc, argv, "c:fhe:s:Vw",
 				   long_options, &option_index);
 
 		if (opt == -1)

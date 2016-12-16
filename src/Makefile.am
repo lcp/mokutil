@@ -14,9 +14,11 @@ mokutil_SOURCES = signature.h \
 		  mokutil.c
 
 sblist_CFLAGS   = $(EFIVAR_CFLAGS)	\
+		  $(OPENSSL_CFLAGS)	\
 		  $(WARNINGFLAGS_C)
 
-sblist_LDADD    = $(EFIVAR_LIBS)
+sblist_LDADD    = $(EFIVAR_LIBS)	\
+		  $(OPENSSL_LIBS)
 
 sblist_SOURCES  = sbversion.h 		\
 		  sblist.c
