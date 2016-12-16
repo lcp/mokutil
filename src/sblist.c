@@ -745,57 +745,6 @@ exit:
 }
 
 static int
-x509_verify_cb (int status, X509_STORE_CTX *context)
-{
-	X509_OBJECT *obj;
-	int64_t error, i, count;
-
-	obj = NULL;
-	error = (int64_t) X509_STORE_CTX_get_error (context);
-
-	if ((error == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT) ||
-	    (error == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY)) {
-		obj = (X509_OBJECT *) malloc (sizeof(X509_OBJECT));
-		if (obj == NULL)
-			return 0;
-
-		obj->type = X509_LU_X509;
-		obj->data.x509 = context->current_cert;
-
-		CRYPTO_w_lock (CRYPTO_LOCK_X509_STORE);
-
-		if (X509_OBJECT_retrieve_match (context->ctx->objs, obj)) {
-			status = -1;
-		} else if (error == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY) {
-			/* If any certificate in the chain is enrolled as trusted
-			 * certificate, pass the certificate verification.*/
-			count = (int64_t) sk_X509_num (context->chain);
-			for (i = 0; i < count; i++) {
-				obj->data.x509 = sk_X509_value (context->chain,
-								(int)i);
-				if (X509_OBJECT_retrieve_match (context->ctx->objs,
-								obj)) {
-					status = 1;
-					break;
-				}
-			}
-		}
-
-		CRYPTO_w_unlock (CRYPTO_LOCK_X509_STORE);
-	}
-
-	if ((error == X509_V_ERR_CERT_UNTRUSTED) ||
-	    (error == X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE)) {
-		status = 1;
-	}
-
-	if (obj)
-		OPENSSL_free (obj);
-
-	return status;
-}
-
-static int
 verify_sig (const void *req, const uint64_t req_size, const void *sig,
 	    const uint64_t sig_size, const void *cert, const uint64_t cert_size)
 {
@@ -860,8 +809,6 @@ verify_sig (const void *req, const uint64_t req_size, const void *sig,
 	if (!X509_STORE_add_cert (cert_store, x509_cert))
 		goto exit;
 
-	cert_store->verify_cb = x509_verify_cb;
-
 	/* For generic PKCS#7 handling, req may be NULL if the content is present
 	 * in PKCS#7 structure. So ignore NULL checking here. */
 	req_bio = BIO_new (BIO_s_mem ());
@@ -870,6 +817,11 @@ verify_sig (const void *req, const uint64_t req_size, const void *sig,
 
 	if (BIO_write (req_bio, req, (int)req_size) <=0)
 		goto exit;
+
+	/* Allow partial certificate chains, terminated by a non-self-signed but
+	 * still trusted intermediate certificate.
+	 * NOTE: In edk2, it also disables time check. */
+	X509_STORE_set_flags (cert_store, X509_V_FLAG_PARTIAL_CHAIN);
 
 	/* OpenSSL PKCS7 Verification by default checks for SMIME (email signing)
 	 * and doesn't support the extended key usage for Authenticode Code Signing.
