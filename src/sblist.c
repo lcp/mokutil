@@ -65,7 +65,11 @@
 #define OPT_CERT      (1 << 8)
 #define OPT_VERIFY    (1 << 9)
 
-typedef int (*import_func_ptr)(const void *, const off_t, void **, uint64_t *);
+#define OPT_INPUT            (OPT_BIN_INPUT | OPT_TXT_INPUT)
+#define OPT_SHOW_OR_EXPORT   (OPT_SHOW | OPT_EXPORT)
+#define OPT_VERIFY_OR_IMPORT (OPT_VERIFY | OPT_IMPORT)
+
+typedef int (*read_func_ptr)(const void *, const off_t, void **, uint64_t *);
 
 static void
 print_help ()
@@ -96,8 +100,19 @@ print_help ()
 }
 
 static int
-import_file (const char *filename, void **var, uint64_t *var_size,
-	     import_func_ptr import_func)
+read_efi_security_list_rt (void **var, uint64_t *var_size)
+{
+	uint32_t attributes;
+	int ret;
+
+	ret = efi_get_variable (efi_guid_shim, "SecurityListRT",
+				(uint8_t **)var, var_size, &attributes);
+	return ret;
+}
+
+static int
+read_file (const char *filename, void **var, uint64_t *var_size,
+	   read_func_ptr read_func)
 {
 	int fd, ret;
 	struct stat stat;
@@ -126,8 +141,8 @@ import_file (const char *filename, void **var, uint64_t *var_size,
 		goto exit;
 	}
 
-	if (import_func (content, stat.st_size, var, var_size) < 0) {
-		fprintf (stderr, "Failed to import %s\n", filename);
+	if (read_func (content, stat.st_size, var, var_size) < 0) {
+		fprintf (stderr, "Failed to read %s\n", filename);
 		goto exit;
 	}
 
@@ -503,9 +518,9 @@ error:
 
 
 static int
-import_txt_list (const char *filename, void **var, uint64_t *var_size)
+read_txt_list (const char *filename, void **var, uint64_t *var_size)
 {
-	return import_file (filename, var, var_size, &parse_txt_list);
+	return read_file (filename, var, var_size, &parse_txt_list);
 }
 
 static int
@@ -571,9 +586,9 @@ error:
 }
 
 static int
-import_bin_list (const char *filename, void **var, uint64_t *var_size)
+read_bin_list (const char *filename, void **var, uint64_t *var_size)
 {
-	return import_file (filename, var, var_size, &parse_bin_list);
+	return read_file (filename, var, var_size, &parse_bin_list);
 }
 
 static int
@@ -649,15 +664,15 @@ copy_data (const void *content, const off_t size, void **data, uint64_t *data_si
 }
 
 static int
-import_sig (const char *filename, void **sig, uint64_t *sig_size)
+read_sig (const char *filename, void **sig, uint64_t *sig_size)
 {
-	return import_file (filename, sig, sig_size, &copy_data);
+	return read_file (filename, sig, sig_size, &copy_data);
 }
 
 static int
-import_cert (const char *filename, void **cert, uint64_t *cert_size)
+read_cert (const char *filename, void **cert, uint64_t *cert_size)
 {
-	return import_file (filename, cert, cert_size, &copy_data);
+	return read_file (filename, cert, cert_size, &copy_data);
 }
 
 static int
@@ -890,7 +905,7 @@ print_var (const void *var, const uint64_t var_size)
 int
 main (int argc, char *argv[])
 {
-	uint32_t command, mask1, mask2;
+	uint32_t command;
 	int opt, ret;
 	int option_index;
 	char *bin_in, *txt_in, *sig_in, *cert_in, *bin_out;
@@ -952,7 +967,7 @@ main (int argc, char *argv[])
 			command |= OPT_SIGNATURE;
 			break;
 		case 'i': /* import */
-			command |= OPT_IMPORT | OPT_VERIFY;
+			command |= OPT_VERIFY_OR_IMPORT;
 			break;
 		case 'f': /* force */
 			force = 1;
@@ -977,42 +992,44 @@ main (int argc, char *argv[])
 	}
 
 	/* Filter out the illegal commands */
-	mask1 = OPT_BIN_INPUT | OPT_TXT_INPUT;
-	if ((command & mask1) == mask1) {
+	if ((command & OPT_INPUT) == OPT_INPUT) {
 		fprintf (stderr, "Please use either the binary list "
 				 "or the text list\n");
 		goto exit;
 	}
 
-	if ((command & (OPT_IMPORT | OPT_VERIFY)) && !(command & OPT_SIGNATURE)) {
-		fprintf (stderr, "Signature not available\n");
-		goto exit;
-	}
-
-	mask1 = OPT_EXPORT | OPT_SHOW | OPT_VERIFY;
-	mask2 = OPT_BIN_INPUT | OPT_TXT_INPUT;
-	if ((command & mask1) && !(command & mask2)) {
-		fprintf (stderr, "Security List not available\n");
-		goto exit;
-	}
-
-	if ((command & OPT_VERIFY) && !(command & OPT_CERT)) {
-		fprintf (stderr, "Certificate not available\n");
-		goto exit;
+	if (command & OPT_VERIFY_OR_IMPORT) {
+		if (!(command & OPT_SIGNATURE)) {
+			fprintf (stderr, "Signature not available\n");
+			goto exit;
+		} else if (!(command & OPT_INPUT)) {
+			fprintf (stderr, "Security List not available\n");
+			goto exit;
+		} else if (!(command & OPT_CERT)) {
+			fprintf (stderr, "Certificate not available\n");
+			goto exit;
+		}
 	}
 
 	/* Execute the commands */
+	if ((command & OPT_SHOW_OR_EXPORT) && !(command & OPT_INPUT)){
+		if (read_efi_security_list_rt (&req, &req_size) < 0) {
+			fprintf (stderr, "Failed to read SecurityListRT\n");
+			goto exit;
+		}
+	}
+
 	if (command & OPT_BIN_INPUT) {
-		if (import_bin_list (bin_in, &req, &req_size) < 0) {
-			fprintf (stderr, "Failed to import binary list: %s\n",
+		if (read_bin_list (bin_in, &req, &req_size) < 0) {
+			fprintf (stderr, "Failed to read binary list: %s\n",
 					 bin_in);
 			goto exit;
 		}
 	}
 
 	if (command & OPT_TXT_INPUT) {
-		if (import_txt_list (txt_in, &req, &req_size) < 0) {
-			fprintf (stderr, "Failed to import text list: %s\n",
+		if (read_txt_list (txt_in, &req, &req_size) < 0) {
+			fprintf (stderr, "Failed to read text list: %s\n",
 					 txt_in);
 			goto exit;
 		}
@@ -1027,18 +1044,21 @@ main (int argc, char *argv[])
 	}
 
 	if (command & OPT_SIGNATURE) {
-		if (import_sig (sig_in, &sig, &sig_size) < 0) {
-			fprintf (stderr, "Failed to import signature: %s\n", sig_in);
+		if (read_sig (sig_in, &sig, &sig_size) < 0) {
+			fprintf (stderr, "Failed to read signature: %s\n", sig_in);
+			goto exit;
+		}
+	}
+
+	if (command & OPT_CERT) {
+		if (read_cert (cert_in, &cert, &cert_size) < 0) {
+			fprintf (stderr, "Failed to read certificate: %s\n",
+					 cert_in);
 			goto exit;
 		}
 	}
 
 	if (command & OPT_VERIFY) {
-		if (import_cert (cert_in, &cert, &cert_size) < 0) {
-			fprintf (stderr, "Failed to import certificate: %s\n",
-					 cert_in);
-			goto exit;
-		}
 		if (verify_sig (req, req_size, sig, sig_size, cert, cert_size) < 0) {
 			printf ("Signature does not match\n");
 			goto exit;
