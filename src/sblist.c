@@ -60,7 +60,7 @@
 #define OPT_EXPORT    (1 << 3)
 #define OPT_SHOW      (1 << 4)
 #define OPT_SIGNATURE (1 << 5)
-#define OPT_WRITE     (1 << 6)
+#define OPT_IMPORT    (1 << 6)
 #define OPT_FORCE     (1 << 7)
 #define OPT_CERT      (1 << 8)
 #define OPT_VERIFY    (1 << 9)
@@ -83,13 +83,13 @@ print_help ()
 	printf ("  --signature <PKCS#7>\t\tUse the PKCS7 signature\n");
 	printf ("  --verify\t\t\tVerify the signature\n");
 	printf ("  --cert <certificate>\t\tUse this ceritifcate as the signer\n");
-	printf ("  --write-variables\t\tWrite the EFI variables\n");
+	printf ("  --import\t\t\tImport the list into the EFI variables\n");
 	printf ("\n");
-	printf ("Export the list:\n");
+	printf ("Convert the text list into the binary list:\n");
 	printf (" sblist --txt list.csv -e list.bin\n");
 	printf ("\n");
 	printf ("Import the list:\n");
-	printf (" sblist -w --bin list.bin -s list.sig -c signer.der\n");
+	printf (" sblist -i --bin list.bin -s list.sig -c signer.der\n");
 	printf ("\n");
 	printf ("Verify the list:\n");
 	printf (" sblist -V --bin list.bin -s list.sig -c signer.der\n");
@@ -911,16 +911,16 @@ main (int argc, char *argv[])
 
 	while (1) {
 		static struct option long_options[] = {
-			{"help",            no_argument,       0, 'h'},
-			{"bin",             required_argument, 0,  0 },
-			{"txt",             required_argument, 0,  1 },
-			{"export",          required_argument, 0, 'e'},
-			{"show",            no_argument,       0,  2 },
-			{"signature",       required_argument, 0, 's'},
-			{"write-variables", no_argument,       0, 'w'},
-			{"force",           no_argument,       0, 'f'},
-			{"verify",          no_argument,       0, 'V'},
-			{"cert",            required_argument, 0, 'c'},
+			{"help",      no_argument,       0, 'h'},
+			{"bin",       required_argument, 0,  0 },
+			{"txt",       required_argument, 0,  1 },
+			{"export",    required_argument, 0, 'e'},
+			{"show",      no_argument,       0,  2 },
+			{"signature", required_argument, 0, 's'},
+			{"import",    no_argument,       0, 'i'},
+			{"force",     no_argument,       0, 'f'},
+			{"verify",    no_argument,       0, 'V'},
+			{"cert",      required_argument, 0, 'c'},
 			{0, 0, 0, 0}
 		};
 
@@ -951,8 +951,8 @@ main (int argc, char *argv[])
 			sig_in = strdup (optarg);
 			command |= OPT_SIGNATURE;
 			break;
-		case 'w': /* write-variables */
-			command |= OPT_WRITE | OPT_VERIFY;
+		case 'i': /* import */
+			command |= OPT_IMPORT | OPT_VERIFY;
 			break;
 		case 'f': /* force */
 			force = 1;
@@ -984,7 +984,7 @@ main (int argc, char *argv[])
 		goto exit;
 	}
 
-	if ((command & (OPT_WRITE | OPT_VERIFY)) && !(command & OPT_SIGNATURE)) {
+	if ((command & (OPT_IMPORT | OPT_VERIFY)) && !(command & OPT_SIGNATURE)) {
 		fprintf (stderr, "Signature not available\n");
 		goto exit;
 	}
@@ -1046,7 +1046,7 @@ main (int argc, char *argv[])
 		printf ("Signature matches\n");
 	}
 
-	if (command & OPT_WRITE) {
+	if (command & OPT_IMPORT) {
 		if (set_security_variables (req, req_size, sig, sig_size) < 0) {
 			fprintf (stderr, "Failed to set variables\n");
 			goto exit;
