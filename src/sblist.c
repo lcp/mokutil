@@ -736,6 +736,14 @@ exit:
 	return 0;
 }
 
+/*
+ * This function is based on Pkcs7Verify() in the edk2 project since shim
+ * merges the code to verify the signature.
+ * (CryptoPkg/Library/BaseCryptLib/Pk/CryptPkcs7Verify.c)
+ *
+ * The only difference is that X509_V_FLAG_NO_CHECK_TIME is not used in
+ * function since openssl 1.0.2j doesn't include the flag.
+ */
 static int
 verify_sig (const void *req, const uint64_t req_size, const void *sig,
 	    const uint64_t sig_size, const void *cert, const uint64_t cert_size)
