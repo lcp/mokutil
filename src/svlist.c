@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2016 Gary Lin <glin@suse.com>
+ * Copyright (C) 2016-2017 Gary Lin <glin@suse.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -50,7 +50,7 @@
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 
-#include "sbversion.h"
+#include "svlist.h"
 
 #define MAX_NODES 1000
 
@@ -75,7 +75,7 @@ static void
 print_help ()
 {
 	printf ("Usage:\n");
-	printf ("  sblist OPTIONS [ARGS...]\n");
+	printf ("  svlist OPTIONS [ARGS...]\n");
 	printf ("\n");
 	printf ("Options:\n");
 	printf ("  --help\t\t\tShow help\n");
@@ -90,13 +90,13 @@ print_help ()
 	printf ("  --import\t\t\tImport the list into the EFI variables\n");
 	printf ("\n");
 	printf ("Convert the text list into the binary list:\n");
-	printf (" sblist --txt list.csv -e list.bin\n");
+	printf (" svlist --txt list.csv -e list.bin\n");
 	printf ("\n");
 	printf ("Import the list:\n");
-	printf (" sblist -i --bin list.bin -s list.sig -c signer.der\n");
+	printf (" svlist -i --bin list.bin -s list.sig -c signer.der\n");
 	printf ("\n");
 	printf ("Verify the list:\n");
-	printf (" sblist -V --bin list.bin -s list.sig -c signer.der\n");
+	printf (" svlist -V --bin list.bin -s list.sig -c signer.der\n");
 }
 
 static int
@@ -158,10 +158,10 @@ exit:
 }
 
 static int
-merge_list (void **var, uint64_t *var_size, sblist_t *list)
+merge_list (void **var, uint64_t *var_size, svlist_t *list)
 {
-	sblist_t *lptr, *lptr_new;
-	sbnode_t *node1, *node2;
+	svlist_t *lptr, *lptr_new;
+	svnode_t *node1, *node2;
 	void *old_var, *new_var;
 	uint64_t offset;
 	uint32_t i, j, extra;
@@ -176,7 +176,7 @@ merge_list (void **var, uint64_t *var_size, sblist_t *list)
 	offset = 0;
 	found = 0;
 	while (offset < *var_size) {
-		lptr = (sblist_t *)(old_var + offset);
+		lptr = (svlist_t *)(old_var + offset);
 
 		if (memcmp (list->signer, lptr->signer, 4) == 0) {
 			found = 1;
@@ -212,10 +212,10 @@ merge_list (void **var, uint64_t *var_size, sblist_t *list)
 
 			node2 = list->nodes + j;
 
-			if (node1->distro == node2->distro) {
-				/* Found a higher sb version, update it */
-				if (node1->sb < node2->sb)
-					node1->sb = node2->sb;
+			if (node1->dv == node2->dv) {
+				/* Found a higher security version */
+				if (node1->sv < node2->sv)
+					node1->sv = node2->sv;
 
 				skip[j] = 1;
 				extra--;
@@ -230,7 +230,7 @@ merge_list (void **var, uint64_t *var_size, sblist_t *list)
 		return -1;
 
 	/* Allocate a new var */
-	new_var = malloc (*var_size + sizeof(sbnode_t) * extra);
+	new_var = malloc (*var_size + sizeof(svnode_t) * extra);
 	if (new_var == NULL)
 		return -1;
 
@@ -238,8 +238,8 @@ merge_list (void **var, uint64_t *var_size, sblist_t *list)
 	memcpy (new_var, old_var, offset + lptr->size);
 
 	/* Copy the new nodes */
-	lptr_new = (sblist_t *)(new_var + offset);
-	lptr_new->size += extra * sizeof(sbnode_t);
+	lptr_new = (svlist_t *)(new_var + offset);
+	lptr_new->size += extra * sizeof(svnode_t);
 	j = lptr_n;
 	for (i = 0; i < list_n; i++) {
 		if (skip[i] == 1)
@@ -247,20 +247,20 @@ merge_list (void **var, uint64_t *var_size, sblist_t *list)
 		node1 = lptr_new->nodes + j;
 		node2 = list->nodes + i;
 
-		memcpy (node1, node2, sizeof(sbnode_t));
+		memcpy (node1, node2, sizeof(svnode_t));
 		j++;
 	}
 
 	/* Copy the rest of the old var */
 	offset += lptr->size;
 	if (offset < *var_size) {
-		memcpy (new_var + offset + sizeof(sbnode_t) * extra,
+		memcpy (new_var + offset + sizeof(svnode_t) * extra,
 			old_var + offset, *var_size - offset);
 	}
 
 	free (old_var);
 	*var = new_var;
-	*var_size += sizeof(sbnode_t) * extra;
+	*var_size += sizeof(svnode_t) * extra;
 
 	return 0;
 }
@@ -342,10 +342,10 @@ get_uint (const char *line, const off_t length, uint64_t *offset,
 }
 
 static int
-parse_line (const char *line, const uint64_t length, sblist_t **list)
+parse_line (const char *line, const uint64_t length, svlist_t **list)
 {
-	sblist_t *lptr;
-	sbnode_t node;
+	svlist_t *lptr;
+	svnode_t node;
 	uint64_t count, list_size, value;
 	uint64_t i, j, k, start, end, offset;
 	uint8_t found;
@@ -374,7 +374,7 @@ parse_line (const char *line, const uint64_t length, sblist_t **list)
 	}
 
 	/* Allocate the list */
-	list_size = sizeof(sblist_t) + sizeof(sbnode_t) * list_n;
+	list_size = sizeof(svlist_t) + sizeof(svnode_t) * list_n;
 	lptr = malloc (list_size);
 	if (lptr == NULL) {
 		fprintf (stderr, "Failed to allocate list\n");
@@ -395,7 +395,7 @@ parse_line (const char *line, const uint64_t length, sblist_t **list)
 
 	start = end;
 
-	/* Parse distro versions and sb versions */
+	/* Parse distro versions and security versions */
 	j = 0;
 	for (i = 0; i < list_n && start < length; i++) {
 		/* Get the distro version */
@@ -404,39 +404,39 @@ parse_line (const char *line, const uint64_t length, sblist_t **list)
 			fprintf (stderr, "Failed to get distro version\n");
 			goto error;
 		}
-		node.distro = (uint16_t)value;
+		node.dv = (uint16_t)value;
 		start += offset;
 
-		/* Get the sb version */
+		/* Get the security version */
 		if (get_uint ((char *)line + start, length - start, &offset,
 			      USHRT_MAX, &value) < 0) {
-			fprintf (stderr, "Failed to get sb version\n");
+			fprintf (stderr, "Failed to get secuirty version\n");
 			goto error;
 		}
-		node.sb = (uint16_t)value;
+		node.sv = (uint16_t)value;
 		start += offset;
 
 		/* Find duplicate distro version */
 		found = 0;
 		for (k = 0; k < j; k++) {
-			if (lptr->nodes[k].distro == node.distro) {
+			if (lptr->nodes[k].dv == node.dv) {
 				found = 1;
 				break;
 			}
 		}
 
 		if (!found) {
-			memcpy (&(lptr->nodes[j]), &node, sizeof(sbnode_t));
+			memcpy (&(lptr->nodes[j]), &node, sizeof(svnode_t));
 			j++;
 		} else {
-			if (lptr->nodes[k].sb < node.sb)
-				lptr->nodes[k].sb = node.sb;
+			if (lptr->nodes[k].sv < node.sv)
+				lptr->nodes[k].sv = node.sv;
 		}
 	}
 
 	/* Adjust the size if necessary */
 	if (j < list_n) {
-		lptr->size = sizeof(sblist_t) + sizeof(sbnode_t) * j;
+		lptr->size = sizeof(svlist_t) + sizeof(svnode_t) * j;
 	}
 
 	*list = lptr;
@@ -456,7 +456,7 @@ parse_txt_list (const void *content, const off_t size, void **var,
 		uint64_t *var_size)
 {
 	void *new_var;
-	sblist_t *list;
+	svlist_t *list;
 	uint64_t i, length, new_size;
 	char *start, *end;
 
@@ -528,7 +528,7 @@ parse_bin_list (const void *content, const off_t size, void **var,
 		uint64_t *var_size)
 {
 	void *new_var, *ptr;
-	sblist_t *list;
+	svlist_t *list;
 	off_t offset;
 	uint64_t new_size;
 	int ret;
@@ -541,7 +541,7 @@ parse_bin_list (const void *content, const off_t size, void **var,
 
 	offset = 0;
 	while (offset < size) {
-		list = (sblist_t *)ptr;
+		list = (svlist_t *)ptr;
 
 		offset += list->size;
 		ptr += list->size;
@@ -556,7 +556,7 @@ parse_bin_list (const void *content, const off_t size, void **var,
 	offset = 0;
 	ptr = (void *)content;
 	while (offset < size) {
-		list = (sblist_t *)ptr;
+		list = (svlist_t *)ptr;
 
 		if (new_var == NULL) {
 			new_var = malloc (list->size);
@@ -884,8 +884,8 @@ set_security_variables (const void *req, const uint64_t req_size, const void *si
 static void
 print_var (const void *var, const uint64_t var_size)
 {
-	sblist_t *list;
-	sbnode_t *node;
+	svlist_t *list;
+	svnode_t *node;
 	uint32_t i, list_n;
 	uint64_t offset;
 
@@ -896,13 +896,13 @@ print_var (const void *var, const uint64_t var_size)
 
 	offset = 0;
 	while (offset < var_size) {
-		list = (sblist_t *)(var + offset);
+		list = (svlist_t *)(var + offset);
 		list_n = count_nodes (list);
 		printf ("%c%c%c%c", list->signer[0], list->signer[1],
 				    list->signer[2], list->signer[3]);
 		for (i = 0; i < list_n; i++) {
 			node = list->nodes + i;
-			printf (", %u, %u", node->distro, node->sb);
+			printf (", %u, %u", node->dv, node->sv);
 		}
 		putchar ('\n');
 

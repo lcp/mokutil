@@ -1,4 +1,4 @@
-bin_PROGRAMS    = mokutil sblist
+bin_PROGRAMS    = mokutil svlist
 
 mokutil_CFLAGS  = $(OPENSSL_CFLAGS)	\
 		  $(EFIVAR_CFLAGS)	\
@@ -13,12 +13,12 @@ mokutil_SOURCES = signature.h \
 		  password-crypt.c \
 		  mokutil.c
 
-sblist_CFLAGS   = $(EFIVAR_CFLAGS)	\
+svlist_CFLAGS   = $(EFIVAR_CFLAGS)	\
 		  $(OPENSSL_CFLAGS)	\
 		  $(WARNINGFLAGS_C)
 
-sblist_LDADD    = $(EFIVAR_LIBS)	\
+svlist_LDADD    = $(EFIVAR_LIBS)	\
 		  $(OPENSSL_LIBS)
 
-sblist_SOURCES  = sbversion.h 		\
-		  sblist.c
+svlist_SOURCES  = sversion.h 		\
+		  svlist.c
