@@ -105,8 +105,8 @@ read_efi_security_list_rt (void **var, uint64_t *var_size)
 	uint32_t attributes;
 	int ret;
 
-	ret = efi_get_variable (efi_guid_shim, "SecurityListRT",
-				(uint8_t **)var, var_size, &attributes);
+	ret = efi_get_variable (efi_guid_shim, "SVListRT", (uint8_t **)var,
+				var_size, &attributes);
 	return ret;
 }
 
@@ -864,17 +864,16 @@ set_security_variables (const void *req, const uint64_t req_size, const void *si
 		     | EFI_VARIABLE_BOOTSERVICE_ACCESS
 		     | EFI_VARIABLE_RUNTIME_ACCESS;
 
-	if (efi_set_variable (efi_guid_shim, "SecurityListRequest",
-			      (uint8_t *)req, req_size, attributes,
-			      S_IRUSR | S_IWUSR) < 0) {
-		fprintf (stderr, "Failed to set SecurityListRequest\n");
+	if (efi_set_variable (efi_guid_shim, "SVListRequest", (uint8_t *)req,
+			      req_size, attributes, S_IRUSR | S_IWUSR) < 0) {
+		fprintf (stderr, "Failed to set SVListRequest\n");
 		return -1;
 	}
 
-	if (efi_set_variable (efi_guid_shim, "SecurityListSig",
+	if (efi_set_variable (efi_guid_shim, "SVListSig",
 			      (uint8_t *)sig, sig_size, attributes,
 			      S_IRUSR | S_IWUSR) < 0) {
-		fprintf (stderr, "Failed to set SecurityListRequest\n");
+		fprintf (stderr, "Failed to set SVListRequest\n");
 		return -1;
 	}
 
@@ -1022,7 +1021,7 @@ main (int argc, char *argv[])
 	/* Execute the commands */
 	if ((command & OPT_SHOW_OR_EXPORT) && !(command & OPT_INPUT)){
 		if (read_efi_security_list_rt (&req, &req_size) < 0) {
-			fprintf (stderr, "Failed to read SecurityListRT\n");
+			fprintf (stderr, "Failed to read SVListRT\n");
 			goto exit;
 		}
 	}
