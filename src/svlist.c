@@ -864,16 +864,15 @@ set_security_variables (const void *req, const uint64_t req_size, const void *si
 		     | EFI_VARIABLE_BOOTSERVICE_ACCESS
 		     | EFI_VARIABLE_RUNTIME_ACCESS;
 
-	if (efi_set_variable (efi_guid_shim, "SVListRequest", (uint8_t *)req,
+	if (efi_set_variable (efi_guid_shim, "SVListNew", (uint8_t *)req,
 			      req_size, attributes, S_IRUSR | S_IWUSR) < 0) {
-		fprintf (stderr, "Failed to set SVListRequest\n");
+		fprintf (stderr, "Failed to set SVListNew\n");
 		return -1;
 	}
 
-	if (efi_set_variable (efi_guid_shim, "SVListSig",
-			      (uint8_t *)sig, sig_size, attributes,
-			      S_IRUSR | S_IWUSR) < 0) {
-		fprintf (stderr, "Failed to set SVListRequest\n");
+	if (efi_set_variable (efi_guid_shim, "SVListSig", (uint8_t *)sig,
+			      sig_size, attributes, S_IRUSR | S_IWUSR) < 0) {
+		fprintf (stderr, "Failed to set SVListSig\n");
 		return -1;
 	}
 
