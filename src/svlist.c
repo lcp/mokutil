@@ -992,7 +992,7 @@ main (int argc, char *argv[])
 		}
 	}
 
-	if (command & OPT_HELP) {
+	if (!command || command & OPT_HELP) {
 		print_help ();
 		goto exit;
 	}
