@@ -616,7 +616,7 @@ export_bin_list (const char  *filename, const void *var,
 	}
 
 	/* Open the file and write */
-	fd = open (filename, O_WRONLY | O_CREAT);
+	fd = open (filename, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
 	if (fd < 0) {
 		fprintf (stderr, "Failed to open %s\n", filename);
 		return -1;
