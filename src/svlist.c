@@ -49,6 +49,8 @@
 #include <openssl/pkcs7.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
+#include <openssl/x509_vfy.h>
+#include <openssl/err.h>
 
 #include "svlist.h"
 
@@ -70,6 +72,8 @@
 #define OPT_VERIFY_OR_IMPORT (OPT_VERIFY | OPT_IMPORT)
 
 typedef int (*read_func_ptr)(const void *, const off_t, void **, uint64_t *);
+
+static int cert_error;
 
 static void
 print_help ()
@@ -733,13 +737,33 @@ exit:
 	return 0;
 }
 
+static int
+verify_callback(int ok, X509_STORE_CTX *ctx)
+{
+	int err;
+
+	err = X509_STORE_CTX_get_error(ctx);
+
+	/* Ignore the time check as edk2/shim does */
+	if (err == X509_V_ERR_CERT_HAS_EXPIRED ||
+	    err == X509_V_ERR_CERT_NOT_YET_VALID) {
+		cert_error = X509_V_OK;
+		return 1;
+	} else if (err != X509_V_OK) {
+		cert_error = err;
+	}
+
+	return ok;
+}
+
 /*
  * This function is based on Pkcs7Verify() in the edk2 project since shim
  * merges the code to verify the signature.
  * (CryptoPkg/Library/BaseCryptLib/Pk/CryptPkcs7Verify.c)
  *
  * The only difference is that X509_V_FLAG_NO_CHECK_TIME is not used in
- * function since openssl 1.0.2j doesn't include the flag.
+ * this function since openssl 1.0.2j doesn't include the flag. Instead, a
+ * callback function is used to ignore the time check and record the error.
  */
 static int
 verify_sig (const void *req, const uint64_t req_size, const void *sig,
@@ -805,6 +829,11 @@ verify_sig (const void *req, const uint64_t req_size, const void *sig,
 
 	if (!X509_STORE_add_cert (cert_store, x509_cert))
 		goto exit;
+
+	/* Set the verify callback to record the error code and ignore the time
+	 * check */
+	cert_error = X509_V_OK;
+	cert_store->verify_cb = verify_callback;
 
 	/* For generic PKCS#7 handling, req may be NULL if the content is present
 	 * in PKCS#7 structure. So ignore NULL checking here. */
@@ -874,6 +903,30 @@ set_security_variables (const void *req, const uint64_t req_size, const void *si
 	}
 
 	return 0;
+}
+
+static void
+print_pkcs7_error ()
+{
+	unsigned long err;
+
+	err = ERR_get_error();
+
+	if (err != 0) {
+		const char *pkcs7_str;
+		ERR_load_PKCS7_strings();
+		pkcs7_str = ERR_reason_error_string(err);
+		if (pkcs7_str)
+			printf (": %s", pkcs7_str);
+	}
+
+	if (cert_error != X509_V_OK) {
+		const char *x509_str;
+		ERR_load_X509_strings();
+		x509_str = X509_verify_cert_error_string (cert_error);
+		if (x509_str)
+			printf (": %s", x509_str);
+	}
 }
 
 static void
@@ -1053,10 +1106,12 @@ main (int argc, char *argv[])
 
 	if (command & OPT_VERIFY) {
 		if (verify_sig (req, req_size, sig, sig_size, cert, cert_size) < 0) {
-			printf ("Signature does not match\n");
+			printf ("Verification failed");
+			print_pkcs7_error();
+			putchar ('\n');
 			goto exit;
 		}
-		printf ("Signature matches\n");
+		printf ("Verification passed\n");
 	}
 
 	if (command & OPT_IMPORT) {
