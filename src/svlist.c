@@ -519,13 +519,6 @@ error:
 	return -1;
 }
 
-
-static int
-read_txt_list (const char *filename, void **var, uint64_t *var_size)
-{
-	return read_file (filename, var, var_size, &parse_txt_list);
-}
-
 static int
 parse_bin_list (const void *content, const off_t size, void **var,
 		uint64_t *var_size)
@@ -586,12 +579,6 @@ parse_bin_list (const void *content, const off_t size, void **var,
 error:
 
 	return ret;
-}
-
-static int
-read_bin_list (const char *filename, void **var, uint64_t *var_size)
-{
-	return read_file (filename, var, var_size, &parse_bin_list);
 }
 
 static int
@@ -662,18 +649,6 @@ copy_data (const void *content, const off_t size, void **data, uint64_t *data_si
 	*data_size = size;
 
 	return 0;
-}
-
-static int
-read_sig (const char *filename, void **sig, uint64_t *sig_size)
-{
-	return read_file (filename, sig, sig_size, &copy_data);
-}
-
-static int
-read_cert (const char *filename, void **cert, uint64_t *cert_size)
-{
-	return read_file (filename, cert, cert_size, &copy_data);
 }
 
 static int
@@ -1066,7 +1041,7 @@ main (int argc, char *argv[])
 	}
 
 	if (command & OPT_BIN_INPUT) {
-		if (read_bin_list (bin_in, &req, &req_size) < 0) {
+		if (read_file (bin_in, &req, &req_size, &parse_bin_list) < 0) {
 			fprintf (stderr, "Failed to read binary list: %s\n",
 					 bin_in);
 			goto exit;
@@ -1074,7 +1049,7 @@ main (int argc, char *argv[])
 	}
 
 	if (command & OPT_TXT_INPUT) {
-		if (read_txt_list (txt_in, &req, &req_size) < 0) {
+		if (read_file (txt_in, &req, &req_size, &parse_txt_list) < 0) {
 			fprintf (stderr, "Failed to read text list: %s\n",
 					 txt_in);
 			goto exit;
@@ -1090,14 +1065,14 @@ main (int argc, char *argv[])
 	}
 
 	if (command & OPT_SIGNATURE) {
-		if (read_sig (sig_in, &sig, &sig_size) < 0) {
+		if (read_file (sig_in, &sig, &sig_size, &copy_data) < 0) {
 			fprintf (stderr, "Failed to read signature: %s\n", sig_in);
 			goto exit;
 		}
 	}
 
 	if (command & OPT_CERT) {
-		if (read_cert (cert_in, &cert, &cert_size) < 0) {
+		if (read_file (cert_in, &cert, &cert_size, &copy_data) < 0) {
 			fprintf (stderr, "Failed to read certificate: %s\n",
 					 cert_in);
 			goto exit;
