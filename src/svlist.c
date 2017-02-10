@@ -103,15 +103,12 @@ print_help ()
 	printf (" svlist -V --bin list.bin -s list.sig -c signer.der\n");
 }
 
-static int
-read_efi_svlistrt (void **var, uint64_t *var_size)
+static inline int
+read_shim_var (const char *name, void **var, uint64_t *var_size)
 {
 	uint32_t attributes;
-	int ret;
-
-	ret = efi_get_variable (efi_guid_shim, "SVListRT", (uint8_t **)var,
-				var_size, &attributes);
-	return ret;
+	return efi_get_variable (efi_guid_shim, name, (uint8_t **)var,
+				 var_size, &attributes);
 }
 
 static int
@@ -632,6 +629,103 @@ exit:
 	return ret;
 }
 
+static svlist_t *
+match_signer (const void *data, const uint64_t data_size, const uint32_t signer)
+{
+	svlist_t *list;
+	uint64_t skip = 0;
+
+	while (skip < data_size) {
+		list = (svlist_t *)(data + skip);
+		if (memcmp (list->signer, &signer, 4) == 0)
+			return list;
+		skip += list->size;
+	}
+	return NULL;
+}
+
+/* Check if all the nodes in list1 are in list2 */
+static uint8_t
+check_svlists (const svlist_t *list1, const svlist_t *list2)
+{
+	uint32_t node_n1, node_n2, i, j;
+
+	node_n1 = count_nodes (list1);
+	node_n2 = count_nodes (list2);
+
+	for (i = 0; i < node_n1; i++) {
+		for (j = 0; j < node_n2; j++) {
+			if (list1->nodes[i].dv != list2->nodes[j].dv)
+				continue;
+
+			if (list1->nodes[i].sv > list2->nodes[j].sv)
+				return 0;
+
+			break;
+		}
+
+		if (j == node_n2)
+			return 0;
+	}
+
+	return 1;
+}
+
+static uint8_t
+is_in_variable (const void *var, const uint64_t var_size,
+		const void *req, const uint64_t req_size)
+{
+	svlist_t *var_lptr, *req_lptr;
+	uint64_t off_req = 0;
+	uint32_t *signer;
+
+	while (off_req < req_size) {
+		req_lptr = (svlist_t *)(req + off_req);
+		signer = (uint32_t *)req_lptr->signer;
+
+		var_lptr = match_signer (var, var_size, *signer);
+		if (var_lptr == NULL)
+			return 0;
+
+		if (!check_svlists (req_lptr, var_lptr))
+			return 0;
+
+		off_req += req_lptr->size;
+	}
+
+	return 1;
+}
+
+static uint8_t
+is_enrolled (const void *req, const uint64_t req_size)
+{
+	void *cur = NULL, *new = NULL;
+	uint64_t cur_size, new_size;
+	uint8_t ret = 0;
+
+	if (read_shim_var ("SVListRT", &cur, &cur_size) == 0) {
+		if (is_in_variable (cur, cur_size, req, req_size)) {
+			ret = 1;
+			goto exit;
+		}
+	}
+
+	if (read_shim_var ("SVListNew", &new, &new_size) == 0) {
+		if (is_in_variable (new, new_size, req, req_size)) {
+			ret = 2;
+			goto exit;
+		}
+	}
+
+exit:
+	if (cur)
+		free (cur);
+	if (new)
+		free (new);
+
+	return ret;
+}
+
 static int
 copy_data (const void *content, const off_t size, void **data, uint64_t *data_size)
 {
@@ -1034,7 +1128,7 @@ main (int argc, char *argv[])
 
 	/* Execute the commands */
 	if ((command & OPT_SHOW_OR_EXPORT) && !(command & OPT_INPUT)){
-		if (read_efi_svlistrt (&req, &req_size) < 0) {
+		if (read_shim_var ("SVListRT", &req, &req_size) < 0) {
 			fprintf (stderr, "Failed to read SVListRT\n");
 			goto exit;
 		}
@@ -1060,6 +1154,17 @@ main (int argc, char *argv[])
 		if (export_bin_list (bin_out, req, req_size, force) < 0) {
 			fprintf (stderr, "Failed to export binary list: %s\n",
 					 bin_out);
+			goto exit;
+		}
+	}
+
+	if (command & OPT_IMPORT) {
+		uint8_t result = is_enrolled (req, req_size);
+		if (result == 1) {
+			printf ("This list is already in SVListRT\n");
+			goto exit;
+		} else if (result == 2) {
+			printf ("This list is already in SVListNew\n");
 			goto exit;
 		}
 	}
