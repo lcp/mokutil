@@ -66,6 +66,7 @@
 #define OPT_FORCE     (1 << 7)
 #define OPT_CERT      (1 << 8)
 #define OPT_VERIFY    (1 << 9)
+#define OPT_NEW       (1 << 10)
 
 #define OPT_INPUT            (OPT_BIN_INPUT | OPT_TXT_INPUT)
 #define OPT_SHOW_OR_EXPORT   (OPT_SHOW | OPT_EXPORT)
@@ -92,6 +93,7 @@ print_help ()
 	printf ("  --verify\t\t\tVerify the signature\n");
 	printf ("  --cert <certificate>\t\tUse this ceritifcate as the signer\n");
 	printf ("  --import\t\t\tImport the list into the EFI variables\n");
+	printf ("  --new\t\t\tUse the list in SVListNew\n");
 	printf ("\n");
 	printf ("Convert the text list into the binary list:\n");
 	printf (" svlist --txt list.csv -e list.bin\n");
@@ -1051,11 +1053,12 @@ main (int argc, char *argv[])
 			{"force",     no_argument,       0, 'f'},
 			{"verify",    no_argument,       0, 'V'},
 			{"cert",      required_argument, 0, 'c'},
+			{"new",       no_argument,       0, 'n'},
 			{0, 0, 0, 0}
 		};
 
 		option_index = 0;
-		opt = getopt_long (argc, argv, "c:fhie:s:Vw",
+		opt = getopt_long (argc, argv, "c:fhie:ns:Vw",
 				   long_options, &option_index);
 
 		if (opt == -1)
@@ -1094,6 +1097,9 @@ main (int argc, char *argv[])
 			cert_in = strdup (optarg);
 			command |= OPT_CERT;
 			break;
+		case 'n': /* new */
+			command |= OPT_NEW;
+			break;
 		case 'h': /* help */
 		default:
 			command |= OPT_HELP;
@@ -1113,6 +1119,11 @@ main (int argc, char *argv[])
 		goto exit;
 	}
 
+	if ((command & OPT_INPUT) && (command & OPT_NEW)) {
+		fprintf (stderr, "Multiple inputs detected\n");
+		goto exit;
+	}
+
 	if (command & OPT_VERIFY_OR_IMPORT) {
 		if (!(command & OPT_SIGNATURE)) {
 			fprintf (stderr, "Signature not available\n");
@@ -1127,7 +1138,8 @@ main (int argc, char *argv[])
 	}
 
 	/* Execute the commands */
-	if ((command & OPT_SHOW_OR_EXPORT) && !(command & OPT_INPUT)){
+	if ((command & OPT_SHOW_OR_EXPORT) && !(command & OPT_INPUT) &&
+	    !(command & OPT_NEW)){
 		if (read_shim_var ("SVListRT", &req, &req_size) < 0) {
 			fprintf (stderr, "Failed to read SVListRT\n");
 			goto exit;
@@ -1146,6 +1158,13 @@ main (int argc, char *argv[])
 		if (read_file (txt_in, &req, &req_size, &parse_txt_list) < 0) {
 			fprintf (stderr, "Failed to read text list: %s\n",
 					 txt_in);
+			goto exit;
+		}
+	}
+
+	if (command & OPT_NEW) {
+		if (read_shim_var ("SVListNew", &req, &req_size) < 0) {
+			fprintf (stderr, "Failed to read SVListNew\n");
 			goto exit;
 		}
 	}
