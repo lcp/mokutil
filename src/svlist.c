@@ -955,7 +955,7 @@ print_var (const void *var, const uint64_t var_size)
 				    list->signer[2], list->signer[3]);
 		for (i = 0; i < list_n; i++) {
 			node = list->nodes + i;
-			printf (", %u, %u", node->dv, node->sv);
+			printf (", 0x%X, 0x%X", node->dv, node->sv);
 		}
 		putchar ('\n');
 
