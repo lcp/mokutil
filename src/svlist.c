@@ -268,88 +268,14 @@ merge_list (void **var, uint64_t *var_size, svlist_t *list)
 }
 
 static int
-parse_uint (const char *line, const uint64_t length, uint64_t *offset,
-	    const uint64_t limit, uint64_t *value)
-{
-	uint64_t i, number, tmp;
-
-	if (line == NULL || offset == NULL || value == NULL) {
-		fprintf (stderr, "%s: invalid argument\n", __FUNCTION__);
-		return -1;
-	}
-
-	if (!isdigit(line[0])) {
-		return -1;
-	}
-
-	for (i = 0; isdigit (line[i]) && i < length; i++);
-	*offset = i;
-
-	number = 0;
-	for (i = 0; i < *offset; i++) {
-		tmp = (line[i] - '0') + number * 10;
-		if (number >= limit || tmp < number)
-			return -1;
-		number = tmp;
-	}
-
-	*value = number;
-
-	return 0;
-}
-
-static int
-beyond_next_comma (const char *line, const uint64_t length, uint64_t *offset)
-{
-	uint64_t i;
-
-	for (i = 0; i < length; i++) {
-		if (line[i] == ',')
-			break;
-		else if (!isblank (line[i]))
-			return -1;
-	}
-
-	if (line[i] != ',')
-		return -1;
-
-	for (i = i + 1; isblank (line[i]) && i < length; i++);
-
-	*offset = i;
-
-	return 0;
-}
-
-static int
-get_uint (const char *line, const off_t length, uint64_t *offset,
-	  const uint64_t limit, uint64_t *value)
-{
-	char *ptr;
-	uint64_t skip, rest;
-
-	ptr = (char *)line;
-	*offset = 0;
-
-	if (beyond_next_comma (ptr, length, &skip) < 0)
-		return -1;
-	*offset += skip;
-	ptr += skip;
-	rest = length - skip;
-
-	if (parse_uint (ptr, rest, &skip, limit, value) < 0)
-		return -1;
-	*offset += skip;
-
-	return 0;
-}
-
-static int
-parse_line (const char *line, const uint64_t length, svlist_t **list)
+parse_line (char *line, const uint64_t length, svlist_t **list)
 {
 	svlist_t *lptr;
 	svnode_t node;
-	uint64_t count, list_size, value;
-	uint64_t i, j, k, start, end, offset;
+	const char *delim = ", ";
+	char *str, *token;
+	int32_t value;
+	uint64_t i, j, k, count, list_size;
 	uint8_t found;
 
 	if (line == NULL || length == 0 || list == NULL) {
@@ -357,10 +283,15 @@ parse_line (const char *line, const uint64_t length, svlist_t **list)
 		return -1;
 	}
 
+	/* Copy the line for strtok */
+	str = alloca (length + 1);
+	memcpy (str, line, length);
+	str[length] = '\0';
+
 	/* Count commas to calculate the length of the list */
 	count = 0;
 	for (i = 0; i < length; i++) {
-		if (line[i] == ',')
+		if (str[i] == ',')
 			count++;
 	}
 	if (count % 2 != 0) {
@@ -384,39 +315,42 @@ parse_line (const char *line, const uint64_t length, svlist_t **list)
 	}
 	lptr->size = (uint32_t)list_size;
 
-	/* Find the signer */
-	for (start = 0; !isalnum(line[start]) && start < length; start++);
-	for (end = start; isalnum(line[end]) && end < length; end++);
-	if ((end - start) != 4) {
+	/* First token, the signer name */
+	token = strtok (str, delim);
+	if (strlen (token) != 4) {
 		fprintf (stderr, "signer must be 4 characters\n");
 		goto error;
 	}
 
 	/* Assign the signer */
-	memcpy (lptr->signer, (char *)line + start, 4);
-
-	start = end;
+	memcpy (lptr->signer, (char *)token, 4);
 
 	/* Parse distro versions and security versions */
 	j = 0;
-	for (i = 0; i < list_n && start < length; i++) {
-		/* Get the distro version */
-		if (get_uint ((char *)line + start, length - start, &offset,
-			      USHRT_MAX, &value) < 0) {
-			fprintf (stderr, "Failed to get distro version\n");
+	for (i = 0; i < list_n; i++) {
+		token = strtok (NULL, delim);
+		if (token == NULL) {
+			fprintf (stderr, "Failed to parse the file\n");
+			goto error;
+		}
+		value = strtol (token, NULL, 0);
+		if (value < 0 || value > USHRT_MAX) {
+			fprintf (stderr, "Invalid distro version\n");
 			goto error;
 		}
 		node.dv = (uint16_t)value;
-		start += offset;
 
-		/* Get the security version */
-		if (get_uint ((char *)line + start, length - start, &offset,
-			      USHRT_MAX, &value) < 0) {
-			fprintf (stderr, "Failed to get secuirty version\n");
+		token = strtok (NULL, delim);
+		if (token == NULL) {
+			fprintf (stderr, "Failed to parse the file\n");
+			goto error;
+		}
+		value = strtol (token, NULL, 0);
+		if (value < 0 || value > USHRT_MAX) {
+			fprintf (stderr, "Invalid secuirty version\n");
 			goto error;
 		}
 		node.sv = (uint16_t)value;
-		start += offset;
 
 		/* Find duplicate distro version */
 		found = 0;
