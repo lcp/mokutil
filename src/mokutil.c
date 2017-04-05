@@ -602,7 +602,7 @@ list_keys_in_var (const char *var_name, const efi_guid_t guid)
 
 	ret = efi_get_variable (guid, var_name, &data, &data_size, &attributes);
 	if (ret < 0) {
-		if (ret == ENOENT) {
+		if (errno == ENOENT) {
 			printf ("%s is empty\n", var_name);
 			return 0;
 		}
