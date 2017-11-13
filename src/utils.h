@@ -12,6 +12,7 @@ typedef struct {
 	void               *mok;
 } MokListNode;
 
+const char *hash_name_from_guid (const efi_guid_t *hash_type);
 uint32_t efi_hash_size (const efi_guid_t *hash_type);
 uint32_t signature_size (const efi_guid_t *hash_type);
 MokListNode* build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num);
