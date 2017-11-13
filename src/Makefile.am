@@ -9,6 +9,8 @@ mokutil_LDADD   = $(OPENSSL_LIBS)	\
 		  -lcrypt
 
 mokutil_SOURCES = signature.h \
+		  utils.h \
 		  password-crypt.h \
 		  password-crypt.c \
+		  utils.c \
 		  mokutil.c
