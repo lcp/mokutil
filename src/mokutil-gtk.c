@@ -350,19 +350,30 @@ static void
 append_hash (GtkTreeStore *store, MokListNode *node)
 {
 	GtkTreeIter iter;
-	const char *hash_name;
+	char *name;
 
 	if (node == NULL)
 		return;
 
-	hash_name = hash_name_from_guid (&node->header->SignatureType);
-	if (hash_name == NULL)
+	int rc = efi_guid_to_name(&node->header->SignatureType, &name);
+	if (rc < 0 || isxdigit(name[0])) {
+		if (name) {
+			free(name);
+			fprintf (stderr, "unknown hash type: %s\n", name);
+		} else {
+			fprintf (stderr, "unknown hash type\n");
+		}
+		return;
+	}
+
+	/* We only accept SHA family for now */
+	if (strncmp ("SHA", name, 3) != 0)
 		return;
 
 	gtk_tree_store_append (store, &iter, NULL);
-	gtk_tree_store_set (store, &iter, TYPE_COLUMN, hash_name,
-			    KEY_COLUMN, NULL, -1);
-	/* TODO print the hash type and value */
+	gtk_tree_store_set (store, &iter, TYPE_COLUMN, name, -1);
+	free (name);
+	/* TODO append the hash entries */
 }
 
 static GtkWidget *

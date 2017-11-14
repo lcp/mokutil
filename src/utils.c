@@ -6,24 +6,6 @@
 
 #include "utils.h"
 
-const char *
-hash_name_from_guid (const efi_guid_t *hash_type)
-{
-	if (efi_guid_cmp (hash_type, &efi_guid_sha1) == 0) {
-		return "SHA1";
-	} else if (efi_guid_cmp (hash_type, &efi_guid_sha224) == 0) {
-		return "SHA224";
-	} else if (efi_guid_cmp (hash_type, &efi_guid_sha256) == 0) {
-		return "SHA256";
-	} else if (efi_guid_cmp (hash_type, &efi_guid_sha384) == 0) {
-		return "SHA384";
-	} else if (efi_guid_cmp (hash_type, &efi_guid_sha512) == 0) {
-		return "SHA512";
-	}
-
-	return NULL;
-}
-
 uint32_t
 efi_hash_size (const efi_guid_t *hash_type)
 {
