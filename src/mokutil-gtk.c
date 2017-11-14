@@ -246,65 +246,66 @@ append_name_entries (X509_NAME *X509name, GtkTreeStore *store,
 
 static void
 append_cert_entries (MokListNode *node, X509 *X509cert, GtkTreeStore *store,
-		     GtkTreeIter *p_iter, GtkTreeIter *c_iter)
+		     GtkTreeIter *p_iter)
 {
+	GtkTreeIter c_iter;
 	X509_NAME *X509name;
 	char *str;
 
 	/* Serial Number */
 	str = get_x509_serial_str (X509cert);
-	gtk_tree_store_append (store, c_iter, p_iter);
+	gtk_tree_store_append (store, &c_iter, p_iter);
 	/* TODO markup bold */
-	gtk_tree_store_set (store, c_iter, TYPE_COLUMN, _("Serial:"), -1);
+	gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, _("Serial:"), -1);
 	free (str);
 
-	gtk_tree_store_append (store, c_iter, p_iter);
-	gtk_tree_store_set (store, c_iter, TYPE_COLUMN, NULL,
+	gtk_tree_store_append (store, &c_iter, p_iter);
+	gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, NULL,
 			    KEY_COLUMN, NULL, -1);
 
 	/* Subject (title) */
-	gtk_tree_store_append (store, c_iter, p_iter);
-	gtk_tree_store_set (store, c_iter, TYPE_COLUMN, _("Subject:"), -1);
+	gtk_tree_store_append (store, &c_iter, p_iter);
+	gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, _("Subject:"), -1);
 
 	X509name = X509_get_subject_name (X509cert);
 
-	append_name_entries (X509name, store, p_iter, c_iter);
+	append_name_entries (X509name, store, p_iter, &c_iter);
 
-	gtk_tree_store_append (store, c_iter, p_iter);
-	gtk_tree_store_set (store, c_iter, -1);
+	gtk_tree_store_append (store, &c_iter, p_iter);
+	gtk_tree_store_set (store, &c_iter, -1);
 
 	/* Issuer (title) */
-	gtk_tree_store_append (store, c_iter, p_iter);
-	gtk_tree_store_set (store, c_iter, TYPE_COLUMN, _("Issuer:"), -1);
+	gtk_tree_store_append (store, &c_iter, p_iter);
+	gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, _("Issuer:"), -1);
 
 	X509name = X509_get_issuer_name (X509cert);
 
-	append_name_entries (X509name, store, p_iter, c_iter);
+	append_name_entries (X509name, store, p_iter, &c_iter);
 
-	gtk_tree_store_append (store, c_iter, p_iter);
-	gtk_tree_store_set (store, c_iter, -1);
+	gtk_tree_store_append (store, &c_iter, p_iter);
+	gtk_tree_store_set (store, &c_iter, -1);
 
 	/* Valid Date */
-	gtk_tree_store_append (store, c_iter, p_iter);
-	gtk_tree_store_set (store, c_iter, TYPE_COLUMN, _("Valid Date:"), -1);
+	gtk_tree_store_append (store, &c_iter, p_iter);
+	gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, _("Valid Date:"), -1);
 
 	append_time_entry (X509_get_notBefore (X509cert), _("From"),
-			   store, p_iter, c_iter);
+			   store, p_iter, &c_iter);
 
 	append_time_entry (X509_get_notAfter (X509cert), _("Until"),
-			   store, p_iter, c_iter);
+			   store, p_iter, &c_iter);
 
-	gtk_tree_store_append (store, c_iter, p_iter);
-	gtk_tree_store_set (store, c_iter, -1);
+	gtk_tree_store_append (store, &c_iter, p_iter);
+	gtk_tree_store_set (store, &c_iter, -1);
 
 	/* Fingerprint */
-	append_fingerprint (node->mok, node->mok_size, store, p_iter, c_iter);
+	append_fingerprint (node->mok, node->mok_size, store, p_iter, &c_iter);
 }
 
 static void
 append_cert (GtkTreeStore *store, MokListNode *node)
 {
-	GtkTreeIter p_iter, c_iter;
+	GtkTreeIter iter;
 	X509 *X509cert;
 	BIO *cert_bio;
 	const char *common_name;
@@ -313,8 +314,8 @@ append_cert (GtkTreeStore *store, MokListNode *node)
 		return;
 
 	/* Set the treeview */
-	gtk_tree_store_append (store, &p_iter, NULL);
-	gtk_tree_store_set (store, &p_iter, TYPE_COLUMN, "X509", -1);
+	gtk_tree_store_append (store, &iter, NULL);
+	gtk_tree_store_set (store, &iter, TYPE_COLUMN, "X509", -1);
 
 	/* Convert DER to X509 structure */
 	cert_bio = BIO_new (BIO_s_mem());
@@ -325,17 +326,17 @@ append_cert (GtkTreeStore *store, MokListNode *node)
 	BIO_write (cert_bio, node->mok, node->mok_size);
 	X509cert = d2i_X509_bio (cert_bio, NULL);
 	if (X509cert == NULL) {
-		gtk_tree_store_set (store, &p_iter, KEY_COLUMN,
+		gtk_tree_store_set (store, &iter, KEY_COLUMN,
 				    _("Invalid certificate"), -1);
 		return;
 	}
 
 	/* Set the key column to the common name */
 	common_name = get_x509_common_name (X509cert);
-	gtk_tree_store_set (store, &p_iter, KEY_COLUMN, common_name, -1);
+	gtk_tree_store_set (store, &iter, KEY_COLUMN, common_name, -1);
 
 	/* Append the contents of the certificate to the child nodes */
-	append_cert_entries (node, X509cert, store, &p_iter, &c_iter);
+	append_cert_entries (node, X509cert, store, &iter);
 }
 
 static void
