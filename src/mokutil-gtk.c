@@ -502,6 +502,67 @@ generate_pages (GtkWidget *container)
 	return 0;
 }
 
+static char *
+get_cert_name_from_dialog (GtkWidget *window)
+{
+	GtkWidget *dialog;
+	GtkFileChooserAction action = GTK_FILE_CHOOSER_ACTION_OPEN;
+	char *filename = NULL;
+	gint result;
+
+	dialog = gtk_file_chooser_dialog_new (_("Choose a certificate"),
+					      GTK_WINDOW(window),
+					      action,
+					      _("_Cancel"),
+					      GTK_RESPONSE_CANCEL,
+					      _("_Open"),
+					      GTK_RESPONSE_ACCEPT,
+					      NULL);
+	result = gtk_dialog_run (GTK_DIALOG(dialog));
+	if (result != GTK_RESPONSE_ACCEPT)
+		goto out;
+
+	filename = gtk_file_chooser_get_filename (GTK_FILE_CHOOSER(dialog));
+out:
+	gtk_widget_destroy (dialog);
+
+	return filename;
+}
+
+static void
+import_key (GtkWidget *window, gboolean is_mok)
+{
+	char *certname;
+
+	certname = get_cert_name_from_dialog (window);
+	if (certname == NULL)
+		return;
+
+	if (is_mok) {
+		/* TODO import MOK */
+		printf ("Import MOK %s\n", certname);
+	} else {
+		/* TODO import MOKX */
+		printf ("Import MOKX %s\n", certname);
+	}
+
+	g_free (certname);
+}
+
+static void
+import_mok_cb (GtkMenuItem * item __attribute__((unused)),
+	       GtkWidget *window)
+{
+	import_key (window, TRUE);
+}
+
+static void
+import_mokx_cb (GtkMenuItem * item __attribute__((unused)),
+	       GtkWidget *window)
+{
+	import_key (window, FALSE);
+}
+
 static void
 about_cb (GtkMenuItem * item __attribute__((unused)),
 	  GtkWidget *window)
@@ -530,14 +591,16 @@ generate_menubar_menus (GtkWidget *menu_bar, GtkWidget *window)
 	filemenu = gtk_menu_new ();
 
 	mok = gtk_menu_item_new_with_label (_("Import MOK"));
-	/* TODO Implement the MOK import callback */
+	g_signal_connect (G_OBJECT(mok), "activate",
+			  G_CALLBACK(import_mok_cb), window);
 	gtk_widget_add_accelerator (mok, "activate", accel_group,
 				    GDK_KEY_i, GDK_CONTROL_MASK,
 				    GTK_ACCEL_VISIBLE);
 	gtk_menu_shell_append (GTK_MENU_SHELL(filemenu), mok);
 
 	mokx = gtk_menu_item_new_with_label (_("Import MOKX"));
-	/* TODO Implement the MOKX import callback */
+	g_signal_connect (G_OBJECT(mokx), "activate",
+			  G_CALLBACK(import_mokx_cb), window);
 	gtk_widget_add_accelerator (mokx, "activate", accel_group,
 				    GDK_KEY_x, GDK_CONTROL_MASK,
 				    GTK_ACCEL_VISIBLE);
