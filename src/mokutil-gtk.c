@@ -339,6 +339,44 @@ append_cert (GtkTreeStore *store, MokListNode *node)
 }
 
 static void
+append_hash_entries (MokListNode *node, GtkTreeStore *store,
+		     GtkTreeIter *p_iter)
+{
+	GtkTreeIter c_iter;
+	uint32_t hash_size, sig_size, remain;
+	uint32_t i;
+	uint8_t *hash;
+	char str[SHA512_DIGEST_LENGTH * 2 + 1];
+	char *ptr;
+
+	hash_size = efi_hash_size (&node->header->SignatureType);
+	sig_size = hash_size + sizeof(efi_guid_t);
+
+	remain = node->mok_size;
+	hash = (uint8_t *)node->mok;
+
+	while (remain > 0) {
+		if (remain < sig_size) {
+			fprintf (stderr, "invalid array size\n");
+			return;
+		}
+
+		hash += sizeof(efi_guid_t);
+
+		ptr = str;
+		for (i = 0; i < hash_size; i++) {
+			sprintf (ptr, "%02x", hash[i]);
+			ptr += 2;
+		}
+		gtk_tree_store_append (store, &c_iter, p_iter);
+		gtk_tree_store_set (store, &c_iter, KEY_COLUMN, str, -1);
+
+		hash += hash_size;
+		remain -= sig_size;
+	}
+}
+
+static void
 append_hash (GtkTreeStore *store, MokListNode *node)
 {
 	GtkTreeIter iter;
@@ -365,7 +403,8 @@ append_hash (GtkTreeStore *store, MokListNode *node)
 	gtk_tree_store_append (store, &iter, NULL);
 	gtk_tree_store_set (store, &iter, TYPE_COLUMN, name, -1);
 	free (name);
-	/* TODO append the hash entries */
+
+	append_hash_entries (node, store, &iter);
 }
 
 static GtkWidget *
