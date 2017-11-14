@@ -503,6 +503,81 @@ generate_pages (GtkWidget *container)
 }
 
 static void
+about_cb (GtkMenuItem * item __attribute__((unused)),
+	  GtkWidget *window)
+{
+	const char *authors[] = {"Gary Lin", NULL};
+
+	gtk_show_about_dialog (GTK_WINDOW(window),
+			       "version", VERSION,
+			       "copyright", "GPL-3.0",
+			       "authors", authors,
+			       NULL);
+}
+
+static void
+generate_menubar_menus (GtkWidget *menu_bar, GtkWidget *window)
+{
+	GtkWidget *filemenu, *helpmenu;
+	GtkWidget *file, *quit, *mok, *mokx;
+	GtkWidget *help_top, *help, *about;
+	GtkAccelGroup *accel_group;
+
+	accel_group = gtk_accel_group_new ();
+	gtk_window_add_accel_group (GTK_WINDOW (window), accel_group);
+
+	/* File Menu */
+	filemenu = gtk_menu_new ();
+
+	mok = gtk_menu_item_new_with_label (_("Import MOK"));
+	/* TODO Implement the MOK import callback */
+	gtk_widget_add_accelerator (mok, "activate", accel_group,
+				    GDK_KEY_i, GDK_CONTROL_MASK,
+				    GTK_ACCEL_VISIBLE);
+	gtk_menu_shell_append (GTK_MENU_SHELL(filemenu), mok);
+
+	mokx = gtk_menu_item_new_with_label (_("Import MOKX"));
+	/* TODO Implement the MOKX import callback */
+	gtk_widget_add_accelerator (mokx, "activate", accel_group,
+				    GDK_KEY_x, GDK_CONTROL_MASK,
+				    GTK_ACCEL_VISIBLE);
+	gtk_menu_shell_append (GTK_MENU_SHELL(filemenu), mokx);
+
+	gtk_menu_shell_append (GTK_MENU_SHELL(filemenu),
+			       gtk_separator_menu_item_new ());
+
+	quit = gtk_menu_item_new_with_label (_("Quit"));
+	g_signal_connect (G_OBJECT(quit), "activate",
+			  G_CALLBACK(gtk_main_quit), NULL);
+	gtk_widget_add_accelerator (quit, "activate", accel_group,
+				    GDK_KEY_q, GDK_CONTROL_MASK,
+				    GTK_ACCEL_VISIBLE);
+	gtk_menu_shell_append (GTK_MENU_SHELL(filemenu), quit);
+
+	file = gtk_menu_item_new_with_label (_("File"));
+	gtk_menu_item_set_submenu (GTK_MENU_ITEM(file), filemenu);
+	gtk_menu_shell_append (GTK_MENU_SHELL(menu_bar), file);
+
+	/* Help Menu */
+	helpmenu = gtk_menu_new ();
+
+	help = gtk_menu_item_new_with_label (_("Help"));
+	/* TODO Implement the help window */
+	gtk_widget_add_accelerator (help, "activate", accel_group,
+				    GDK_KEY_F1, 0, GTK_ACCEL_VISIBLE);
+	gtk_menu_shell_append (GTK_MENU_SHELL(helpmenu), help);
+
+	about = gtk_menu_item_new_with_label (_("About"));
+	g_signal_connect (G_OBJECT(about), "activate",
+			  G_CALLBACK(about_cb), window);
+	gtk_menu_shell_append (GTK_MENU_SHELL(helpmenu), about);
+
+	help_top = gtk_menu_item_new_with_label (_("Help"));
+	gtk_menu_item_set_submenu (GTK_MENU_ITEM(help_top), helpmenu);
+	gtk_menu_shell_append (GTK_MENU_SHELL(menu_bar), help_top);
+}
+
+static void
 show_ui(void)
 {
 	GtkWidget *window, *vbox;
@@ -519,7 +594,7 @@ show_ui(void)
 
 	menu_bar = gtk_menu_bar_new ();
 	gtk_box_pack_start (GTK_BOX(vbox), menu_bar, FALSE, FALSE, 0);
-	/* TODO add menu items */
+	generate_menubar_menus (menu_bar, window);
 
 	pages = gtk_notebook_new ();
 	gtk_box_pack_start (GTK_BOX(vbox), pages, FALSE, FALSE, 0);
