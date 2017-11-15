@@ -334,17 +334,23 @@ delete_from_pending_request (const efi_guid_t *type, void *data,
 	uint32_t attributes;
 	int ret;
 
+	/* Search the list in opposite to the request:
+	 *  DELETE_MOK -> MokNew
+	 *  ENROLL_MOK -> MokDel
+	 *  DELETE_BLACKLIST -> MokXNew
+	 *  ENROLL_BLACKLIST -> MokXDel
+	 * */
 	const char *authvar_names[] = {
-		[DELETE_MOK] = "MokDelAuth",
-		[ENROLL_MOK] = "MokAuth",
-		[DELETE_BLACKLIST] = "MokXDelAuth",
-		[ENROLL_BLACKLIST] = "MokXAuth"
+		[DELETE_MOK] = "MokAuth",
+		[ENROLL_MOK] = "MokDelAuth",
+		[DELETE_BLACKLIST] = "MokXAuth",
+		[ENROLL_BLACKLIST] = "MokXDelAuth"
 	};
 	const char *var_names[] = {
-		[DELETE_MOK] = "MokDel",
-		[ENROLL_MOK] = "Mok",
-		[DELETE_BLACKLIST] = "MokXDel",
-		[ENROLL_BLACKLIST] = "MokX"
+		[DELETE_MOK] = "MokNew",
+		[ENROLL_MOK] = "MokDel",
+		[DELETE_BLACKLIST] = "MokXNew",
+		[ENROLL_BLACKLIST] = "MokXDel"
 	};
 
 	if (!data || data_size == 0)
