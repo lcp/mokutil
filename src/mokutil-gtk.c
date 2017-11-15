@@ -3,8 +3,11 @@
 #endif
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include <efivar.h>
 
@@ -131,6 +134,107 @@ get_x509_serial_str (X509 *X509cert)
 	}
 
 	return serial_str;
+}
+
+static void
+show_msg_dialog (GtkWindow *window, GtkMessageType type, const char *msg)
+{
+	GtkWidget *dialog;
+
+	dialog = gtk_message_dialog_new (window,
+					 GTK_DIALOG_DESTROY_WITH_PARENT,
+					 type,
+					 GTK_BUTTONS_OK,
+					 NULL);
+	gtk_message_dialog_set_markup (GTK_MESSAGE_DIALOG(dialog), msg);
+
+	gtk_dialog_run (GTK_DIALOG(dialog));
+	gtk_widget_destroy (dialog);
+}
+
+static void
+root_check_cb (GtkToggleButton *toggle, GtkWidget *pwd_entry[])
+{
+	if (gtk_toggle_button_get_active (toggle)) {
+		gtk_widget_set_sensitive (pwd_entry[0], FALSE);
+		gtk_widget_set_sensitive (pwd_entry[1], FALSE);
+	} else {
+		gtk_widget_set_sensitive (pwd_entry[0], TRUE);
+		gtk_widget_set_sensitive (pwd_entry[1], TRUE);
+	}
+}
+
+static int
+show_password_dialog (GtkWindow *window, char **password, gboolean *root_pw)
+{
+	GtkWidget *dialog, *content;
+	GtkWidget *label, *root_check;
+	GtkWidget *pwd_entry[2];
+	GtkDialogFlags flags;
+	gint result;
+	const gchar *pwd1, *pwd2;
+
+	*root_pw = FALSE;
+
+	flags = GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT;
+	dialog = gtk_dialog_new_with_buttons (_("Password"),
+					      window,
+					      flags,
+					      _("_OK"),
+					      GTK_RESPONSE_ACCEPT,
+					      _("_Cancel"),
+					      GTK_RESPONSE_CANCEL,
+					      NULL);
+	content = gtk_dialog_get_content_area (GTK_DIALOG(dialog));
+	gtk_container_set_border_width (GTK_CONTAINER(content), 10);
+	gtk_box_set_spacing (GTK_BOX(content), 10);
+
+	label = gtk_label_new (_("Enter password for the request"));
+	gtk_container_add (GTK_CONTAINER(content), label);
+
+	pwd_entry[0] = gtk_entry_new ();
+	gtk_entry_set_activates_default (GTK_ENTRY(pwd_entry[0]), TRUE);
+	gtk_entry_set_visibility (GTK_ENTRY(pwd_entry[0]), FALSE);
+	gtk_entry_set_input_purpose (GTK_ENTRY(pwd_entry[0]),
+				     GTK_INPUT_PURPOSE_PASSWORD);
+	gtk_container_add (GTK_CONTAINER(content), pwd_entry[0]);
+
+	pwd_entry[1] = gtk_entry_new ();
+	gtk_entry_set_activates_default (GTK_ENTRY(pwd_entry[1]), TRUE);
+	gtk_entry_set_visibility (GTK_ENTRY(pwd_entry[1]), FALSE);
+	gtk_entry_set_input_purpose (GTK_ENTRY(pwd_entry[1]),
+				     GTK_INPUT_PURPOSE_PASSWORD);
+	gtk_container_add (GTK_CONTAINER(content), pwd_entry[1]);
+
+	root_check = gtk_check_button_new_with_label (_("Use root password"));
+	g_signal_connect (root_check, "toggled", G_CALLBACK(root_check_cb),
+			  pwd_entry);
+	gtk_container_add (GTK_CONTAINER(content), root_check);
+
+	gtk_widget_show_all (dialog);
+again:
+	result = gtk_dialog_run (GTK_DIALOG(dialog));
+	if (result == GTK_RESPONSE_CANCEL) {
+		gtk_widget_destroy (dialog);
+		return -1;
+	}
+
+	*root_pw = gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON(root_check));
+	if (*root_pw == TRUE)
+		goto out;
+
+	pwd1 = gtk_entry_get_text (GTK_ENTRY(pwd_entry[0]));
+	pwd2 = gtk_entry_get_text (GTK_ENTRY(pwd_entry[1]));
+	if (strcmp (pwd1, pwd2) != 0) {
+		show_msg_dialog (GTK_WINDOW(dialog), GTK_MESSAGE_ERROR,
+				 _("Password doesn't match!"));
+		goto again;
+	}
+
+	*password = g_strdup_printf ("%s", pwd1);
+out:
+	gtk_widget_destroy (dialog);
+	return 0;
 }
 
 /* For the key page tree view */
@@ -529,24 +633,109 @@ out:
 	return filename;
 }
 
+static int
+read_file_to_buffer (const char *filename, uint8_t **buffer,
+		     uint32_t *buf_size)
+{
+	struct stat f_stat;
+	ssize_t read_size;
+	int fd = 0, ret = -1;
+
+	if (stat (filename, &f_stat) != 0)
+			goto out;
+
+	*buffer = (uint8_t *)malloc (f_stat.st_size);
+	if (*buffer == NULL)
+		return -1;
+
+	fd = open (filename, O_RDONLY);
+	if (fd == -1)
+		return -1;
+
+	read_size = read (fd, *buffer, f_stat.st_size);
+	if (read_size < 0 || read_size != f_stat.st_size)
+		goto out;
+
+	*buf_size = (uint32_t)read_size;
+	ret = 0;
+out:
+	if (fd > 0)
+		close (fd);
+
+	return ret;
+}
+
 static void
 import_key (GtkWidget *window, gboolean is_mok)
 {
-	char *certname;
+	char *certname = NULL;
+	uint8_t *cert = NULL;
+	uint32_t cert_size;
+	MokRequest req;
+	char *password = NULL;
+	gboolean root_pw;
 
 	certname = get_cert_name_from_dialog (window);
 	if (certname == NULL)
 		return;
 
-	if (is_mok) {
-		/* TODO import MOK */
-		printf ("Import MOK %s\n", certname);
-	} else {
-		/* TODO import MOKX */
-		printf ("Import MOKX %s\n", certname);
+	if (read_file_to_buffer (certname, &cert, &cert_size) < 0) {
+		show_msg_dialog (GTK_WINDOW(window),
+				 GTK_MESSAGE_ERROR,
+				 _("Failed to read file"));
+		goto out;
 	}
 
-	g_free (certname);
+	if (!is_valid_cert(cert, cert_size)) {
+		show_msg_dialog (GTK_WINDOW(window),
+				 GTK_MESSAGE_ERROR,
+				 _("Not a valid DER certificate"));
+		goto out;
+	}
+
+	if (is_mok)
+		req = ENROLL_MOK;
+	else
+		req = ENROLL_BLACKLIST;
+
+	if (!is_valid_request (&efi_guid_x509_cert, cert, cert_size, req)) {
+		show_msg_dialog (GTK_WINDOW(window),
+				 GTK_MESSAGE_ERROR,
+				 _("The key is already enrolled."));
+		goto out;
+	} else if (delete_from_pending_request (&efi_guid_x509_cert,
+						cert, cert_size, req)) {
+		const char *msg;
+		if (is_mok)
+			msg = _("Removed the key from MokDel");
+		else
+			msg = _("Removed the key from MokXNew");
+		show_msg_dialog (GTK_WINDOW(window), GTK_MESSAGE_ERROR, msg);
+		goto out;
+	}
+	/* TODO
+	 *   Read the variable
+	 *   Append the key
+	 *   */
+
+	if (show_password_dialog (GTK_WINDOW(window), &password,
+				  &root_pw) < 0)
+		goto out;
+
+	if (!root_pw) {
+		/* TODO generate MokAuth or MokXAuth from password */
+	} else {
+		/* TODO copy root password hash from shadow
+		 *      get_password_from_shadow() */
+	}
+
+out:
+	if (certname != NULL)
+		g_free (certname);
+	if (cert != NULL)
+		free (cert);
+	if (password != NULL)
+		free (password);
 }
 
 static void
