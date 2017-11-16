@@ -41,6 +41,27 @@ signature_size (const efi_guid_t *hash_type)
 	return 0;
 }
 
+void
+allocate_x509_sig (void *dest, const uint8_t *cert, const uint32_t cert_size)
+{
+	EFI_SIGNATURE_LIST *CertList;
+	EFI_SIGNATURE_DATA *CertData;
+
+	CertList = dest;
+	CertData = (EFI_SIGNATURE_DATA *)(((uint8_t *)dest) +
+					  sizeof(EFI_SIGNATURE_LIST));
+	CertList->SignatureType = efi_guid_x509_cert;
+	CertList->SignatureListSize = cert_size +
+	   sizeof(EFI_SIGNATURE_LIST) + sizeof(EFI_SIGNATURE_DATA) - 1;
+	CertList->SignatureHeaderSize = 0;
+	CertList->SignatureSize = cert_size + sizeof(efi_guid_t);
+	CertData->SignatureOwner = efi_guid_shim;
+
+	CertData = (EFI_SIGNATURE_DATA *)(((uint8_t *)dest) +
+					  sizeof(EFI_SIGNATURE_LIST));
+	memcpy (CertData->SignatureData, cert, cert_size);
+}
+
 int
 test_and_delete_var (const char *var_name)
 {
@@ -523,7 +544,8 @@ generate_salt (char salt[], unsigned int salt_size)
 }
 
 int
-generate_hash (pw_crypt_t *pw_crypt, char *password, unsigned int pw_len)
+generate_hash (pw_crypt_t *pw_crypt, const char *password,
+	       const unsigned int pw_len)
 {
 	pw_crypt_t new_crypt;
 	char settings[SETTINGS_LEN];
@@ -592,4 +614,28 @@ generate_auth (void *new_list, int list_len, char *password,
 	SHA256_Final (auth, &ctx);
 
 	return 0;
+}
+
+/* Create the variable to store the password hash */
+int
+create_authvar (const char *auth_name, const char *password,
+		const uint8_t root_pw)
+{
+	pw_crypt_t pw_crypt;
+	int ret;
+
+	bzero (&pw_crypt, sizeof(pw_crypt_t));
+	pw_crypt.method = DEFAULT_CRYPT_METHOD;
+
+	/* Generate the password hash */
+	if (!root_pw)
+		ret = generate_hash (&pw_crypt, password, strlen(password));
+	else
+		ret = get_password_from_shadow (&pw_crypt);
+	if (ret < 0)
+		return ret;
+
+	return efi_set_variable (efi_guid_shim, auth_name, (void *)&pw_crypt,
+				 PASSWORD_CRYPT_SIZE, EFI_NV_RT,
+				 S_IRUSR | S_IWUSR);
 }

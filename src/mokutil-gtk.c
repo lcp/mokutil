@@ -666,14 +666,26 @@ out:
 }
 
 static void
-import_key (GtkWidget *window, gboolean is_mok)
+import_key (GtkWidget *window, MokRequest req)
 {
 	char *certname = NULL;
 	uint8_t *cert = NULL;
 	uint32_t cert_size;
-	MokRequest req;
+	uint8_t *var_data = NULL, *new_var_data = NULL;
+	uint8_t *ptr;
+	size_t var_size, new_var_size;
+	uint32_t attributes;
 	char *password = NULL;
 	gboolean root_pw;
+	int ret;
+	const char *var_name[] = {
+		[ENROLL_MOK] = "MokNew",
+		[ENROLL_BLACKLIST] = "MokXNew",
+	};
+	const char *authvar_name[] = {
+		[ENROLL_MOK] = "MokAuth",
+		[ENROLL_BLACKLIST] = "MokXAuth",
+	};
 
 	certname = get_cert_name_from_dialog (window);
 	if (certname == NULL)
@@ -693,11 +705,6 @@ import_key (GtkWidget *window, gboolean is_mok)
 		goto out;
 	}
 
-	if (is_mok)
-		req = ENROLL_MOK;
-	else
-		req = ENROLL_BLACKLIST;
-
 	if (!is_valid_request (&efi_guid_x509_cert, cert, cert_size, req)) {
 		show_msg_dialog (GTK_WINDOW(window),
 				 GTK_MESSAGE_ERROR,
@@ -705,30 +712,65 @@ import_key (GtkWidget *window, gboolean is_mok)
 		goto out;
 	} else if (delete_from_pending_request (&efi_guid_x509_cert,
 						cert, cert_size, req)) {
-		const char *msg;
-		if (is_mok)
-			msg = _("Removed the key from MokDel");
-		else
-			msg = _("Removed the key from MokXNew");
-		show_msg_dialog (GTK_WINDOW(window), GTK_MESSAGE_ERROR, msg);
+		const char *msg[] = {
+			[ENROLL_MOK] = _("Removed the key from MokDel"),
+			[ENROLL_BLACKLIST] = _("Removed the key from MokXDel"),
+		};
+		show_msg_dialog (GTK_WINDOW(window), GTK_MESSAGE_ERROR,
+				 msg[req]);
 		goto out;
 	}
-	/* TODO
-	 *   Read the variable
-	 *   Append the key
-	 *   */
 
+	/* Ask for the password */
 	if (show_password_dialog (GTK_WINDOW(window), &password,
 				  &root_pw) < 0)
 		goto out;
 
-	if (!root_pw) {
-		/* TODO generate MokAuth or MokXAuth from password */
-	} else {
-		/* TODO copy root password hash from shadow
-		 *      get_password_from_shadow() */
+	/* Read the variable and append the key */
+	ret = efi_get_variable (efi_guid_shim, var_name[req], &var_data,
+				&var_size, &attributes);
+	if (ret < 0 && errno == ENOENT) {
+		var_size = 0;
+	} else if (ret < 0) {
+		const char *msg[] = {
+			[ENROLL_MOK] = _("Failed to get MokNew"),
+			[ENROLL_BLACKLIST] = _("Failed to get MokXNew"),
+		};
+		show_msg_dialog (GTK_WINDOW(window), GTK_MESSAGE_ERROR,
+				 msg[req]);
+		goto out;
 	}
 
+	new_var_size = var_size + sizeof(EFI_SIGNATURE_LIST) +
+		       sizeof (efi_guid_t) + cert_size;
+	new_var_data = malloc (new_var_size);
+	if (new_var_data == NULL) {
+		show_msg_dialog (GTK_WINDOW(window), GTK_MESSAGE_ERROR,
+				 _("Failed to allocate memory"));
+		goto out;
+	}
+	if (var_size > 0)
+		memcpy (new_var_data, var_data, var_size);
+	ptr = new_var_data + var_size;
+	allocate_x509_sig (ptr, cert, cert_size);
+
+	ret = efi_set_variable (efi_guid_shim, var_name[req], new_var_data,
+				new_var_size, EFI_NV_RT, S_IRUSR | S_IWUSR);
+	if (ret < 0) {
+		show_msg_dialog (GTK_WINDOW(window), GTK_MESSAGE_ERROR,
+				 _("Failed to write the EFI variable"));
+		goto out;
+	}
+
+	/* Generate the password hash */
+	if (create_authvar (authvar_name[req], password, root_pw) < 0) {
+		test_and_delete_var (var_name[req]);
+		show_msg_dialog (GTK_WINDOW(window), GTK_MESSAGE_ERROR,
+				 _("Failed to generate password hash"));
+		goto out;
+	}
+
+	/* TODO Refresh MokNew or MokXNew page */
 out:
 	if (certname != NULL)
 		g_free (certname);
@@ -736,20 +778,24 @@ out:
 		free (cert);
 	if (password != NULL)
 		free (password);
+	if (var_data != NULL)
+		free (var_data);
+	if (new_var_data != NULL)
+		free (new_var_data);
 }
 
 static void
 import_mok_cb (GtkMenuItem * item __attribute__((unused)),
 	       GtkWidget *window)
 {
-	import_key (window, TRUE);
+	import_key (window, ENROLL_MOK);
 }
 
 static void
 import_mokx_cb (GtkMenuItem * item __attribute__((unused)),
 	       GtkWidget *window)
 {
-	import_key (window, FALSE);
+	import_key (window, ENROLL_BLACKLIST);
 }
 
 static void

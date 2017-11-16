@@ -16,6 +16,10 @@
 #define DEFAULT_SALT_SIZE    SHA512_SALT_MAX
 #define SETTINGS_LEN         (DEFAULT_SALT_SIZE*2)
 
+#define EFI_NV_RT EFI_VARIABLE_NON_VOLATILE | \
+		  EFI_VARIABLE_BOOTSERVICE_ACCESS | \
+		  EFI_VARIABLE_RUNTIME_ACCESS
+
 typedef wchar_t efi_char16_t;		/* UNICODE character */
 
 typedef enum {
@@ -33,6 +37,9 @@ typedef struct {
 
 uint32_t efi_hash_size (const efi_guid_t *hash_type);
 uint32_t signature_size (const efi_guid_t *hash_type);
+
+void allocate_x509_sig (void *dest, const uint8_t *cert,
+			const uint32_t cert_size);
 
 int test_and_delete_var (const char *var_name);
 
@@ -60,7 +67,11 @@ int is_valid_cert (void *cert, uint32_t cert_size);
 int get_password_from_shadow (pw_crypt_t *pw_crypt);
 
 void generate_salt (char salt[], unsigned int salt_size);
-int generate_hash (pw_crypt_t *pw_crypt, char *password, unsigned int pw_len);
+int generate_hash (pw_crypt_t *pw_crypt, const char *password,
+		   const unsigned int pw_len);
 int generate_auth (void *new_list, int list_len, char *password,
 		   unsigned int pw_len, uint8_t *auth);
+
+int create_authvar (const char *auth_name, const char *password,
+		    const uint8_t root_pw);
 #endif /* __UTIL_H__ */
