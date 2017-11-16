@@ -137,20 +137,39 @@ get_x509_serial_str (X509 *X509cert)
 }
 
 static void
-show_msg_dialog (GtkWindow *window, GtkMessageType type, const char *msg)
+show_info_dialog (GtkWindow *window, const char *msg)
 {
 	GtkWidget *dialog;
 
 	dialog = gtk_message_dialog_new (window,
 					 GTK_DIALOG_DESTROY_WITH_PARENT,
-					 type,
+					 GTK_MESSAGE_INFO,
 					 GTK_BUTTONS_OK,
-					 NULL);
-	gtk_message_dialog_set_markup (GTK_MESSAGE_DIALOG(dialog), msg);
+					 "%s", _("Information"));
+	gtk_message_dialog_format_secondary_text (GTK_MESSAGE_DIALOG(dialog),
+						  "%s", msg);
 
 	gtk_dialog_run (GTK_DIALOG(dialog));
 	gtk_widget_destroy (dialog);
 }
+
+static void
+show_err_dialog (GtkWindow *window, const char *msg)
+{
+	GtkWidget *dialog;
+
+	dialog = gtk_message_dialog_new (window,
+					 GTK_DIALOG_DESTROY_WITH_PARENT,
+					 GTK_MESSAGE_ERROR,
+					 GTK_BUTTONS_OK,
+					 "%s", _("Error"));
+	gtk_message_dialog_format_secondary_text (GTK_MESSAGE_DIALOG(dialog),
+						  "%s", msg);
+
+	gtk_dialog_run (GTK_DIALOG(dialog));
+	gtk_widget_destroy (dialog);
+}
+
 
 static void
 root_check_cb (GtkToggleButton *toggle, GtkWidget *pwd_entry[])
@@ -226,7 +245,7 @@ again:
 	pwd1 = gtk_entry_get_text (GTK_ENTRY(pwd_entry[0]));
 	pwd2 = gtk_entry_get_text (GTK_ENTRY(pwd_entry[1]));
 	if (strcmp (pwd1, pwd2) != 0) {
-		show_msg_dialog (GTK_WINDOW(dialog), GTK_MESSAGE_ERROR,
+		show_err_dialog (GTK_WINDOW(dialog),
 				 _("Password doesn't match!"));
 		goto again;
 	}
@@ -740,22 +759,19 @@ import_key (GtkWidget *window, MokRequest req)
 		return;
 
 	if (read_file_to_buffer (certname, &cert, &cert_size) < 0) {
-		show_msg_dialog (GTK_WINDOW(window),
-				 GTK_MESSAGE_ERROR,
+		show_err_dialog (GTK_WINDOW(window),
 				 _("Failed to read file"));
 		goto out;
 	}
 
 	if (!is_valid_cert(cert, cert_size)) {
-		show_msg_dialog (GTK_WINDOW(window),
-				 GTK_MESSAGE_ERROR,
+		show_err_dialog (GTK_WINDOW(window),
 				 _("Not a valid DER certificate"));
 		goto out;
 	}
 
 	if (!is_valid_request (&efi_guid_x509_cert, cert, cert_size, req)) {
-		show_msg_dialog (GTK_WINDOW(window),
-				 GTK_MESSAGE_ERROR,
+		show_err_dialog (GTK_WINDOW(window),
 				 _("The key is already enrolled."));
 		goto out;
 	} else if (delete_from_pending_request (&efi_guid_x509_cert,
@@ -764,9 +780,7 @@ import_key (GtkWidget *window, MokRequest req)
 			[ENROLL_MOK] = _("Removed the key from MokDel"),
 			[ENROLL_BLACKLIST] = _("Removed the key from MokXDel"),
 		};
-		show_msg_dialog (GTK_WINDOW(window), GTK_MESSAGE_ERROR,
-				 msg[req]);
-		goto out;
+		show_info_dialog (GTK_WINDOW(window), msg[req]);
 	}
 
 	/* Ask for the password */
@@ -784,8 +798,7 @@ import_key (GtkWidget *window, MokRequest req)
 			[ENROLL_MOK] = _("Failed to get MokNew"),
 			[ENROLL_BLACKLIST] = _("Failed to get MokXNew"),
 		};
-		show_msg_dialog (GTK_WINDOW(window), GTK_MESSAGE_ERROR,
-				 msg[req]);
+		show_err_dialog (GTK_WINDOW(window), msg[req]);
 		goto out;
 	}
 
@@ -793,7 +806,7 @@ import_key (GtkWidget *window, MokRequest req)
 		       sizeof (efi_guid_t) + cert_size;
 	new_var_data = malloc (new_var_size);
 	if (new_var_data == NULL) {
-		show_msg_dialog (GTK_WINDOW(window), GTK_MESSAGE_ERROR,
+		show_err_dialog (GTK_WINDOW(window),
 				 _("Failed to allocate memory"));
 		goto out;
 	}
@@ -805,7 +818,7 @@ import_key (GtkWidget *window, MokRequest req)
 	ret = efi_set_variable (efi_guid_shim, var_name[req], new_var_data,
 				new_var_size, EFI_NV_RT, S_IRUSR | S_IWUSR);
 	if (ret < 0) {
-		show_msg_dialog (GTK_WINDOW(window), GTK_MESSAGE_ERROR,
+		show_err_dialog (GTK_WINDOW(window),
 				 _("Failed to write the EFI variable"));
 		goto out;
 	}
@@ -813,7 +826,7 @@ import_key (GtkWidget *window, MokRequest req)
 	/* Generate the password hash */
 	if (create_authvar (authvar_name[req], password, root_pw) < 0) {
 		test_and_delete_var (var_name[req]);
-		show_msg_dialog (GTK_WINDOW(window), GTK_MESSAGE_ERROR,
+		show_err_dialog (GTK_WINDOW(window),
 				 _("Failed to generate password hash"));
 		goto out;
 	}
