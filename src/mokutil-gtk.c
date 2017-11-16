@@ -33,14 +33,14 @@ typedef enum {
 
 static const char *
 mokvar_to_string[NUM_OF_VARS] = {
-	"MokListRT",
-	"MokNew",
-	"MokDel",
-	"MokListXRT",
-	"MokXNew",
-	"MokXDel",
-	"db",
-	"dbx",
+	[MOK] = "MokListRT",
+	[MOK_NEW] = "MokNew",
+	[MOK_DEL] = "MokDel",
+	[MOKX] = "MokListXRT",
+	[MOKX_NEW] = "MokXNew",
+	[MOKX_DEL] = "MokXDel",
+	[DB] = "db",
+	[DBX] = "dbx",
 };
 
 static const efi_guid_t *
