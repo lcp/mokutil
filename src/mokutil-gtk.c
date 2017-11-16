@@ -259,6 +259,7 @@ out:
 /* For the key page tree view */
 enum {
 	TYPE_COLUMN,
+	TYPE_ALIGN_COLUMN,
 	KEY_COLUMN,
 	N_COLUMNS
 };
@@ -274,10 +275,6 @@ append_fingerprint (const char *cert, const int cert_size,
 	uint8_t sha256[SHA256_DIGEST_LENGTH];
 	char output[SHA256_DIGEST_LENGTH * 3];
 	char *ptr;
-
-	/* Fingerprint (title) */
-	gtk_tree_store_append (store, c_iter, p_iter);
-	gtk_tree_store_set (store, c_iter, TYPE_COLUMN, _("Fingerprint:"), -1);
 
 	/* SHA1 fingerprint */
 	SHA1_Init (&ctx_sha1);
@@ -295,8 +292,9 @@ append_fingerprint (const char *cert, const int cert_size,
 	}
 
 	gtk_tree_store_append (store, c_iter, p_iter);
-	gtk_tree_store_set (store, c_iter, TYPE_COLUMN, _("SHA1"), -1);
-	gtk_tree_store_set (store, c_iter, KEY_COLUMN, output, -1);
+	gtk_tree_store_set (store, c_iter, TYPE_COLUMN, _("SHA1"),
+			    TYPE_ALIGN_COLUMN, 1.0,
+			    KEY_COLUMN, output, -1);
 
 	/* SHA256 fingerprint */
 	SHA256_Init (&ctx_sha256);
@@ -317,8 +315,9 @@ append_fingerprint (const char *cert, const int cert_size,
 	}
 
 	gtk_tree_store_append (store, c_iter, p_iter);
-	gtk_tree_store_set (store, c_iter, TYPE_COLUMN, _("SHA256"), -1);
-	gtk_tree_store_set (store, c_iter, KEY_COLUMN, output, -1);
+	gtk_tree_store_set (store, c_iter, TYPE_COLUMN, _("SHA256"),
+			    TYPE_ALIGN_COLUMN, 1.0,
+			    KEY_COLUMN, output, -1);
 }
 
 static void
@@ -331,6 +330,7 @@ append_time_entry (ASN1_TIME *time, const char *name,
 	str = get_x509_time_str (time);
 	gtk_tree_store_append (store, c_iter, p_iter);
 	gtk_tree_store_set (store, c_iter, TYPE_COLUMN, name,
+			    TYPE_ALIGN_COLUMN, 1.0,
 			    KEY_COLUMN, str, -1);
 	free (str);
 }
@@ -362,6 +362,7 @@ append_name_entries (X509_NAME *X509name, GtkTreeStore *store,
 			gtk_tree_store_append (store, c_iter, p_iter);
 			gtk_tree_store_set (store, c_iter,
 					    TYPE_COLUMN, _(nidname[i].name),
+					    TYPE_ALIGN_COLUMN, 1.0,
 					    KEY_COLUMN, str, -1);
 		}
 	}
@@ -373,15 +374,17 @@ append_cert_entries (MokListNode *node, X509 *X509cert, GtkTreeStore *store,
 {
 	GtkTreeIter c_iter;
 	X509_NAME *X509name;
-	char *str;
+	char *type_str, *str;
 
 	/* Serial Number */
 	str = get_x509_serial_str (X509cert);
 	if (str) {
 		gtk_tree_store_append (store, &c_iter, p_iter);
-		/* TODO markup bold */
-		gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, _("Serial:"),
+		type_str = g_strdup_printf ("<b>%s</b>", _("Serial:"));
+		gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, type_str,
+				    TYPE_ALIGN_COLUMN, 1.0,
 				    KEY_COLUMN, str, -1);
+		g_free (type_str);
 		free (str);
 
 		gtk_tree_store_append (store, &c_iter, p_iter);
@@ -390,7 +393,10 @@ append_cert_entries (MokListNode *node, X509 *X509cert, GtkTreeStore *store,
 
 	/* Subject (title) */
 	gtk_tree_store_append (store, &c_iter, p_iter);
-	gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, _("Subject:"), -1);
+	type_str = g_strdup_printf ("<b>%s</b>", _("Subject:"));
+	gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, type_str,
+			    TYPE_ALIGN_COLUMN, 1.0, -1);
+	g_free (type_str);
 
 	X509name = X509_get_subject_name (X509cert);
 
@@ -401,7 +407,10 @@ append_cert_entries (MokListNode *node, X509 *X509cert, GtkTreeStore *store,
 
 	/* Issuer (title) */
 	gtk_tree_store_append (store, &c_iter, p_iter);
-	gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, _("Issuer:"), -1);
+	type_str = g_strdup_printf ("<b>%s</b>", _("Issuer:"));
+	gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, type_str,
+			    TYPE_ALIGN_COLUMN, 1.0, -1);
+	g_free (type_str);
 
 	X509name = X509_get_issuer_name (X509cert);
 
@@ -412,7 +421,10 @@ append_cert_entries (MokListNode *node, X509 *X509cert, GtkTreeStore *store,
 
 	/* Valid Date */
 	gtk_tree_store_append (store, &c_iter, p_iter);
-	gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, _("Valid Date:"), -1);
+	type_str = g_strdup_printf ("<b>%s</b>", _("Valid Date:"));
+	gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, type_str,
+			    TYPE_ALIGN_COLUMN, 1.0, -1);
+	g_free (type_str);
 
 	append_time_entry (X509_get_notBefore (X509cert), _("From"),
 			   store, p_iter, &c_iter);
@@ -424,6 +436,12 @@ append_cert_entries (MokListNode *node, X509 *X509cert, GtkTreeStore *store,
 	gtk_tree_store_set (store, &c_iter, -1);
 
 	/* Fingerprint */
+	gtk_tree_store_append (store, &c_iter, p_iter);
+	type_str = g_strdup_printf ("<b>%s</b>", _("Fingerprint:"));
+	gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, type_str,
+			    TYPE_ALIGN_COLUMN, 1.0, -1);
+	g_free (type_str);
+
 	append_fingerprint (node->mok, node->mok_size, store, p_iter, &c_iter);
 }
 
@@ -558,14 +576,16 @@ create_mok_page (MOKVar id)
 
 	page = gtk_scrolled_window_new (NULL, NULL);
 
-	store = gtk_tree_store_new(N_COLUMNS, G_TYPE_STRING, G_TYPE_STRING);
+	store = gtk_tree_store_new(N_COLUMNS, G_TYPE_STRING, G_TYPE_FLOAT,
+				   G_TYPE_STRING);
 	treeview = gtk_tree_view_new_with_model (GTK_TREE_MODEL (store));
 	g_object_unref (G_OBJECT (store));
 
 	renderer = gtk_cell_renderer_text_new ();
 	column = gtk_tree_view_column_new_with_attributes (_("Type"), renderer,
-							   "text", TYPE_COLUMN,
-							   NULL);
+						"markup", TYPE_COLUMN,
+						"xalign", TYPE_ALIGN_COLUMN,
+						NULL);
 	gtk_tree_view_append_column (GTK_TREE_VIEW (treeview), column);
 
 	renderer = gtk_cell_renderer_text_new ();
