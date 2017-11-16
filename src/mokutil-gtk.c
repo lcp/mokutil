@@ -113,7 +113,7 @@ get_x509_serial_str (X509 *X509cert)
 	int i, n;
 	char *serial_str, *ptr;
 
-	serial = X509_get_serialNumber(X509cert);
+	serial = X509_get_serialNumber (X509cert);
 	if (serial == NULL)
 		return NULL;
 
@@ -358,14 +358,16 @@ append_cert_entries (MokListNode *node, X509 *X509cert, GtkTreeStore *store,
 
 	/* Serial Number */
 	str = get_x509_serial_str (X509cert);
-	gtk_tree_store_append (store, &c_iter, p_iter);
-	/* TODO markup bold */
-	gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, _("Serial:"), -1);
-	free (str);
+	if (str) {
+		gtk_tree_store_append (store, &c_iter, p_iter);
+		/* TODO markup bold */
+		gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, _("Serial:"),
+				    KEY_COLUMN, str, -1);
+		free (str);
 
-	gtk_tree_store_append (store, &c_iter, p_iter);
-	gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, NULL,
-			    KEY_COLUMN, NULL, -1);
+		gtk_tree_store_append (store, &c_iter, p_iter);
+		gtk_tree_store_set (store, &c_iter, -1);
+	}
 
 	/* Subject (title) */
 	gtk_tree_store_append (store, &c_iter, p_iter);
