@@ -890,19 +890,19 @@ generate_menubar_menus (GtkWidget *menu_bar, GtkWidget *window)
 	/* File Menu */
 	filemenu = gtk_menu_new ();
 
-	mok = gtk_menu_item_new_with_label (_("Import MOK"));
+	mok = gtk_menu_item_new_with_label (_("Enroll a new key"));
 	g_signal_connect (G_OBJECT(mok), "activate",
 			  G_CALLBACK(import_mok_cb), window);
 	gtk_widget_add_accelerator (mok, "activate", accel_group,
-				    GDK_KEY_i, GDK_CONTROL_MASK,
+				    GDK_KEY_e, GDK_CONTROL_MASK,
 				    GTK_ACCEL_VISIBLE);
 	gtk_menu_shell_append (GTK_MENU_SHELL(filemenu), mok);
 
-	mokx = gtk_menu_item_new_with_label (_("Import MOKX"));
+	mokx = gtk_menu_item_new_with_label (_("Blacklist a key"));
 	g_signal_connect (G_OBJECT(mokx), "activate",
 			  G_CALLBACK(import_mokx_cb), window);
 	gtk_widget_add_accelerator (mokx, "activate", accel_group,
-				    GDK_KEY_x, GDK_CONTROL_MASK,
+				    GDK_KEY_b, GDK_CONTROL_MASK,
 				    GTK_ACCEL_VISIBLE);
 	gtk_menu_shell_append (GTK_MENU_SHELL(filemenu), mokx);
 
