@@ -526,17 +526,14 @@ create_mok_page (MOKVar id)
 	uint32_t moknum;
 
 	if (var_data[id] == NULL) {
-		/* Exclude the empty MOK requests */
-		if (id == MOK_NEW  || id == MOK_DEL ||
-		    id == MOKX_NEW || id == MOKX_DEL)
-			return NULL;
 		page = gtk_label_new (_("empty"));
-		goto out;
+		return page;
 	}
 
 	list = build_mok_list (var_data[id], var_size[id], &moknum);
 	if (list == NULL) {
-		page = gtk_label_new (_("empty"));
+		page = gtk_label_new (_("Failed to fetch the list."));
+		gtk_widget_show (page);
 		goto out;
 	}
 
@@ -574,16 +571,29 @@ create_mok_page (MOKVar id)
 	gtk_scrolled_window_set_min_content_height (GTK_SCROLLED_WINDOW(page),
 						    400);
 
+	gtk_widget_show_all (page);
 out:
-	mokpage[id] = page;
 	if (list)
 		free (list);
 	return page;
 }
 
+static inline void
+show_or_hide_tab (MOKVar id)
+{
+	/* Hide the empty MOK requests */
+	if ((id == MOK_NEW  || id == MOK_DEL || id == MOKX_NEW ||
+	     id == MOKX_DEL) && var_data[id] == NULL) {
+		gtk_widget_hide (mokpage[id]);
+	} else {
+		gtk_widget_show_all (mokpage[id]);
+	}
+}
+
 static int
 generate_pages (GtkWidget *container)
 {
+	GtkWidget *page;
 	const char *var_name;
 	uint32_t attributes;
 	int ret;
@@ -599,13 +609,49 @@ generate_pages (GtkWidget *container)
 			var_data[i] = NULL;
 
 		GtkWidget *page_label = gtk_label_new (var_name);
-		mokpage[i] = create_mok_page (i);
-		if (mokpage[i] != NULL)
-			gtk_notebook_append_page (GTK_NOTEBOOK(container),
-						  mokpage[i], page_label);
+		mokpage[i] = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
+		page = create_mok_page (i);
+		gtk_box_pack_start (GTK_BOX(mokpage[i]), page, TRUE, TRUE, 0);
+		gtk_notebook_append_page (GTK_NOTEBOOK(container),
+					  mokpage[i], page_label);
+		show_or_hide_tab (i);
 	}
 
 	return 0;
+}
+
+static void
+destroy_children (GtkWidget *widget, gpointer data __attribute__((unused)))
+{
+	gtk_widget_destroy (widget);
+}
+
+static void
+refresh_page (MOKVar id)
+{
+	GtkWidget *page;
+	const char *var_name;
+	uint32_t attributes;
+	int ret;
+
+	if (var_data[id] != NULL) {
+		free (var_data[id]);
+		var_size[id] = 0;
+	}
+
+	var_name = mokvar_to_string[id];
+	var_data[id] = NULL;
+	ret = efi_get_variable (*var_guid[id], var_name, &var_data[id],
+				&var_size[id], &attributes);
+	if (ret < 0)
+		var_data[id] = NULL;
+
+	gtk_widget_hide (mokpage[id]);
+	gtk_container_foreach (GTK_CONTAINER(mokpage[id]), destroy_children,
+			       NULL);
+	page = create_mok_page (id);
+	gtk_box_pack_start (GTK_BOX(mokpage[id]), page, TRUE, TRUE, 0);
+	show_or_hide_tab (id);
 }
 
 static char *
@@ -772,7 +818,11 @@ import_key (GtkWidget *window, MokRequest req)
 		goto out;
 	}
 
-	/* TODO Refresh MokNew or MokXNew page */
+	/* Refresh MokNew or MokXNew page */
+	if (req == ENROLL_MOK)
+		refresh_page (MOK_NEW);
+	else
+		refresh_page (MOKX_NEW);
 out:
 	if (certname != NULL)
 		g_free (certname);
@@ -884,6 +934,7 @@ show_ui(void)
 	GtkWidget *menu_bar, *pages;
 
 	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+	gtk_window_set_default_size (GTK_WINDOW(window), 600, 400);
 	/* TODO free var_data on exit */
 	g_signal_connect (window, "destroy",
 		          G_CALLBACK (gtk_main_quit), NULL);
@@ -896,12 +947,13 @@ show_ui(void)
 	gtk_box_pack_start (GTK_BOX(vbox), menu_bar, FALSE, FALSE, 0);
 	generate_menubar_menus (menu_bar, window);
 
+	gtk_widget_show_all (window);
+
 	pages = gtk_notebook_new ();
 	gtk_box_pack_start (GTK_BOX(vbox), pages, FALSE, FALSE, 0);
 	gtk_notebook_set_scrollable (GTK_NOTEBOOK(pages), TRUE);
+	gtk_widget_show (pages);
 	generate_pages (pages);
-
-	gtk_widget_show_all (window);
 }
 
 int
