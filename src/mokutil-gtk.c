@@ -861,6 +861,9 @@ import_key (GtkWidget *window, MokRequest req)
 		refresh_page (MOK_NEW);
 	else
 		refresh_page (MOKX_NEW);
+
+	show_info_dialog (GTK_WINDOW(window),
+			  _("Please reboot the system for the change to take effect."));
 out:
 	if (certname != NULL)
 		g_free (certname);
