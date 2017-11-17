@@ -660,8 +660,13 @@ generate_pages (GtkWidget *container)
 }
 
 static void
-destroy_children (GtkWidget *widget, gpointer data __attribute__((unused)))
+destroy_children (GtkWidget *widget, gpointer data)
 {
+	GtkContainer *container;
+
+	container = GTK_CONTAINER(data);
+
+	gtk_container_remove (container, widget);
 	gtk_widget_destroy (widget);
 }
 
