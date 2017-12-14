@@ -1,4 +1,4 @@
-bin_PROGRAMS    = mokutil mokutil-gtk
+bin_PROGRAMS    = mokutil
 
 mokutil_CFLAGS  = $(OPENSSL_CFLAGS)	\
 		  $(EFIVAR_CFLAGS)	\
@@ -14,6 +14,9 @@ mokutil_SOURCES = signature.h \
 		  password-crypt.c \
 		  utils.c \
 		  mokutil.c
+
+if GTK
+bin_PROGRAMS	+= mokutil-gtk
 
 mokutil_gtk_CFLAGS  = $(OPENSSL_CFLAGS)	\
 		      $(EFIVAR_CFLAGS)	\
@@ -31,3 +34,4 @@ mokutil_gtk_SOURCES = signature.h \
 		      password-crypt.c \
 		      utils.c \
 		      mokutil-gtk.c
+endif

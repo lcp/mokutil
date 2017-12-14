@@ -85,8 +85,13 @@ AC_CHECK_FUNCS([memset])
 
 PKG_CHECK_MODULES(OPENSSL, [openssl >= 0.9.8])
 PKG_CHECK_MODULES(EFIVAR, [efivar >= 0.12])
-# TODO Add a gtk3 option
-PKG_CHECK_MODULES(GTK3, [gtk+-3.0])
+
+AC_ARG_ENABLE(gtk, AS_HELP_STRING([--enable-gtk],[Enable gtk3 GUI]), enable_gtk=$enableval,
+		enable_gtk=no)
+AM_CONDITIONAL([GTK], [test x$enable_gtk = xyes])
+if test "x$enable_gtk" = "xyes"; then
+	PKG_CHECK_MODULES(GTK3, [gtk+-3.0])
+fi
 
 AC_ARG_WITH([bash-completion-dir],
     AS_HELP_STRING([--with-bash-completion-dir[=PATH]],
