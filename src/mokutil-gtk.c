@@ -628,7 +628,7 @@ out:
 }
 
 static inline void
-show_or_hide_tab (MOKVar id)
+update_tab (MOKVar id)
 {
 	/* Hide the empty MOK requests */
 	if ((id == MOK_NEW  || id == MOK_DEL || id == MOKX_NEW ||
@@ -663,7 +663,7 @@ generate_pages (GtkWidget *container)
 		gtk_box_pack_start (GTK_BOX(mokpage[i]), page, TRUE, TRUE, 0);
 		gtk_notebook_append_page (GTK_NOTEBOOK(container),
 					  mokpage[i], page_label);
-		show_or_hide_tab (i);
+		update_tab (i);
 	}
 
 	return 0;
@@ -705,7 +705,7 @@ refresh_page (MOKVar id)
 			       NULL);
 	page = create_mok_page (id);
 	gtk_box_pack_start (GTK_BOX(mokpage[id]), page, TRUE, TRUE, 0);
-	show_or_hide_tab (id);
+	update_tab (id);
 }
 
 static char *
