@@ -43,6 +43,18 @@ mokvar_to_string[NUM_OF_VARS] = {
 	[DBX] = "dbx",
 };
 
+static const MOKVar
+mokvar_id [NUM_OF_VARS] = {
+	[MOK] = MOK,
+	[MOK_NEW] = MOK_NEW,
+	[MOK_DEL] = MOK_DEL,
+	[MOKX] = MOKX,
+	[MOKX_NEW] = MOKX_NEW,
+	[MOKX_DEL] = MOKX_DEL,
+	[DB] = DB,
+	[DBX] = DBX,
+};
+
 static const efi_guid_t *
 var_guid[NUM_OF_VARS] = {
 	&efi_guid_shim,
@@ -561,6 +573,82 @@ append_hash (GtkTreeStore *store, MokListNode *node)
 	append_hash_entries (node, store, &iter);
 }
 
+static MOKVar cur_var_id;
+static int cur_key_index;
+
+static void
+delete_key_cb (GtkMenuItem *menuitem __attribute__((unused)),
+	       gpointer *data __attribute__((unused)))
+{
+	/* TODO delete the key */
+	printf ("delete key %d from %s\n",
+		cur_key_index,
+		mokvar_to_string[cur_var_id]);
+}
+
+static void
+detail_cb (GtkMenuItem *menuitem __attribute__((unused)),
+	   gpointer *data __attribute__((unused)))
+{
+	/* TODO show the details of the key */
+	printf ("Show the details of key %d from %s\n",
+		cur_key_index,
+		mokvar_to_string[cur_var_id]);
+}
+
+static gboolean
+treeview_clicked (GtkTreeView *treeview, GdkEvent *event, MOKVar *id)
+{
+	GdkEventButton *button;
+	GtkTreePath *path;
+	GtkMenu *menu;
+	GtkWidget *delete, *detail;
+	char *path_str;
+
+	if (event->type != GDK_BUTTON_PRESS)
+		return FALSE;
+
+	button = (GdkEventButton *)event;
+
+	/* Catch the right-click */
+	if (button->button != GDK_BUTTON_SECONDARY)
+		return FALSE;
+
+	gtk_tree_view_get_path_at_pos (treeview, button->x, button->y,
+				       &path, NULL, NULL, NULL);
+
+	if (!path || gtk_tree_path_get_depth(path) != 1)
+		return FALSE;
+
+	path_str = gtk_tree_path_to_string (path);
+	if (!path_str)
+		return FALSE;
+
+	/* The depth of the path is 1, so we can convert the string
+	 * directly */
+	cur_key_index = atoi (path_str);
+	g_free (path_str);
+
+	cur_var_id = *id;
+
+	/* Show the popup menu */
+	menu = (GtkMenu *)gtk_menu_new ();
+	delete = gtk_menu_item_new_with_label (_("Delete this key"));
+	gtk_menu_attach (menu, delete, 0, 1, 0 ,1);
+	g_signal_connect (G_OBJECT(delete), "activate",
+			  G_CALLBACK(delete_key_cb), NULL);
+
+	detail = gtk_menu_item_new_with_label (_("Details"));
+	gtk_menu_attach (menu, detail, 0, 1, 1 ,2);
+	g_signal_connect (G_OBJECT(detail), "activate",
+			  G_CALLBACK(detail_cb), NULL);
+
+	gtk_widget_show_all (GTK_WIDGET(menu));
+	gtk_menu_popup_at_pointer (menu, event);
+
+	return FALSE;
+}
+
 static GtkWidget *
 create_mok_page (MOKVar id)
 {
@@ -590,6 +678,10 @@ create_mok_page (MOKVar id)
 				   G_TYPE_STRING);
 	treeview = gtk_tree_view_new_with_model (GTK_TREE_MODEL (store));
 	g_object_unref (G_OBJECT (store));
+
+	g_signal_connect (G_OBJECT(treeview), "button-press-event",
+			  G_CALLBACK(treeview_clicked),
+			  (gpointer)&mokvar_id[id]);
 
 	renderer = gtk_cell_renderer_text_new ();
 	column = gtk_tree_view_column_new_with_attributes (_("Type"), renderer,
