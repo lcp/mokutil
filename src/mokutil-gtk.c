@@ -72,6 +72,8 @@ uint8_t *var_data[NUM_OF_VARS];
 size_t var_size[NUM_OF_VARS];
 MokListNode *list[NUM_OF_VARS];
 
+GtkWidget *main_win;
+
 static char *
 get_x509_time_str (ASN1_TIME *time)
 {
@@ -540,11 +542,11 @@ detail_cb (GtkMenuItem *menuitem __attribute__((unused)),
 	}
 
 	/* Create the dialog window */
-	flags = GTK_DIALOG_MODAL;
-	/* TODO set the parent */
+	flags = GTK_DIALOG_DESTROY_WITH_PARENT;
 	dialog = gtk_dialog_new_with_buttons (_("Certificate Details"),
-					      NULL, flags, _("OK"),
-					      GTK_RESPONSE_ACCEPT, NULL);
+					      GTK_WINDOW(main_win), flags,
+					      _("OK"), GTK_RESPONSE_ACCEPT,
+					      NULL);
 	content = gtk_dialog_get_content_area (GTK_DIALOG(dialog));
 	grid = gtk_grid_new ();
 	gtk_container_add (GTK_CONTAINER(content), grid);
@@ -813,7 +815,7 @@ refresh_page (MOKVar id)
 }
 
 static char *
-get_cert_name_from_dialog (GtkWidget *window)
+get_cert_name_from_dialog ()
 {
 	GtkWidget *dialog;
 	GtkFileChooserAction action = GTK_FILE_CHOOSER_ACTION_OPEN;
@@ -821,7 +823,7 @@ get_cert_name_from_dialog (GtkWidget *window)
 	gint result;
 
 	dialog = gtk_file_chooser_dialog_new (_("Choose a certificate"),
-					      GTK_WINDOW(window),
+					      GTK_WINDOW(main_win),
 					      action,
 					      _("_Cancel"),
 					      GTK_RESPONSE_CANCEL,
@@ -872,7 +874,7 @@ out:
 }
 
 static void
-import_key (GtkWidget *window, MokRequest req)
+import_key (MokRequest req)
 {
 	char *certname = NULL;
 	uint8_t *cert = NULL;
@@ -893,24 +895,24 @@ import_key (GtkWidget *window, MokRequest req)
 		[ENROLL_BLACKLIST] = "MokXAuth",
 	};
 
-	certname = get_cert_name_from_dialog (window);
+	certname = get_cert_name_from_dialog ();
 	if (certname == NULL)
 		return;
 
 	if (read_file_to_buffer (certname, &cert, &cert_size) < 0) {
-		show_err_dialog (GTK_WINDOW(window),
+		show_err_dialog (GTK_WINDOW(main_win),
 				 _("Failed to read file"));
 		goto out;
 	}
 
 	if (!is_valid_cert(cert, cert_size)) {
-		show_err_dialog (GTK_WINDOW(window),
+		show_err_dialog (GTK_WINDOW(main_win),
 				 _("Not a valid DER certificate"));
 		goto out;
 	}
 
 	if (!is_valid_request (&efi_guid_x509_cert, cert, cert_size, req)) {
-		show_err_dialog (GTK_WINDOW(window),
+		show_err_dialog (GTK_WINDOW(main_win),
 				 _("The key is already enrolled."));
 		goto out;
 	} else if (delete_from_pending_request (&efi_guid_x509_cert,
@@ -919,11 +921,11 @@ import_key (GtkWidget *window, MokRequest req)
 			[ENROLL_MOK] = _("Removed the key from MokDel"),
 			[ENROLL_BLACKLIST] = _("Removed the key from MokXDel"),
 		};
-		show_info_dialog (GTK_WINDOW(window), msg[req]);
+		show_info_dialog (GTK_WINDOW(main_win), msg[req]);
 	}
 
 	/* Ask for the password */
-	if (show_password_dialog (GTK_WINDOW(window), &password,
+	if (show_password_dialog (GTK_WINDOW(main_win), &password,
 				  &root_pw) < 0)
 		goto out;
 
@@ -937,7 +939,7 @@ import_key (GtkWidget *window, MokRequest req)
 			[ENROLL_MOK] = _("Failed to get MokNew"),
 			[ENROLL_BLACKLIST] = _("Failed to get MokXNew"),
 		};
-		show_err_dialog (GTK_WINDOW(window), msg[req]);
+		show_err_dialog (GTK_WINDOW(main_win), msg[req]);
 		goto out;
 	}
 
@@ -945,7 +947,7 @@ import_key (GtkWidget *window, MokRequest req)
 		       sizeof (efi_guid_t) + cert_size;
 	new_var_data = malloc (new_var_size);
 	if (new_var_data == NULL) {
-		show_err_dialog (GTK_WINDOW(window),
+		show_err_dialog (GTK_WINDOW(main_win),
 				 _("Failed to allocate memory"));
 		goto out;
 	}
@@ -957,7 +959,7 @@ import_key (GtkWidget *window, MokRequest req)
 	ret = efi_set_variable (efi_guid_shim, var_name[req], new_var_data,
 				new_var_size, EFI_NV_RT, S_IRUSR | S_IWUSR);
 	if (ret < 0) {
-		show_err_dialog (GTK_WINDOW(window),
+		show_err_dialog (GTK_WINDOW(main_win),
 				 _("Failed to write the EFI variable"));
 		goto out;
 	}
@@ -965,7 +967,7 @@ import_key (GtkWidget *window, MokRequest req)
 	/* Generate the password hash */
 	if (create_authvar (authvar_name[req], password, root_pw) < 0) {
 		test_and_delete_var (var_name[req]);
-		show_err_dialog (GTK_WINDOW(window),
+		show_err_dialog (GTK_WINDOW(main_win),
 				 _("Failed to generate password hash"));
 		goto out;
 	}
@@ -976,7 +978,7 @@ import_key (GtkWidget *window, MokRequest req)
 	else
 		refresh_page (MOKX_NEW);
 
-	show_info_dialog (GTK_WINDOW(window),
+	show_info_dialog (GTK_WINDOW(main_win),
 			  _("Please reboot the system for the change to take effect."));
 out:
 	if (certname != NULL)
@@ -993,25 +995,25 @@ out:
 
 static void
 import_mok_cb (GtkMenuItem * item __attribute__((unused)),
-	       GtkWidget *window)
+	       gpointer data __attribute__((unused)))
 {
-	import_key (window, ENROLL_MOK);
+	import_key (ENROLL_MOK);
 }
 
 static void
 import_mokx_cb (GtkMenuItem * item __attribute__((unused)),
-	       GtkWidget *window)
+	        gpointer data __attribute__((unused)))
 {
-	import_key (window, ENROLL_BLACKLIST);
+	import_key (ENROLL_BLACKLIST);
 }
 
 static void
 about_cb (GtkMenuItem * item __attribute__((unused)),
-	  GtkWidget *window)
+	  gpointer data __attribute__((unused)))
 {
 	const char *authors[] = {"Gary Lin", NULL};
 
-	gtk_show_about_dialog (GTK_WINDOW(window),
+	gtk_show_about_dialog (GTK_WINDOW(main_win),
 			       "version", VERSION,
 			       "copyright", "GPL-3.0",
 			       "authors", authors,
@@ -1019,7 +1021,7 @@ about_cb (GtkMenuItem * item __attribute__((unused)),
 }
 
 static void
-generate_menubar_menus (GtkWidget *menu_bar, GtkWidget *window)
+generate_menubar_menus (GtkWidget *menu_bar)
 {
 	GtkWidget *filemenu, *helpmenu;
 	GtkWidget *file, *quit, *mok, *mokx;
@@ -1027,14 +1029,14 @@ generate_menubar_menus (GtkWidget *menu_bar, GtkWidget *window)
 	GtkAccelGroup *accel_group;
 
 	accel_group = gtk_accel_group_new ();
-	gtk_window_add_accel_group (GTK_WINDOW (window), accel_group);
+	gtk_window_add_accel_group (GTK_WINDOW(main_win), accel_group);
 
 	/* File Menu */
 	filemenu = gtk_menu_new ();
 
 	mok = gtk_menu_item_new_with_label (_("Enroll a new key"));
 	g_signal_connect (G_OBJECT(mok), "activate",
-			  G_CALLBACK(import_mok_cb), window);
+			  G_CALLBACK(import_mok_cb), NULL);
 	gtk_widget_add_accelerator (mok, "activate", accel_group,
 				    GDK_KEY_e, GDK_CONTROL_MASK,
 				    GTK_ACCEL_VISIBLE);
@@ -1042,7 +1044,7 @@ generate_menubar_menus (GtkWidget *menu_bar, GtkWidget *window)
 
 	mokx = gtk_menu_item_new_with_label (_("Blacklist a key"));
 	g_signal_connect (G_OBJECT(mokx), "activate",
-			  G_CALLBACK(import_mokx_cb), window);
+			  G_CALLBACK(import_mokx_cb), NULL);
 	gtk_widget_add_accelerator (mokx, "activate", accel_group,
 				    GDK_KEY_b, GDK_CONTROL_MASK,
 				    GTK_ACCEL_VISIBLE);
@@ -1074,7 +1076,7 @@ generate_menubar_menus (GtkWidget *menu_bar, GtkWidget *window)
 
 	about = gtk_menu_item_new_with_label (_("About"));
 	g_signal_connect (G_OBJECT(about), "activate",
-			  G_CALLBACK(about_cb), window);
+			  G_CALLBACK(about_cb), NULL);
 	gtk_menu_shell_append (GTK_MENU_SHELL(helpmenu), about);
 
 	help_top = gtk_menu_item_new_with_label (_("Help"));
@@ -1085,24 +1087,23 @@ generate_menubar_menus (GtkWidget *menu_bar, GtkWidget *window)
 static void
 show_ui(void)
 {
-	GtkWidget *window, *vbox;
-	GtkWidget *menu_bar, *pages;
+	GtkWidget *vbox, *menu_bar, *pages;
 
-	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
-	gtk_window_set_default_size (GTK_WINDOW(window), 600, 400);
+	main_win = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+	gtk_window_set_default_size (GTK_WINDOW(main_win), 600, 400);
 	/* TODO free var_data[] and list[] on exit */
-	g_signal_connect (window, "destroy",
+	g_signal_connect (main_win, "destroy",
 		          G_CALLBACK (gtk_main_quit), NULL);
-	gtk_window_set_title (GTK_WINDOW(window), "mokutil");
+	gtk_window_set_title (GTK_WINDOW(main_win), "mokutil");
 
 	vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 5);
-	gtk_container_add (GTK_CONTAINER(window), vbox);
+	gtk_container_add (GTK_CONTAINER(main_win), vbox);
 
 	menu_bar = gtk_menu_bar_new ();
 	gtk_box_pack_start (GTK_BOX(vbox), menu_bar, FALSE, FALSE, 0);
-	generate_menubar_menus (menu_bar, window);
+	generate_menubar_menus (menu_bar);
 
-	gtk_widget_show_all (window);
+	gtk_widget_show_all (main_win);
 
 	pages = gtk_notebook_new ();
 	gtk_box_pack_start (GTK_BOX(vbox), pages, FALSE, FALSE, 0);
