@@ -413,6 +413,7 @@ add_cert_row (GtkWidget *grid, int row, const char *type_str, const char *str)
 	if (type_str) {
 		type = gtk_label_new (NULL);
 		gtk_label_set_xalign (GTK_LABEL(type), 1.0);
+		gtk_label_set_yalign (GTK_LABEL(type), 0.0);
 		gtk_label_set_markup (GTK_LABEL(type), type_str);
 		gtk_grid_attach (GTK_GRID(grid), type, 0, row, 1, 1);
 	}
@@ -420,6 +421,7 @@ add_cert_row (GtkWidget *grid, int row, const char *type_str, const char *str)
 	if (str) {
 		key = gtk_label_new (str);
 		gtk_label_set_xalign (GTK_LABEL(key), 0.0);
+		gtk_label_set_yalign (GTK_LABEL(key), 0.0);
 		gtk_grid_attach (GTK_GRID(grid), key, 1, row, 1, 1);
 	}
 }
@@ -515,7 +517,7 @@ static void
 detail_cb (GtkMenuItem *menuitem __attribute__((unused)),
 	   gpointer *data __attribute__((unused)))
 {
-	GtkWidget *dialog, *content, *grid;
+	GtkWidget *dialog, *content, *frame, *grid;
 	GtkDialogFlags flags;
 	MokListNode *node;
 	X509 *X509cert;
@@ -545,15 +547,20 @@ detail_cb (GtkMenuItem *menuitem __attribute__((unused)),
 	flags = GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL;
 	dialog = gtk_dialog_new_with_buttons (_("Certificate Details"),
 					      GTK_WINDOW(main_win), flags,
-					      _("OK"), GTK_RESPONSE_NONE,
+					      _("Close"), GTK_RESPONSE_NONE,
 					      NULL);
 	content = gtk_dialog_get_content_area (GTK_DIALOG(dialog));
 	gtk_container_set_border_width (GTK_CONTAINER(content), 10);
 	gtk_box_set_spacing (GTK_BOX(content), 10);
 
+	frame = gtk_frame_new (NULL);
+	gtk_container_add (GTK_CONTAINER(content), frame);
+
 	grid = gtk_grid_new ();
-	gtk_container_add (GTK_CONTAINER(content), grid);
+	gtk_container_add (GTK_CONTAINER(frame), grid);
+	gtk_container_set_border_width (GTK_CONTAINER(grid), 10);
 	gtk_grid_set_column_spacing (GTK_GRID(grid), 10);
+	gtk_grid_set_row_spacing (GTK_GRID(grid), 4);
 	row_count = 0;
 
 	/* Serial Number */
@@ -624,13 +631,13 @@ treeview_clicked (GtkTreeView *treeview, GdkEvent *event, MOKVar *id)
 	GtkWidget *delete, *detail;
 	char *path_str;
 
-	if (event->type != GDK_BUTTON_PRESS)
-		return FALSE;
-
 	button = (GdkEventButton *)event;
 
-	/* Catch the right-click */
-	if (button->button != GDK_BUTTON_SECONDARY)
+	/* Catch the double-click or the right button */
+	if (!(button->type == GDK_BUTTON_PRESS &&
+	      button->button == GDK_BUTTON_SECONDARY) &&
+	    !(button->type == GDK_2BUTTON_PRESS &&
+	      button->button == GDK_BUTTON_PRIMARY))
 		return FALSE;
 
 	gtk_tree_view_get_path_at_pos (treeview, button->x, button->y,
@@ -649,6 +656,13 @@ treeview_clicked (GtkTreeView *treeview, GdkEvent *event, MOKVar *id)
 	g_free (path_str);
 
 	cur_var_id = *id;
+
+	/* Show the details popup for the double-click */
+	if ((button->type == GDK_2BUTTON_PRESS &&
+	     button->button == GDK_BUTTON_PRIMARY)) {
+		detail_cb (NULL, NULL);
+		return FALSE;
+	}
 
 	/* Show the popup menu */
 	menu = (GtkMenu *)gtk_menu_new ();
