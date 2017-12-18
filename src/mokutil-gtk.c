@@ -542,10 +542,10 @@ detail_cb (GtkMenuItem *menuitem __attribute__((unused)),
 	}
 
 	/* Create the dialog window */
-	flags = GTK_DIALOG_DESTROY_WITH_PARENT;
+	flags = GTK_DIALOG_DESTROY_WITH_PARENT | GTK_DIALOG_MODAL;
 	dialog = gtk_dialog_new_with_buttons (_("Certificate Details"),
 					      GTK_WINDOW(main_win), flags,
-					      _("OK"), GTK_RESPONSE_ACCEPT,
+					      _("OK"), GTK_RESPONSE_NONE,
 					      NULL);
 	content = gtk_dialog_get_content_area (GTK_DIALOG(dialog));
 	gtk_container_set_border_width (GTK_CONTAINER(content), 10);
