@@ -70,6 +70,7 @@ var_guid[NUM_OF_VARS] = {
 GtkWidget *mokpage[NUM_OF_VARS];
 uint8_t *var_data[NUM_OF_VARS];
 size_t var_size[NUM_OF_VARS];
+MokListNode *list[NUM_OF_VARS];
 
 static char *
 get_x509_time_str (ASN1_TIME *time)
@@ -287,187 +288,6 @@ enum {
 };
 
 static void
-append_fingerprint (const char *cert, const int cert_size,
-		    GtkTreeStore *store, GtkTreeIter *p_iter,
-		    GtkTreeIter *c_iter)
-{
-	SHA_CTX ctx_sha1;
-	SHA256_CTX ctx_sha256;
-	uint8_t sha1[SHA_DIGEST_LENGTH];
-	uint8_t sha256[SHA256_DIGEST_LENGTH];
-	char output[SHA256_DIGEST_LENGTH * 3];
-	char *ptr;
-
-	/* SHA1 fingerprint */
-	SHA1_Init (&ctx_sha1);
-	SHA1_Update (&ctx_sha1, cert, cert_size);
-	SHA1_Final (sha1, &ctx_sha1);
-
-	ptr = output;
-	for (unsigned int i = 0; i < SHA_DIGEST_LENGTH; i++) {
-		sprintf (ptr, "%02x", sha1[i]);
-		ptr += 2;
-		if (i < SHA_DIGEST_LENGTH - 1) {
-			sprintf (ptr, ":");
-			ptr++;
-		}
-	}
-
-	gtk_tree_store_append (store, c_iter, p_iter);
-	gtk_tree_store_set (store, c_iter, TYPE_COLUMN, _("SHA1"),
-			    TYPE_ALIGN_COLUMN, 1.0,
-			    KEY_COLUMN, output, -1);
-
-	/* SHA256 fingerprint */
-	SHA256_Init (&ctx_sha256);
-	SHA256_Update (&ctx_sha256, cert, cert_size);
-	SHA256_Final (sha256, &ctx_sha256);
-
-	ptr = output;
-	for (unsigned int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
-		sprintf (ptr, "%02x", sha256[i]);
-		ptr += 2;
-		if (i == (SHA256_DIGEST_LENGTH / 2) - 1) {
-			sprintf (ptr, "\n");
-			ptr++;
-		} else if (i < SHA256_DIGEST_LENGTH - 1) {
-			sprintf (ptr, ":");
-			ptr++;
-		}
-	}
-
-	gtk_tree_store_append (store, c_iter, p_iter);
-	gtk_tree_store_set (store, c_iter, TYPE_COLUMN, _("SHA256"),
-			    TYPE_ALIGN_COLUMN, 1.0,
-			    KEY_COLUMN, output, -1);
-}
-
-static void
-append_time_entry (ASN1_TIME *time, const char *name,
-		   GtkTreeStore *store, GtkTreeIter *p_iter,
-		   GtkTreeIter *c_iter)
-{
-	char *str;
-
-	str = get_x509_time_str (time);
-	gtk_tree_store_append (store, c_iter, p_iter);
-	gtk_tree_store_set (store, c_iter, TYPE_COLUMN, name,
-			    TYPE_ALIGN_COLUMN, 1.0,
-			    KEY_COLUMN, str, -1);
-	free (str);
-}
-
-typedef struct {
-	int nid;
-	const char *name;
-} NidName;
-
-static NidName nidname[] = {
-	{NID_commonName, "Name"},
-	{NID_organizationName, "Organization"},
-	{NID_countryName, "Country"},
-	{NID_stateOrProvinceName, "State"},
-	{NID_localityName, "Locality"},
-	{-1, NULL}
-};
-
-static void
-append_name_entries (X509_NAME *X509name, GtkTreeStore *store,
-		     GtkTreeIter *p_iter, GtkTreeIter *c_iter)
-{
-	const char *str;
-	int i;
-
-	for (i = 0; nidname[i].name != NULL; i++) {
-		str = get_x509_name_str (X509name, nidname[i].nid);
-		if (str != NULL) {
-			gtk_tree_store_append (store, c_iter, p_iter);
-			gtk_tree_store_set (store, c_iter,
-					    TYPE_COLUMN, _(nidname[i].name),
-					    TYPE_ALIGN_COLUMN, 1.0,
-					    KEY_COLUMN, str, -1);
-		}
-	}
-}
-
-static void
-append_cert_entries (MokListNode *node, X509 *X509cert, GtkTreeStore *store,
-		     GtkTreeIter *p_iter)
-{
-	GtkTreeIter c_iter;
-	X509_NAME *X509name;
-	char *type_str, *str;
-
-	/* Serial Number */
-	str = get_x509_serial_str (X509cert);
-	if (str) {
-		gtk_tree_store_append (store, &c_iter, p_iter);
-		type_str = g_strdup_printf ("<b>%s</b>", _("Serial:"));
-		gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, type_str,
-				    TYPE_ALIGN_COLUMN, 1.0,
-				    KEY_COLUMN, str, -1);
-		g_free (type_str);
-		free (str);
-
-		gtk_tree_store_append (store, &c_iter, p_iter);
-		gtk_tree_store_set (store, &c_iter, -1);
-	}
-
-	/* Subject (title) */
-	gtk_tree_store_append (store, &c_iter, p_iter);
-	type_str = g_strdup_printf ("<b>%s</b>", _("Subject:"));
-	gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, type_str,
-			    TYPE_ALIGN_COLUMN, 1.0, -1);
-	g_free (type_str);
-
-	X509name = X509_get_subject_name (X509cert);
-
-	append_name_entries (X509name, store, p_iter, &c_iter);
-
-	gtk_tree_store_append (store, &c_iter, p_iter);
-	gtk_tree_store_set (store, &c_iter, -1);
-
-	/* Issuer (title) */
-	gtk_tree_store_append (store, &c_iter, p_iter);
-	type_str = g_strdup_printf ("<b>%s</b>", _("Issuer:"));
-	gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, type_str,
-			    TYPE_ALIGN_COLUMN, 1.0, -1);
-	g_free (type_str);
-
-	X509name = X509_get_issuer_name (X509cert);
-
-	append_name_entries (X509name, store, p_iter, &c_iter);
-
-	gtk_tree_store_append (store, &c_iter, p_iter);
-	gtk_tree_store_set (store, &c_iter, -1);
-
-	/* Valid Date */
-	gtk_tree_store_append (store, &c_iter, p_iter);
-	type_str = g_strdup_printf ("<b>%s</b>", _("Valid Date:"));
-	gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, type_str,
-			    TYPE_ALIGN_COLUMN, 1.0, -1);
-	g_free (type_str);
-
-	append_time_entry (X509_get_notBefore (X509cert), _("From"),
-			   store, p_iter, &c_iter);
-
-	append_time_entry (X509_get_notAfter (X509cert), _("Until"),
-			   store, p_iter, &c_iter);
-
-	gtk_tree_store_append (store, &c_iter, p_iter);
-	gtk_tree_store_set (store, &c_iter, -1);
-
-	/* Fingerprint */
-	gtk_tree_store_append (store, &c_iter, p_iter);
-	type_str = g_strdup_printf ("<b>%s</b>", _("Fingerprint:"));
-	gtk_tree_store_set (store, &c_iter, TYPE_COLUMN, type_str,
-			    TYPE_ALIGN_COLUMN, 1.0, -1);
-	g_free (type_str);
-
-	append_fingerprint (node->mok, node->mok_size, store, p_iter, &c_iter);
-}
-
-static void
 append_cert (GtkTreeStore *store, MokListNode *node)
 {
 	GtkTreeIter iter;
@@ -499,9 +319,6 @@ append_cert (GtkTreeStore *store, MokListNode *node)
 	/* Set the key column to the common name */
 	common_name = get_x509_common_name (X509cert);
 	gtk_tree_store_set (store, &iter, KEY_COLUMN, common_name, -1);
-
-	/* Append the contents of the certificate to the child nodes */
-	append_cert_entries (node, X509cert, store, &iter);
 }
 
 static void
@@ -587,13 +404,210 @@ delete_key_cb (GtkMenuItem *menuitem __attribute__((unused)),
 }
 
 static void
+add_cert_row (GtkWidget *grid, int row, const char *type_str, const char *str)
+{
+	GtkWidget *type, *key;
+
+	if (type_str) {
+		type = gtk_label_new (NULL);
+		gtk_label_set_xalign (GTK_LABEL(type), 1.0);
+		gtk_label_set_markup (GTK_LABEL(type), type_str);
+		gtk_grid_attach (GTK_GRID(grid), type, 0, row, 1, 1);
+	}
+
+	if (str) {
+		key = gtk_label_new (str);
+		gtk_label_set_xalign (GTK_LABEL(key), 0.0);
+		gtk_grid_attach (GTK_GRID(grid), key, 1, row, 1, 1);
+	}
+}
+
+static void
+add_fingerprint_entries (GtkWidget *grid, int *row, const uint8_t *cert,
+			 const int cert_size)
+{
+	SHA_CTX ctx_sha1;
+	SHA256_CTX ctx_sha256;
+	uint8_t sha1[SHA_DIGEST_LENGTH];
+	uint8_t sha256[SHA256_DIGEST_LENGTH];
+	char output[SHA256_DIGEST_LENGTH * 3];
+	char *ptr;
+
+	/* SHA1 fingerprint */
+	SHA1_Init (&ctx_sha1);
+	SHA1_Update (&ctx_sha1, cert, cert_size);
+	SHA1_Final (sha1, &ctx_sha1);
+
+	ptr = output;
+	for (unsigned int i = 0; i < SHA_DIGEST_LENGTH; i++) {
+		sprintf (ptr, "%02x", sha1[i]);
+		ptr += 2;
+		if (i < SHA_DIGEST_LENGTH - 1) {
+			sprintf (ptr, ":");
+			ptr++;
+		}
+	}
+
+	add_cert_row (grid, (*row)++, _("SHA1"), output);
+
+	/* SHA256 fingerprint */
+	SHA256_Init (&ctx_sha256);
+	SHA256_Update (&ctx_sha256, cert, cert_size);
+	SHA256_Final (sha256, &ctx_sha256);
+
+	ptr = output;
+	for (unsigned int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
+		sprintf (ptr, "%02x", sha256[i]);
+		ptr += 2;
+		if (i == (SHA256_DIGEST_LENGTH / 2) - 1) {
+			sprintf (ptr, "\n");
+			ptr++;
+		} else if (i < SHA256_DIGEST_LENGTH - 1) {
+			sprintf (ptr, ":");
+			ptr++;
+		}
+	}
+
+	add_cert_row (grid, (*row)++, _("SHA256"), output);
+}
+
+static void
+add_time_entry (GtkWidget *grid, int *row, const char *name, ASN1_TIME *time)
+{
+	char *str;
+
+	str = get_x509_time_str (time);
+	add_cert_row (grid, (*row)++, name, str);
+	if (str)
+		free (str);
+}
+
+typedef struct {
+	int nid;
+	const char *name;
+} NidName;
+
+static NidName nidname[] = {
+	{NID_commonName, "Name"},
+	{NID_organizationName, "Organization"},
+	{NID_countryName, "Country"},
+	{NID_stateOrProvinceName, "State"},
+	{NID_localityName, "Locality"},
+	{-1, NULL}
+};
+
+static void
+add_name_entries (GtkWidget *grid, X509_NAME *x509name, int *row)
+{
+	const char *str;
+	int i;
+
+	for (i = 0; nidname[i].name != NULL; i++) {
+		str = get_x509_name_str (x509name, nidname[i].nid);
+		if (str != NULL)
+			add_cert_row (grid, (*row)++, nidname[i].name, str);
+	}
+}
+
+static void
 detail_cb (GtkMenuItem *menuitem __attribute__((unused)),
 	   gpointer *data __attribute__((unused)))
 {
-	/* TODO show the details of the key */
-	printf ("Show the details of key %d from %s\n",
-		cur_key_index,
-		mokvar_to_string[cur_var_id]);
+	GtkWidget *dialog, *content, *grid;
+	GtkDialogFlags flags;
+	MokListNode *node;
+	X509 *X509cert;
+	X509_NAME *x509name;
+	BIO *cert_bio;
+	char *type_str, *str;
+	int row_count;
+
+	node = &list[cur_var_id][cur_key_index];
+
+	/* Convert DER to X509 structure */
+	cert_bio = BIO_new (BIO_s_mem());
+	if (cert_bio == NULL) {
+		fprintf (stderr, "%s: Failed to allocate BIO\n",
+			 __FUNCTION__);
+		return;
+	}
+	BIO_write (cert_bio, node->mok, node->mok_size);
+	X509cert = d2i_X509_bio (cert_bio, NULL);
+	if (X509cert == NULL) {
+		fprintf (stderr, "%s: Invalid certificate\n",
+			 __FUNCTION__);
+		return;
+	}
+
+	/* Create the dialog window */
+	flags = GTK_DIALOG_MODAL;
+	/* TODO set the parent */
+	dialog = gtk_dialog_new_with_buttons (_("Certificate Details"),
+					      NULL, flags, _("OK"),
+					      GTK_RESPONSE_ACCEPT, NULL);
+	content = gtk_dialog_get_content_area (GTK_DIALOG(dialog));
+	grid = gtk_grid_new ();
+	gtk_container_add (GTK_CONTAINER(content), grid);
+	gtk_grid_set_column_spacing (GTK_GRID(grid), 10);
+	row_count = 0;
+
+	/* Serial Number */
+	type_str = g_strdup_printf ("<b>%s</b>", _("Serial:"));
+	str = get_x509_serial_str (X509cert);
+	add_cert_row (grid, row_count++, type_str, str);
+	g_free (type_str);
+	if (str)
+		free (str);
+
+	/* ==== */
+	add_cert_row (grid, row_count++, " ", NULL);
+
+	/* Subject */
+	type_str = g_strdup_printf ("<b>%s</b>", _("Subject:"));
+	add_cert_row (grid, row_count++, type_str, NULL);
+	g_free (type_str);
+
+	x509name = X509_get_subject_name (X509cert);
+	add_name_entries (grid, x509name, &row_count);
+
+	/* ==== */
+	add_cert_row (grid, row_count++, " ", NULL);
+
+	/* Issuer */
+	type_str = g_strdup_printf ("<b>%s</b>", _("Issuer:"));
+	add_cert_row (grid, row_count++, type_str, NULL);
+	g_free (type_str);
+
+	x509name = X509_get_issuer_name (X509cert);
+	add_name_entries (grid, x509name, &row_count);
+
+	/* ==== */
+	add_cert_row (grid, row_count++, " ", NULL);
+
+	/* Valid Date */
+	type_str = g_strdup_printf ("<b>%s</b>", _("Valid Date:"));
+	add_cert_row (grid, row_count++, type_str, NULL);
+
+	add_time_entry (grid, &row_count, _("From"),
+			X509_get_notBefore (X509cert));
+
+	add_time_entry (grid, &row_count, _("Until"),
+			X509_get_notAfter (X509cert));
+
+	/* ==== */
+	add_cert_row (grid, row_count++, " ", NULL);
+
+	/* Fingerprint */
+	type_str = g_strdup_printf ("<b>%s</b>", _("Fingerprint:"));
+	add_cert_row (grid, row_count++, type_str, NULL);
+
+	add_fingerprint_entries (grid, &row_count, node->mok, node->mok_size);
+
+	gtk_widget_show_all (content);
+
+	gtk_dialog_run (GTK_DIALOG(dialog));
+
+	gtk_widget_destroy (dialog);
 }
 
 static gboolean
@@ -657,7 +671,6 @@ create_mok_page (MOKVar id)
 	GtkTreeStore *store;
 	GtkCellRenderer *renderer;
 	GtkTreeViewColumn *column;
-	MokListNode *list = NULL;
 	uint32_t moknum;
 
 	if (var_data[id] == NULL) {
@@ -665,11 +678,11 @@ create_mok_page (MOKVar id)
 		return page;
 	}
 
-	list = build_mok_list (var_data[id], var_size[id], &moknum);
-	if (list == NULL) {
+	list[id] = build_mok_list (var_data[id], var_size[id], &moknum);
+	if (list[id] == NULL) {
 		page = gtk_label_new (_("Failed to fetch the list."));
 		gtk_widget_show (page);
-		goto out;
+		return page;
 	}
 
 	page = gtk_scrolled_window_new (NULL, NULL);
@@ -698,11 +711,11 @@ create_mok_page (MOKVar id)
 
 	/* Iterate the list and create the treeview items */
 	for (unsigned int i = 0; i < moknum; i++) {
-		if (efi_guid_cmp (&list[i].header->SignatureType,
+		if (efi_guid_cmp (&list[id][i].header->SignatureType,
 				  &efi_guid_x509_cert) == 0) {
-			append_cert (store, &list[i]);
+			append_cert (store, &list[id][i]);
 		} else {
-			append_hash (store, &list[i]);
+			append_hash (store, &list[id][i]);
 		}
 	}
 
@@ -713,9 +726,7 @@ create_mok_page (MOKVar id)
 						    400);
 
 	gtk_widget_show_all (page);
-out:
-	if (list)
-		free (list);
+
 	return page;
 }
 
@@ -741,6 +752,7 @@ generate_pages (GtkWidget *container)
 
 	/* Iterate the MOK variables and initialize the related variables */
 	for (int i = 0; i < NUM_OF_VARS; i++) {
+		list[i] = NULL;
 		var_name = mokvar_to_string[i];
 		var_data[i] = NULL;
 		ret = efi_get_variable (*var_guid[i], var_name,
@@ -1078,7 +1090,7 @@ show_ui(void)
 
 	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_default_size (GTK_WINDOW(window), 600, 400);
-	/* TODO free var_data on exit */
+	/* TODO free var_data[] and list[] on exit */
 	g_signal_connect (window, "destroy",
 		          G_CALLBACK (gtk_main_quit), NULL);
 	gtk_window_set_title (GTK_WINDOW(window), "mokutil");
