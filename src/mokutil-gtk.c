@@ -548,6 +548,9 @@ detail_cb (GtkMenuItem *menuitem __attribute__((unused)),
 					      _("OK"), GTK_RESPONSE_ACCEPT,
 					      NULL);
 	content = gtk_dialog_get_content_area (GTK_DIALOG(dialog));
+	gtk_container_set_border_width (GTK_CONTAINER(content), 10);
+	gtk_box_set_spacing (GTK_BOX(content), 10);
+
 	grid = gtk_grid_new ();
 	gtk_container_add (GTK_CONTAINER(content), grid);
 	gtk_grid_set_column_spacing (GTK_GRID(grid), 10);
