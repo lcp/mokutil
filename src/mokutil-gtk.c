@@ -302,7 +302,7 @@ append_cert (GtkTreeStore *store, MokListNode *node)
 
 	/* Set the treeview */
 	gtk_tree_store_append (store, &iter, NULL);
-	gtk_tree_store_set (store, &iter, TYPE_COLUMN, "X509", -1);
+	gtk_tree_store_set (store, &iter, TYPE_COLUMN, "<b>X509</b>", -1);
 
 	/* Convert DER to X509 structure */
 	cert_bio = BIO_new (BIO_s_mem());
@@ -365,7 +365,7 @@ static void
 append_hash (GtkTreeStore *store, MokListNode *node)
 {
 	GtkTreeIter iter;
-	char *name;
+	char *name, *type_str;
 
 	if (node == NULL)
 		return;
@@ -385,9 +385,12 @@ append_hash (GtkTreeStore *store, MokListNode *node)
 	if (strncmp ("SHA", name, 3) != 0)
 		return;
 
-	gtk_tree_store_append (store, &iter, NULL);
-	gtk_tree_store_set (store, &iter, TYPE_COLUMN, name, -1);
+	type_str = g_strdup_printf ("<b>%s</b>", name);
 	free (name);
+
+	gtk_tree_store_append (store, &iter, NULL);
+	gtk_tree_store_set (store, &iter, TYPE_COLUMN, type_str, -1);
+	g_free (type_str);
 
 	append_hash_entries (node, store, &iter);
 }
