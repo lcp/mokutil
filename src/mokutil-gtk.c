@@ -168,6 +168,19 @@ out:
 	return serial_str;
 }
 
+static const char *
+get_x509_sig_algorithm (X509 *X509cert)
+{
+	const X509_ALGOR *tsig_alg;
+	const char *str;
+
+	tsig_alg = X509_get0_tbs_sigalg(X509cert);
+
+	str = OBJ_nid2ln (OBJ_obj2nid (tsig_alg->algorithm));
+
+	return str;
+}
+
 static void
 show_info_dialog (GtkWindow *window, const char *msg)
 {
@@ -573,6 +586,13 @@ detail_cb (GtkMenuItem *menuitem __attribute__((unused)),
 	gtk_grid_set_row_spacing (GTK_GRID(grid), 4);
 	row_count = 0;
 
+	/* Versioni Number */
+	type_str = g_strdup_printf ("<b>%s</b>", _("Version:"));
+	str = g_strdup_printf ("%0ld", X509_get_version (X509cert) + 1);
+	add_cert_row (grid, row_count++, type_str, str);
+	g_free (type_str);
+	g_free (str);
+
 	/* Serial Number */
 	type_str = g_strdup_printf ("<b>%s</b>", _("Serial:"));
 	str = get_x509_serial_str (X509cert);
@@ -580,6 +600,15 @@ detail_cb (GtkMenuItem *menuitem __attribute__((unused)),
 	g_free (type_str);
 	if (str)
 		free (str);
+
+	/* ==== */
+	add_cert_row (grid, row_count++, " ", NULL);
+
+	/* Signature Type */
+	type_str = g_strdup_printf ("<b>%s</b>", _("Signature Type:"));
+	str = (char *)get_x509_sig_algorithm (X509cert);
+	add_cert_row (grid, row_count++, type_str, str);
+	g_free (type_str);
 
 	/* ==== */
 	add_cert_row (grid, row_count++, " ", NULL);
