@@ -134,30 +134,37 @@ get_x509_serial_str (X509 *X509cert)
 {
 	ASN1_INTEGER *serial;
 	BIGNUM *bnser;
-	unsigned char hexbuf[30];
+	unsigned char *hexbuf = NULL;
 	int i, n;
-	char *serial_str, *ptr;
+	char *serial_str = NULL, *ptr;
 
 	serial = X509_get_serialNumber (X509cert);
 	if (serial == NULL)
 		return NULL;
 
 	bnser = ASN1_INTEGER_to_BN(serial, NULL);
+
+	hexbuf = (unsigned char *)malloc (BN_num_bytes(bnser));
+	if (hexbuf == NULL)
+		goto out;
+
 	n = BN_bn2bin(bnser, hexbuf);
-	serial_str = (char *)calloc (n*3 + 1, 1);
+	serial_str = (char *)calloc (n*3 + 3, 1);
 	if (serial_str == NULL)
-		return NULL;
+		goto out;
 
 	ptr = serial_str;
 	for (i = 0; i < n; i++) {
-		sprintf (serial_str, "%02x", hexbuf[i]);
+		sprintf (ptr, "%02x", hexbuf[i]);
 		ptr += 2;
 		if (i < n-1) {
 			sprintf (ptr, ":");
 			ptr++;
 		}
 	}
-
+out:
+	if (hexbuf)
+		free (hexbuf);
 	return serial_str;
 }
 
