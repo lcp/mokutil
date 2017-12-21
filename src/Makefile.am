@@ -21,6 +21,7 @@ bin_PROGRAMS	+= mokutil-gtk
 mokutil_gtk_CFLAGS  = $(OPENSSL_CFLAGS)	\
 		      $(EFIVAR_CFLAGS)	\
 		      $(GTK3_CFLAGS)	\
+		      -DLOCALEDIR='"$(localedir)"' \
 		      $(WARNINGFLAGS_C)
 
 mokutil_gtk_LDADD   = $(OPENSSL_LIBS)	\

@@ -6,6 +6,8 @@ AC_INIT([mokutil], [0.3.0], [glin@suse.com])
 AM_INIT_AUTOMAKE([1.11 -Wno-portability tar-ustar dist-bzip2 no-dist-gzip])
 AC_CONFIG_SRCDIR([src/mokutil.c])
 AC_CONFIG_HEADERS([config.h])
+AM_GNU_GETTEXT([external])
+AM_GNU_GETTEXT_VERSION(0.19)
 
 # Checks for programs.
 AC_PROG_CC
@@ -112,5 +114,6 @@ AM_CONDITIONAL([ENABLE_BASH_COMPLETION],[test "x$with_bash_completion_dir" != "x
 
 AC_CONFIG_FILES([Makefile
                  src/Makefile
-		 man/Makefile])
+		 man/Makefile
+		 po/Makefile.in])
 AC_OUTPUT
