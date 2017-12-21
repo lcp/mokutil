@@ -153,6 +153,11 @@ get_x509_serial_str (X509 *X509cert)
 	if (serial_str == NULL)
 		goto out;
 
+	if (n == 1) {
+		sprintf (serial_str, "0x%x", hexbuf[0]);
+		goto out;
+	}
+
 	ptr = serial_str;
 	for (i = 0; i < n; i++) {
 		sprintf (ptr, "%02x", hexbuf[i]);
