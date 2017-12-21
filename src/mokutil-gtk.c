@@ -16,6 +16,7 @@
 
 #include <openssl/sha.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 
 #include "utils.h"
 
@@ -182,6 +183,44 @@ get_x509_sig_algorithm (X509 *X509cert)
 	tsig_alg = X509_get0_tbs_sigalg(X509cert);
 
 	str = OBJ_nid2ln (OBJ_obj2nid (tsig_alg->algorithm));
+
+	return str;
+}
+
+static char *
+get_x509_extension (const X509 *X509cert, const uint32_t nid)
+{
+	const STACK_OF(X509_EXTENSION) *exts;
+	X509_EXTENSION *ext;
+	int loc;
+	char *str;
+	BIO *out;
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+	uint64_t num_write;
+#else
+	unsigned long num_write;
+#endif
+
+	exts = X509_get0_extensions (X509cert);
+	loc = X509v3_get_ext_by_NID (exts, nid, -1);
+	ext = X509v3_get_ext (exts, loc);
+
+	if (!ext)
+		return NULL;
+
+	out = BIO_new (BIO_s_mem());
+	if (!X509V3_EXT_print (out, ext, 0, 0)) {
+		fprintf (stderr, "Failed to print key usage\n");
+		return NULL;
+	}
+	num_write = BIO_number_written (out);
+	str = (char *)calloc (num_write + 1, 1);
+	if (str == NULL) {
+		fprintf (stderr, "Failed to allocate string buffer\n");
+		return NULL;
+	}
+	BIO_read (out, str, num_write);
+	BIO_free (out);
 
 	return str;
 }
@@ -659,6 +698,18 @@ detail_cb (GtkMenuItem *menuitem __attribute__((unused)),
 
 	add_fingerprint_entries (grid, &row_count, node->mok, node->mok_size);
 
+	str = get_x509_extension (X509cert, NID_key_usage);
+	if (str != NULL) {
+		/* ==== */
+		add_cert_row (grid, row_count++, " ", NULL);
+
+		/* Key Usage */
+		type_str = g_strdup_printf ("<b>%s</b>", _("Key Usage:"));
+		add_cert_row (grid, row_count++, type_str, str);
+
+		g_free (type_str);
+		free (str);
+	}
 	gtk_widget_show_all (content);
 
 	gtk_dialog_run (GTK_DIALOG(dialog));
