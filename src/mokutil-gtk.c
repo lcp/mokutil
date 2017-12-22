@@ -598,32 +598,28 @@ add_name_entries (GtkWidget *grid, X509_NAME *x509name, int *row)
 }
 
 static void
-detail_cb (GtkMenuItem *menuitem __attribute__((unused)),
-	   gpointer *data __attribute__((unused)))
+show_cert_details (void *cert_data, uint32_t cert_size)
 {
 	GtkWidget *dialog, *content, *frame, *grid;
 	GtkDialogFlags flags;
-	MokListNode *node;
 	X509 *X509cert;
 	X509_NAME *x509name;
 	BIO *cert_bio;
 	char *type_str, *str;
 	int row_count;
 
-	node = &list[cur_var_id][cur_key_index];
-
 	/* Convert DER to X509 structure */
 	cert_bio = BIO_new (BIO_s_mem());
 	if (cert_bio == NULL) {
-		fprintf (stderr, "%s: Failed to allocate BIO\n",
-			 __FUNCTION__);
+		show_err_dialog (GTK_WINDOW(main_win),
+				 _("Failed to allocate BIO"));
 		return;
 	}
-	BIO_write (cert_bio, node->mok, node->mok_size);
+	BIO_write (cert_bio, cert_data, cert_size);
 	X509cert = d2i_X509_bio (cert_bio, NULL);
 	if (X509cert == NULL) {
-		fprintf (stderr, "%s: Invalid certificate\n",
-			 __FUNCTION__);
+		show_err_dialog (GTK_WINDOW(main_win),
+				 _("Invalid certificate"));
 		return;
 	}
 
@@ -713,7 +709,7 @@ detail_cb (GtkMenuItem *menuitem __attribute__((unused)),
 	type_str = g_strdup_printf ("<b>%s</b>", _("Fingerprint:"));
 	add_cert_row (grid, row_count++, type_str, NULL);
 
-	add_fingerprint_entries (grid, &row_count, node->mok, node->mok_size);
+	add_fingerprint_entries (grid, &row_count, cert_data, cert_size);
 
 	str = get_x509_extension (X509cert, NID_key_usage);
 	if (str != NULL) {
@@ -732,6 +728,16 @@ detail_cb (GtkMenuItem *menuitem __attribute__((unused)),
 	gtk_dialog_run (GTK_DIALOG(dialog));
 
 	gtk_widget_destroy (dialog);
+}
+
+static void
+detail_cb (GtkMenuItem *menuitem __attribute__((unused)),
+	   gpointer *data __attribute__((unused)))
+{
+	MokListNode *node;
+
+	node = &list[cur_var_id][cur_key_index];
+	show_cert_details (node->mok, node->mok_size);
 }
 
 static gboolean
