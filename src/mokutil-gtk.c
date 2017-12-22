@@ -20,6 +20,8 @@
 
 #include "utils.h"
 
+#define gettext_noop(String) String
+
 typedef enum {
 	MOK = 0,
 	MOK_NEW,
@@ -573,11 +575,12 @@ typedef struct {
 } NidName;
 
 static NidName nidname[] = {
-	{NID_commonName, "Name"},
-	{NID_organizationName, "Organization"},
-	{NID_countryName, "Country"},
-	{NID_stateOrProvinceName, "State"},
-	{NID_localityName, "Locality"},
+	{NID_commonName, gettext_noop ("Name")},
+	{NID_organizationName, gettext_noop ("Organization")},
+	{NID_organizationalUnitName, gettext_noop ("Organizational Unit")},
+	{NID_countryName, gettext_noop ("Country")},
+	{NID_stateOrProvinceName, gettext_noop ("State/Provice")},
+	{NID_localityName, gettext_noop ("Locality")},
 	{-1, NULL}
 };
 
@@ -590,7 +593,7 @@ add_name_entries (GtkWidget *grid, X509_NAME *x509name, int *row)
 	for (i = 0; nidname[i].name != NULL; i++) {
 		str = get_x509_name_str (x509name, nidname[i].nid);
 		if (str != NULL)
-			add_cert_row (grid, (*row)++, nidname[i].name, str);
+			add_cert_row (grid, (*row)++, _(nidname[i].name), str);
 	}
 }
 
