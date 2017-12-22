@@ -1011,10 +1011,37 @@ out:
 	return ret;
 }
 
+static int
+get_certificate (uint8_t **cert, uint32_t *cert_size)
+{
+	char *certname = NULL;
+	int ret = -1;
+
+	certname = get_cert_name_from_dialog ();
+	if (certname == NULL)
+		return -1;
+
+	if (read_file_to_buffer (certname, cert, cert_size) < 0) {
+		show_err_dialog (GTK_WINDOW(main_win),
+				 _("Failed to read file"));
+		goto out;
+	}
+
+	if (!is_valid_cert(*cert, *cert_size)) {
+		show_err_dialog (GTK_WINDOW(main_win),
+				 _("Not a valid DER certificate"));
+		goto out;
+	}
+
+	ret = 0;
+out:
+	g_free (certname);
+	return ret;
+}
+
 static void
 import_key (MokRequest req)
 {
-	char *certname = NULL;
 	uint8_t *cert = NULL;
 	uint32_t cert_size;
 	uint8_t *var_data = NULL, *new_var_data = NULL;
@@ -1033,21 +1060,8 @@ import_key (MokRequest req)
 		[ENROLL_BLACKLIST] = "MokXAuth",
 	};
 
-	certname = get_cert_name_from_dialog ();
-	if (certname == NULL)
-		return;
-
-	if (read_file_to_buffer (certname, &cert, &cert_size) < 0) {
-		show_err_dialog (GTK_WINDOW(main_win),
-				 _("Failed to read file"));
+	if (get_certificate (&cert, &cert_size) < 0)
 		goto out;
-	}
-
-	if (!is_valid_cert(cert, cert_size)) {
-		show_err_dialog (GTK_WINDOW(main_win),
-				 _("Not a valid DER certificate"));
-		goto out;
-	}
 
 	if (!is_valid_request (&efi_guid_x509_cert, cert, cert_size, req)) {
 		show_err_dialog (GTK_WINDOW(main_win),
@@ -1119,8 +1133,6 @@ import_key (MokRequest req)
 	show_info_dialog (GTK_WINDOW(main_win),
 			  _("Please reboot the system for the change to take effect."));
 out:
-	if (certname != NULL)
-		g_free (certname);
 	if (cert != NULL)
 		free (cert);
 	if (password != NULL)
@@ -1143,6 +1155,22 @@ import_mokx_cb (GtkMenuItem * item __attribute__((unused)),
 	        gpointer data __attribute__((unused)))
 {
 	import_key (ENROLL_BLACKLIST);
+}
+
+static void
+inspect_cb (GtkMenuItem * item __attribute__((unused)),
+	    gpointer data __attribute__((unused)))
+{
+	uint8_t *cert = NULL;
+	uint32_t cert_size;
+
+	if (get_certificate (&cert, &cert_size) < 0)
+		goto out;
+
+	show_cert_details (cert, cert_size);
+out:
+	if (cert)
+		free (cert);
 }
 
 static void
@@ -1183,6 +1211,14 @@ generate_menubar_menus (GtkWidget *menu_bar)
 			  G_CALLBACK(import_mokx_cb), NULL);
 	gtk_widget_add_accelerator (item, "activate", accel_group,
 				    GDK_KEY_b, GDK_CONTROL_MASK,
+				    GTK_ACCEL_VISIBLE);
+	gtk_menu_shell_append (GTK_MENU_SHELL(menu), item);
+
+	item = gtk_menu_item_new_with_label (_("Inspect a key"));
+	g_signal_connect (G_OBJECT(item), "activate",
+			  G_CALLBACK(inspect_cb), NULL);
+	gtk_widget_add_accelerator (item, "activate", accel_group,
+				    GDK_KEY_i, GDK_CONTROL_MASK,
 				    GTK_ACCEL_VISIBLE);
 	gtk_menu_shell_append (GTK_MENU_SHELL(menu), item);
 
