@@ -1227,7 +1227,6 @@ show_ui(void)
 
 	main_win = gtk_window_new (GTK_WINDOW_TOPLEVEL);
 	gtk_window_set_default_size (GTK_WINDOW(main_win), 600, 400);
-	/* TODO free var_data[] and list[] on exit */
 	g_signal_connect (main_win, "destroy",
 		          G_CALLBACK (gtk_main_quit), NULL);
 	gtk_window_set_title (GTK_WINDOW(main_win), "mokutil");
@@ -1259,6 +1258,19 @@ main (int argc, char **argv)
 	gtk_init (&argc, &argv);
 	show_ui ();
 	gtk_main ();
+
+	/* Clean up the arrays */
+	for (int i = 0; i < NUM_OF_VARS; i++) {
+		if (var_data[i]) {
+			free (var_data[i]);
+			var_data[i] = NULL;
+		}
+
+		if (list[i]) {
+			free (list[i]);
+			list[i] = NULL;
+		}
+	}
 
 	return 0;
 }
