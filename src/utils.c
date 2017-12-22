@@ -5,6 +5,7 @@
 
 #include <openssl/sha.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 
 #include <crypt.h>
 #include <shadow.h>
@@ -638,4 +639,146 @@ create_authvar (const char *auth_name, const char *password,
 	return efi_set_variable (efi_guid_shim, auth_name, (void *)&pw_crypt,
 				 PASSWORD_CRYPT_SIZE, EFI_NV_RT,
 				 S_IRUSR | S_IWUSR);
+}
+
+/* === X509 util functions === */
+char *
+get_x509_time_str (ASN1_TIME *time)
+{
+	BIO *bio = BIO_new (BIO_s_mem());
+	char *time_str;
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+	uint64_t num_write;
+#else
+	unsigned long num_write;
+#endif
+
+	ASN1_TIME_print (bio, time);
+	num_write = BIO_number_written (bio);
+	time_str = (char *)calloc (num_write + 1, 1);
+	if (time_str == NULL)
+		return NULL;
+	BIO_read (bio, time_str, num_write);
+	BIO_free (bio);
+
+	return time_str;
+}
+
+const char *
+get_x509_name_str (X509_NAME *X509name, int nid)
+{
+	X509_NAME_ENTRY *cn_entry = NULL;
+	ASN1_STRING *cn_asn1 = NULL;
+	int cn_loc = -1;
+
+	cn_loc = X509_NAME_get_index_by_NID (X509name, nid, -1);
+	if (cn_loc < 0)
+		return NULL;
+
+	cn_entry = X509_NAME_get_entry (X509name, cn_loc);
+	if (cn_entry == NULL)
+		return NULL;
+
+	cn_asn1 = X509_NAME_ENTRY_get_data (cn_entry);
+	if (cn_asn1 == NULL)
+		return NULL;
+
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+	return (const char *)ASN1_STRING_get0_data (cn_asn1);
+#else
+	return (const char *)ASN1_STRING_data (cn_asn1);;
+#endif
+}
+
+char *
+get_x509_serial_str (X509 *X509cert)
+{
+	ASN1_INTEGER *serial;
+	BIGNUM *bnser;
+	unsigned char *hexbuf = NULL;
+	int i, n;
+	char *serial_str = NULL, *ptr;
+
+	serial = X509_get_serialNumber (X509cert);
+	if (serial == NULL)
+		return NULL;
+
+	bnser = ASN1_INTEGER_to_BN(serial, NULL);
+
+	hexbuf = (unsigned char *)malloc (BN_num_bytes(bnser));
+	if (hexbuf == NULL)
+		goto out;
+
+	n = BN_bn2bin(bnser, hexbuf);
+	serial_str = (char *)calloc (n*3 + 3, 1);
+	if (serial_str == NULL)
+		goto out;
+
+	if (n == 1) {
+		sprintf (serial_str, "0x%x", hexbuf[0]);
+		goto out;
+	}
+
+	ptr = serial_str;
+	for (i = 0; i < n; i++) {
+		sprintf (ptr, "%02x", hexbuf[i]);
+		ptr += 2;
+		if (i < n-1) {
+			sprintf (ptr, ":");
+			ptr++;
+		}
+	}
+out:
+	if (hexbuf)
+		free (hexbuf);
+	return serial_str;
+}
+
+const char *
+get_x509_sig_alg_str (X509 *X509cert)
+{
+	const X509_ALGOR *tsig_alg;
+	const char *str;
+
+	tsig_alg = X509_get0_tbs_sigalg(X509cert);
+
+	str = OBJ_nid2ln (OBJ_obj2nid (tsig_alg->algorithm));
+
+	return str;
+}
+
+char *
+get_x509_ext_str (const X509 *X509cert, const uint32_t nid)
+{
+	const STACK_OF(X509_EXTENSION) *exts;
+	X509_EXTENSION *ext;
+	int loc;
+	char *str;
+	BIO *out;
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+	uint64_t num_write;
+#else
+	unsigned long num_write;
+#endif
+
+	exts = X509_get0_extensions (X509cert);
+	loc = X509v3_get_ext_by_NID (exts, nid, -1);
+	ext = X509v3_get_ext (exts, loc);
+
+	if (!ext)
+		return NULL;
+
+	out = BIO_new (BIO_s_mem());
+	if (!X509V3_EXT_print (out, ext, 0, 0))
+		return NULL;
+
+	num_write = BIO_number_written (out);
+	str = (char *)calloc (num_write + 1, 1);
+	if (str == NULL)
+		return NULL;
+
+	BIO_read (out, str, num_write);
+	BIO_free (out);
+
+	return str;
 }
