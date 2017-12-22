@@ -30,9 +30,12 @@
  */
 
 #include <ctype.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include <openssl/sha.h>
 #include <openssl/x509.h>
@@ -670,6 +673,38 @@ create_authvar (const char *auth_name, const char *password,
 	return efi_set_variable (efi_guid_shim, auth_name, (void *)&pw_crypt,
 				 PASSWORD_CRYPT_SIZE, EFI_NV_RT,
 				 S_IRUSR | S_IWUSR);
+}
+
+int
+read_file_to_buffer (const char *filename, uint8_t **buffer,
+		     uint32_t *buf_size)
+{
+	struct stat f_stat;
+	ssize_t read_size;
+	int fd = 0, ret = -1;
+
+	if (stat (filename, &f_stat) != 0)
+			goto out;
+
+	*buffer = (uint8_t *)malloc (f_stat.st_size);
+	if (*buffer == NULL)
+		return -1;
+
+	fd = open (filename, O_RDONLY);
+	if (fd == -1)
+		return -1;
+
+	read_size = read (fd, *buffer, f_stat.st_size);
+	if (read_size < 0 || read_size != f_stat.st_size)
+		goto out;
+
+	*buf_size = (uint32_t)read_size;
+	ret = 0;
+out:
+	if (fd > 0)
+		close (fd);
+
+	return ret;
 }
 
 /* === X509 util functions === */

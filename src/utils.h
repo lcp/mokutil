@@ -29,8 +29,8 @@
  * files in the program, then also delete it here.
  */
 
-#ifndef __UTIL_H__
-#define __UTIL_H__
+#ifndef __UTILS_H__
+#define __UTILS_H__
 
 #include <ctype.h>
 #include <efivar.h>
@@ -106,10 +106,13 @@ int generate_auth (void *new_list, int list_len, char *password,
 int create_authvar (const char *auth_name, const char *password,
 		    const uint8_t root_pw);
 
+int read_file_to_buffer (const char *filename, uint8_t **buffer,
+			 uint32_t *buf_size);
+
 char *get_x509_time_str (ASN1_TIME *time);
 const char *get_x509_name_str (X509_NAME *X509name, int nid);
 char *get_x509_serial_str (X509 *X509cert);
 const char *get_x509_sig_alg_str (X509 *X509cert);
 char *get_x509_ext_str (const X509 *X509cert, const uint32_t nid);
 
-#endif /* __UTIL_H__ */
+#endif /* __UTILS_H__ */

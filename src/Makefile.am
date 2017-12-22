@@ -31,8 +31,10 @@ mokutil_gtk_LDADD   = $(OPENSSL_LIBS)	\
 
 mokutil_gtk_SOURCES = signature.h \
 		      utils.h \
+		      utils-gtk.h \
 		      password-crypt.h \
 		      password-crypt.c \
+		      utils-gtk.c \
 		      utils.c \
 		      mokutil-gtk.c
 endif
