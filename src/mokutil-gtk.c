@@ -1161,65 +1161,63 @@ about_cb (GtkMenuItem * item __attribute__((unused)),
 static void
 generate_menubar_menus (GtkWidget *menu_bar)
 {
-	GtkWidget *filemenu, *helpmenu;
-	GtkWidget *file, *quit, *mok, *mokx;
-	GtkWidget *help_top, *help, *about;
+	GtkWidget *file, *help, *menu, *item;
 	GtkAccelGroup *accel_group;
 
 	accel_group = gtk_accel_group_new ();
 	gtk_window_add_accel_group (GTK_WINDOW(main_win), accel_group);
 
 	/* File Menu */
-	filemenu = gtk_menu_new ();
+	menu = gtk_menu_new ();
 
-	mok = gtk_menu_item_new_with_label (_("Enroll a new key"));
-	g_signal_connect (G_OBJECT(mok), "activate",
+	item = gtk_menu_item_new_with_label (_("Enroll a new key"));
+	g_signal_connect (G_OBJECT(item), "activate",
 			  G_CALLBACK(import_mok_cb), NULL);
-	gtk_widget_add_accelerator (mok, "activate", accel_group,
+	gtk_widget_add_accelerator (item, "activate", accel_group,
 				    GDK_KEY_e, GDK_CONTROL_MASK,
 				    GTK_ACCEL_VISIBLE);
-	gtk_menu_shell_append (GTK_MENU_SHELL(filemenu), mok);
+	gtk_menu_shell_append (GTK_MENU_SHELL(menu), item);
 
-	mokx = gtk_menu_item_new_with_label (_("Blacklist a key"));
-	g_signal_connect (G_OBJECT(mokx), "activate",
+	item = gtk_menu_item_new_with_label (_("Blacklist a key"));
+	g_signal_connect (G_OBJECT(item), "activate",
 			  G_CALLBACK(import_mokx_cb), NULL);
-	gtk_widget_add_accelerator (mokx, "activate", accel_group,
+	gtk_widget_add_accelerator (item, "activate", accel_group,
 				    GDK_KEY_b, GDK_CONTROL_MASK,
 				    GTK_ACCEL_VISIBLE);
-	gtk_menu_shell_append (GTK_MENU_SHELL(filemenu), mokx);
+	gtk_menu_shell_append (GTK_MENU_SHELL(menu), item);
 
-	gtk_menu_shell_append (GTK_MENU_SHELL(filemenu),
+	gtk_menu_shell_append (GTK_MENU_SHELL(menu),
 			       gtk_separator_menu_item_new ());
 
-	quit = gtk_menu_item_new_with_label (_("Quit"));
-	g_signal_connect (G_OBJECT(quit), "activate",
+	item = gtk_menu_item_new_with_label (_("Quit"));
+	g_signal_connect (G_OBJECT(item), "activate",
 			  G_CALLBACK(gtk_main_quit), NULL);
-	gtk_widget_add_accelerator (quit, "activate", accel_group,
+	gtk_widget_add_accelerator (item, "activate", accel_group,
 				    GDK_KEY_q, GDK_CONTROL_MASK,
 				    GTK_ACCEL_VISIBLE);
-	gtk_menu_shell_append (GTK_MENU_SHELL(filemenu), quit);
+	gtk_menu_shell_append (GTK_MENU_SHELL(menu), item);
 
 	file = gtk_menu_item_new_with_label (_("File"));
-	gtk_menu_item_set_submenu (GTK_MENU_ITEM(file), filemenu);
+	gtk_menu_item_set_submenu (GTK_MENU_ITEM(file), menu);
 	gtk_menu_shell_append (GTK_MENU_SHELL(menu_bar), file);
 
 	/* Help Menu */
-	helpmenu = gtk_menu_new ();
+	menu = gtk_menu_new ();
+
+	item = gtk_menu_item_new_with_label (_("Help"));
+	/* TODO Implement the help window */
+	gtk_widget_add_accelerator (item, "activate", accel_group,
+				    GDK_KEY_F1, 0, GTK_ACCEL_VISIBLE);
+	gtk_menu_shell_append (GTK_MENU_SHELL(menu), item);
+
+	item = gtk_menu_item_new_with_label (_("About"));
+	g_signal_connect (G_OBJECT(item), "activate",
+			  G_CALLBACK(about_cb), NULL);
+	gtk_menu_shell_append (GTK_MENU_SHELL(menu), item);
 
 	help = gtk_menu_item_new_with_label (_("Help"));
-	/* TODO Implement the help window */
-	gtk_widget_add_accelerator (help, "activate", accel_group,
-				    GDK_KEY_F1, 0, GTK_ACCEL_VISIBLE);
-	gtk_menu_shell_append (GTK_MENU_SHELL(helpmenu), help);
-
-	about = gtk_menu_item_new_with_label (_("About"));
-	g_signal_connect (G_OBJECT(about), "activate",
-			  G_CALLBACK(about_cb), NULL);
-	gtk_menu_shell_append (GTK_MENU_SHELL(helpmenu), about);
-
-	help_top = gtk_menu_item_new_with_label (_("Help"));
-	gtk_menu_item_set_submenu (GTK_MENU_ITEM(help_top), helpmenu);
-	gtk_menu_shell_append (GTK_MENU_SHELL(menu_bar), help_top);
+	gtk_menu_item_set_submenu (GTK_MENU_ITEM(help), menu);
+	gtk_menu_shell_append (GTK_MENU_SHELL(menu_bar), help);
 }
 
 static void
