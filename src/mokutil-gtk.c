@@ -784,10 +784,13 @@ treeview_clicked (GtkTreeView *treeview, GdkEvent *event, MOKVar *id)
 
 	/* Show the popup menu */
 	menu = (GtkMenu *)gtk_menu_new ();
-	delete = gtk_menu_item_new_with_label (_("Delete this key"));
-	gtk_menu_attach (menu, delete, 0, 1, 0 ,1);
-	g_signal_connect (G_OBJECT(delete), "activate",
-			  G_CALLBACK(delete_key_cb), NULL);
+
+	if (*id != DB && *id != DBX) {
+		delete = gtk_menu_item_new_with_label (_("Delete this key"));
+		gtk_menu_attach (menu, delete, 0, 1, 0 ,1);
+		g_signal_connect (G_OBJECT(delete), "activate",
+				  G_CALLBACK(delete_key_cb), NULL);
+	}
 
 	detail = gtk_menu_item_new_with_label (_("Details"));
 	gtk_menu_attach (menu, detail, 0, 1, 1 ,2);
