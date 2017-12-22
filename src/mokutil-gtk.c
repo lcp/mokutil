@@ -275,7 +275,7 @@ root_check_cb (GtkToggleButton *toggle, GtkWidget *pwd_entry[])
 static int
 show_password_dialog (GtkWindow *window, char **password, gboolean *root_pw)
 {
-	GtkWidget *dialog, *content;
+	GtkWidget *dialog, *content, *grid;
 	GtkWidget *label, *root_check;
 	GtkWidget *pwd_entry[2];
 	GtkDialogFlags flags;
@@ -300,19 +300,33 @@ show_password_dialog (GtkWindow *window, char **password, gboolean *root_pw)
 	label = gtk_label_new (_("Enter password for the request"));
 	gtk_container_add (GTK_CONTAINER(content), label);
 
+	grid = gtk_grid_new ();
+	gtk_grid_set_column_spacing (GTK_GRID(grid), 5);
+	gtk_grid_set_row_spacing (GTK_GRID(grid), 5);
+
+	label = gtk_label_new (_("Password:"));
+	gtk_label_set_xalign (GTK_LABEL(label), 1.0);
+	gtk_grid_attach (GTK_GRID(grid), label, 0, 0, 1, 1);
+
 	pwd_entry[0] = gtk_entry_new ();
 	gtk_entry_set_activates_default (GTK_ENTRY(pwd_entry[0]), TRUE);
 	gtk_entry_set_visibility (GTK_ENTRY(pwd_entry[0]), FALSE);
 	gtk_entry_set_input_purpose (GTK_ENTRY(pwd_entry[0]),
 				     GTK_INPUT_PURPOSE_PASSWORD);
-	gtk_container_add (GTK_CONTAINER(content), pwd_entry[0]);
+	gtk_grid_attach (GTK_GRID(grid), pwd_entry[0], 1, 0, 1, 1);
+
+	label = gtk_label_new (_("Again:"));
+	gtk_label_set_xalign (GTK_LABEL(label), 1.0);
+	gtk_grid_attach (GTK_GRID(grid), label, 0, 1, 1, 1);
 
 	pwd_entry[1] = gtk_entry_new ();
 	gtk_entry_set_activates_default (GTK_ENTRY(pwd_entry[1]), TRUE);
 	gtk_entry_set_visibility (GTK_ENTRY(pwd_entry[1]), FALSE);
 	gtk_entry_set_input_purpose (GTK_ENTRY(pwd_entry[1]),
 				     GTK_INPUT_PURPOSE_PASSWORD);
-	gtk_container_add (GTK_CONTAINER(content), pwd_entry[1]);
+	gtk_grid_attach (GTK_GRID(grid), pwd_entry[1], 1, 1, 1, 1);
+
+	gtk_container_add (GTK_CONTAINER(content), grid);
 
 	root_check = gtk_check_button_new_with_label (_("Use root password"));
 	g_signal_connect (root_check, "toggled", G_CALLBACK(root_check_cb),
