@@ -621,11 +621,15 @@ about_cb (GtkMenuItem * item __attribute__((unused)),
 	  gpointer data __attribute__((unused)))
 {
 	const char *authors[] = {"Gary Lin", NULL};
+	const char *comments = _("Utility to manipulate Machine Owner Key");
+	const char *website = "https://github.com/lcp/mokutil";
 
 	gtk_show_about_dialog (GTK_WINDOW(main_win),
 			       "version", VERSION,
 			       "copyright", "GPL-3.0",
 			       "authors", authors,
+			       "comments", comments,
+			       "website", website,
 			       NULL);
 }
 
@@ -708,7 +712,7 @@ show_ui(void)
 	gtk_window_set_default_size (GTK_WINDOW(main_win), 600, 400);
 	g_signal_connect (main_win, "destroy",
 		          G_CALLBACK (gtk_main_quit), NULL);
-	gtk_window_set_title (GTK_WINDOW(main_win), "mokutil");
+	gtk_window_set_title (GTK_WINDOW(main_win), "mokutil-gtk");
 
 	vbox = gtk_box_new (GTK_ORIENTATION_VERTICAL, 5);
 	gtk_container_add (GTK_CONTAINER(main_win), vbox);
