@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mokutil 0.3.0\n"
 "Report-Msgid-Bugs-To: glin@suse.com\n"
-"POT-Creation-Date: 2017-12-22 15:05+0800\n"
+"POT-Creation-Date: 2017-12-22 18:29+0800\n"
 "PO-Revision-Date: 2017-12-21 18:25+0800\n"
 "Last-Translator: Gary Lin <glin@suse.com>\n"
 "Language-Team: Chinese (traditional)\n"
@@ -17,202 +17,238 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: src/mokutil-gtk.c:237
-msgid "Information"
-msgstr "訊息"
-
-#: src/mokutil-gtk.c:254
-msgid "Error"
-msgstr "錯誤"
-
-#: src/mokutil-gtk.c:288
-msgid "Password"
-msgstr "密碼"
-
-#: src/mokutil-gtk.c:291
-msgid "_OK"
-msgstr "確定(O)"
-
-#: src/mokutil-gtk.c:293 src/mokutil-gtk.c:954
-msgid "_Cancel"
-msgstr "取消(C)"
-
-#: src/mokutil-gtk.c:300
-msgid "Enter password for the request"
-msgstr "設定這次請求的密碼"
-
-#: src/mokutil-gtk.c:307
-msgid "Password:"
-msgstr "輸入密碼："
-
-#: src/mokutil-gtk.c:318
-msgid "Again:"
-msgstr "再一次："
-
-#: src/mokutil-gtk.c:331
-msgid "Use root password"
-msgstr "使用 root 密碼"
-
-#: src/mokutil-gtk.c:352
-msgid "Password doesn't match!"
-msgstr "密碼不符！"
-
-#: src/mokutil-gtk.c:395
+#: src/mokutil-gtk.c:140 src/utils-gtk.c:333
 msgid "Invalid certificate"
 msgstr "無效的憑證"
 
-#: src/mokutil-gtk.c:536
-msgid "SHA1"
-msgstr "SHA1"
-
-#: src/mokutil-gtk.c:556
-msgid "SHA256"
-msgstr "SHA256"
-
-#: src/mokutil-gtk.c:629
-msgid "Certificate Details"
-msgstr "憑證細節"
-
-#: src/mokutil-gtk.c:631
-msgid "Close"
-msgstr "關閉"
-
-#: src/mokutil-gtk.c:648
-msgid "Version:"
-msgstr "版本："
-
-#: src/mokutil-gtk.c:655
-msgid "Serial:"
-msgstr "序號："
-
-#: src/mokutil-gtk.c:666
-msgid "Signature Type:"
-msgstr "簽章演算法："
-
-#: src/mokutil-gtk.c:675
-msgid "Subject:"
-msgstr "簽發給："
-
-#: src/mokutil-gtk.c:686
-msgid "Issuer:"
-msgstr "簽發者："
-
-#: src/mokutil-gtk.c:697
-msgid "Valid Date:"
-msgstr "有效期間："
-
-#: src/mokutil-gtk.c:700
-msgid "From"
-msgstr "開始於"
-
-#: src/mokutil-gtk.c:703
-msgid "Until"
-msgstr "過期於"
-
-#: src/mokutil-gtk.c:710
-msgid "Fingerprint:"
-msgstr "指紋"
-
-#: src/mokutil-gtk.c:721
-msgid "Key Usage:"
-msgstr "憑證金鑰用法："
-
-#: src/mokutil-gtk.c:778
+#: src/mokutil-gtk.c:291
 msgid "Delete this key"
 msgstr "刪除這把金鑰"
 
-#: src/mokutil-gtk.c:783
+#: src/mokutil-gtk.c:297
 msgid "Details"
-msgstr "細節"
+msgstr "詳細檢視"
 
-#: src/mokutil-gtk.c:805
+#: src/mokutil-gtk.c:319
 msgid "empty"
 msgstr "空的"
 
-#: src/mokutil-gtk.c:811
+#: src/mokutil-gtk.c:325
 msgid "Failed to fetch the list."
 msgstr "清單建立失敗"
 
-#: src/mokutil-gtk.c:828
+#: src/mokutil-gtk.c:342
 msgid "Type"
 msgstr "類型"
 
-#: src/mokutil-gtk.c:835
+#: src/mokutil-gtk.c:349
 msgid "Key"
 msgstr "金鑰"
 
-#: src/mokutil-gtk.c:951
-msgid "Choose a certificate"
-msgstr "選擇一個憑證"
-
-#: src/mokutil-gtk.c:956
-msgid "_Open"
-msgstr "開啟(O)"
-
-#: src/mokutil-gtk.c:1030
+#: src/mokutil-gtk.c:469
 msgid "Failed to read file"
 msgstr "無法讀檔"
 
-#: src/mokutil-gtk.c:1036
+#: src/mokutil-gtk.c:475
 msgid "Not a valid DER certificate"
 msgstr "不是一個有效的 DER 憑證"
 
-#: src/mokutil-gtk.c:1042
+#: src/mokutil-gtk.c:511
 msgid "The key is already enrolled."
 msgstr "這把金鑰已經註冊了"
 
-#: src/mokutil-gtk.c:1047
+#: src/mokutil-gtk.c:516
 msgid "Removed the key from MokDel"
 msgstr "已從 MokDel 移除這把金鑰"
 
-#: src/mokutil-gtk.c:1048
+#: src/mokutil-gtk.c:517
 msgid "Removed the key from MokXDel"
 msgstr "已從 MokXDel 移除這把金鑰"
 
-#: src/mokutil-gtk.c:1065
+#: src/mokutil-gtk.c:534
 msgid "Failed to get MokNew"
 msgstr "無法讀取 MokNew"
 
-#: src/mokutil-gtk.c:1066
+#: src/mokutil-gtk.c:535
 msgid "Failed to get MokXNew"
 msgstr "無法讀取 MokXNew"
 
-#: src/mokutil-gtk.c:1077
+#: src/mokutil-gtk.c:546
 msgid "Failed to allocate memory"
 msgstr "配置記憶體空間失敗"
 
-#: src/mokutil-gtk.c:1089
+#: src/mokutil-gtk.c:558
 msgid "Failed to write the EFI variable"
 msgstr "無法寫入 EFI 變數"
 
-#: src/mokutil-gtk.c:1097
+#: src/mokutil-gtk.c:566
 msgid "Failed to generate password hash"
 msgstr "密碼雜湊產生失敗"
 
-#: src/mokutil-gtk.c:1108
+#: src/mokutil-gtk.c:577
 msgid "Please reboot the system for the change to take effect."
 msgstr "請重新開機讓這個改變生效"
 
-#: src/mokutil-gtk.c:1163
-msgid "Enroll a new key"
-msgstr "註冊一把新的金鑰"
+#: src/mokutil-gtk.c:624
+msgid "Utility to manipulate Machine Owner Key"
+msgstr "操控 Machine Owner Key 的小程式"
 
-#: src/mokutil-gtk.c:1171
+#: src/mokutil-gtk.c:648
+msgid "Enroll a new key"
+msgstr "註冊新的金鑰"
+
+#: src/mokutil-gtk.c:656
 msgid "Blacklist a key"
 msgstr "將金鑰列入黑名單"
 
-#: src/mokutil-gtk.c:1182
+#: src/mokutil-gtk.c:664
+msgid "Inspect a key"
+msgstr "檢視一把金鑰"
+
+#: src/mokutil-gtk.c:675
 msgid "Quit"
 msgstr "離開"
 
-#: src/mokutil-gtk.c:1190
+#: src/mokutil-gtk.c:683
 msgid "File"
 msgstr "檔案"
 
-#: src/mokutil-gtk.c:1197 src/mokutil-gtk.c:1208
+#: src/mokutil-gtk.c:690 src/mokutil-gtk.c:701
 msgid "Help"
 msgstr "說明"
 
-#: src/mokutil-gtk.c:1203
+#: src/mokutil-gtk.c:696
 msgid "About"
 msgstr "關於"
+
+#: src/utils-gtk.c:50
+msgid "Information"
+msgstr "訊息"
+
+#: src/utils-gtk.c:67
+msgid "Error"
+msgstr "錯誤"
+
+#: src/utils-gtk.c:101
+msgid "Password"
+msgstr "密碼"
+
+#: src/utils-gtk.c:103
+msgid "_OK"
+msgstr "確定(O)"
+
+#: src/utils-gtk.c:105 src/utils-gtk.c:185
+msgid "_Cancel"
+msgstr "取消(C)"
+
+#: src/utils-gtk.c:112
+msgid "Enter password for the request"
+msgstr "設定這次請求的密碼"
+
+#: src/utils-gtk.c:119
+msgid "Password:"
+msgstr "輸入密碼："
+
+#: src/utils-gtk.c:130
+msgid "Again:"
+msgstr "再一次："
+
+#: src/utils-gtk.c:143
+msgid "Use root password"
+msgstr "使用 root 密碼"
+
+#: src/utils-gtk.c:164
+msgid "Password doesn't match!"
+msgstr "密碼不符！"
+
+#: src/utils-gtk.c:182
+msgid "Choose a certificate"
+msgstr "選擇一個憑證"
+
+#: src/utils-gtk.c:187
+msgid "_Open"
+msgstr "開啟(O)"
+
+#: src/utils-gtk.c:249
+msgid "SHA1"
+msgstr "SHA1"
+
+#: src/utils-gtk.c:269
+msgid "SHA256"
+msgstr "SHA256"
+
+#: src/utils-gtk.c:291
+msgid "Name"
+msgstr "名稱"
+
+#: src/utils-gtk.c:292
+msgid "Organization"
+msgstr "組織"
+
+#: src/utils-gtk.c:293
+msgid "Organizational Unit"
+msgstr "組織單位"
+
+#: src/utils-gtk.c:294
+msgid "Country"
+msgstr "國家"
+
+#: src/utils-gtk.c:295
+msgid "State/Provice"
+msgstr "洲／省"
+
+#: src/utils-gtk.c:296
+msgid "Locality"
+msgstr "位於"
+
+#: src/utils-gtk.c:327
+msgid "Failed to allocate BIO"
+msgstr "無法配置 BIO"
+
+#: src/utils-gtk.c:339
+msgid "Certificate Details"
+msgstr "憑證細節"
+
+#: src/utils-gtk.c:341
+msgid "Close"
+msgstr "關閉"
+
+#: src/utils-gtk.c:358
+msgid "Version:"
+msgstr "版本："
+
+#: src/utils-gtk.c:365
+msgid "Serial:"
+msgstr "序號："
+
+#: src/utils-gtk.c:376
+msgid "Signature Type:"
+msgstr "簽章演算法："
+
+#: src/utils-gtk.c:385
+msgid "Subject:"
+msgstr "簽發給："
+
+#: src/utils-gtk.c:396
+msgid "Issuer:"
+msgstr "簽發者："
+
+#: src/utils-gtk.c:407
+msgid "Valid Date:"
+msgstr "有效期間："
+
+#: src/utils-gtk.c:410
+msgid "From"
+msgstr "開始於"
+
+#: src/utils-gtk.c:413
+msgid "Until"
+msgstr "過期於"
+
+#: src/utils-gtk.c:420
+msgid "Fingerprint:"
+msgstr "指紋"
+
+#: src/utils-gtk.c:431
+msgid "Key Usage:"
+msgstr "憑證金鑰用法："
