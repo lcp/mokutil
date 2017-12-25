@@ -285,15 +285,13 @@ typedef struct {
 	const char *name;
 } NidName;
 
-#define gettext_noop(String) String
-
 static NidName nidname[] = {
-	{NID_commonName, gettext_noop ("Name")},
-	{NID_organizationName, gettext_noop ("Organization")},
-	{NID_organizationalUnitName, gettext_noop ("Organizational Unit")},
-	{NID_countryName, gettext_noop ("Country")},
-	{NID_stateOrProvinceName, gettext_noop ("State/Provice")},
-	{NID_localityName, gettext_noop ("Locality")},
+	{NID_commonName, N_("Name")},
+	{NID_organizationName, N_("Organization")},
+	{NID_organizationalUnitName, N_("Organizational Unit")},
+	{NID_countryName, N_("Country")},
+	{NID_stateOrProvinceName, N_("State/Provice")},
+	{NID_localityName, N_("Locality")},
 	{-1, NULL}
 };
 
