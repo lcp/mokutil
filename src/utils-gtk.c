@@ -438,3 +438,114 @@ show_cert_details (GtkWindow *parent, void *cert_data, uint32_t cert_size)
 
 	gtk_widget_destroy (dialog);
 }
+
+/* === process_mok_request === */
+int process_mok_request (GtkWindow *parent, MokRequest req,
+			 void *cert, uint32_t cert_size)
+{
+	uint8_t *var_data = NULL, *new_var_data = NULL;
+	uint8_t *ptr;
+	size_t var_size, new_var_size;
+	uint32_t attributes;
+	char *password = NULL;
+	gboolean root_pw;
+	int ret = -1;
+	const char *var_name[] = {
+		[ENROLL_MOK] = "MokNew",
+		[DELETE_MOK] = "MokDel",
+		[ENROLL_BLACKLIST] = "MokXNew",
+		[DELETE_BLACKLIST] = "MokXDel",
+	};
+	const char *authvar_name[] = {
+		[ENROLL_MOK] = "MokAuth",
+		[DELETE_MOK] = "MokDelAuth",
+		[ENROLL_BLACKLIST] = "MokXAuth",
+		[DELETE_BLACKLIST] = "MokXDelAuth",
+	};
+
+	if (cert == NULL || cert_size == 0)
+		goto out;
+
+	if (!is_valid_request (&efi_guid_x509_cert, cert, cert_size, req)) {
+		const char *msg[] = {
+			[ENROLL_MOK] = _("The key is already enrolled."),
+			[DELETE_MOK] = _("The key is already in the delete list."),
+			[ENROLL_BLACKLIST] = _("The key is already in the blacklist."),
+			[DELETE_BLACKLIST] = _("The key is already in the delete list."),
+		};
+		show_err_dialog (parent, msg[req]);
+		goto out;
+	} else if (delete_from_pending_request (&efi_guid_x509_cert,
+						cert, cert_size, req)) {
+		const char *msg[] = {
+			[ENROLL_MOK] = _("Removed the key from MokDel"),
+			[DELETE_MOK] = _("Removed the key from MokNew"),
+			[ENROLL_BLACKLIST] = _("Removed the key from MokXDel"),
+			[DELETE_BLACKLIST] = _("Removed the key from MokXNew"),
+		};
+		show_info_dialog (parent, msg[req]);
+		goto out;
+	}
+
+	/* Ask for the password */
+	if (show_password_dialog (parent, &password, &root_pw) < 0)
+		goto out;
+
+	/* Read the variable and append the key */
+	ret = efi_get_variable (efi_guid_shim, var_name[req], &var_data,
+				&var_size, &attributes);
+	if (ret < 0 && errno == ENOENT) {
+		var_size = 0;
+	} else if (ret < 0) {
+		const char *msg[] = {
+			[ENROLL_MOK] = _("Failed to get MokNew"),
+			[DELETE_MOK] = _("Failed to get MokDel"),
+			[ENROLL_BLACKLIST] = _("Failed to get MokXNew"),
+			[DELETE_BLACKLIST] = _("Failed to get MokXDel"),
+		};
+		show_err_dialog (parent, msg[req]);
+		goto out;
+	}
+
+	new_var_size = var_size + sizeof(EFI_SIGNATURE_LIST) +
+		       sizeof (efi_guid_t) + cert_size;
+	new_var_data = malloc (new_var_size);
+	if (new_var_data == NULL) {
+		show_err_dialog (parent,
+				 _("Failed to allocate memory"));
+		goto out;
+	}
+	if (var_size > 0)
+		memcpy (new_var_data, var_data, var_size);
+	ptr = new_var_data + var_size;
+	allocate_x509_sig (ptr, cert, cert_size);
+
+	ret = efi_set_variable (efi_guid_shim, var_name[req], new_var_data,
+				new_var_size, EFI_NV_RT, S_IRUSR | S_IWUSR);
+	if (ret < 0) {
+		show_err_dialog (parent,
+				 _("Failed to write the EFI variable"));
+		goto out;
+	}
+
+	/* Generate the password hash */
+	if (create_authvar (authvar_name[req], password, root_pw) < 0) {
+		test_and_delete_var (var_name[req]);
+		show_err_dialog (parent,
+				 _("Failed to generate password hash"));
+		goto out;
+	}
+
+	show_info_dialog (parent,
+			  _("Please reboot the system for the change to take effect."));
+	ret = 0;
+out:
+	if (password != NULL)
+		free (password);
+	if (var_data != NULL)
+		free (var_data);
+	if (new_var_data != NULL)
+		free (new_var_data);
+
+	return ret;
+}

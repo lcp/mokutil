@@ -112,6 +112,8 @@ enum {
 	N_COLUMNS
 };
 
+static void refresh_page (MOKVar id);
+
 static void
 append_cert (GtkTreeStore *store, MokListNode *node)
 {
@@ -226,10 +228,56 @@ static void
 delete_key_cb (GtkMenuItem *menuitem __attribute__((unused)),
 	       gpointer *data __attribute__((unused)))
 {
-	/* TODO delete the key */
-	printf ("delete key %d from %s\n",
-		cur_key_index,
-		mokvar_to_string[cur_var_id]);
+	MokListNode *node;
+	EFI_SIGNATURE_LIST *header;
+	int ret;
+	MokRequest req[] = {
+		[MOK] = DELETE_MOK,
+		[MOKX] = DELETE_BLACKLIST,
+		[MOK_NEW] = DELETE_MOK,
+		[MOK_DEL] = ENROLL_MOK,
+		[MOKX_NEW] = DELETE_BLACKLIST,
+		[MOKX_DEL] = ENROLL_BLACKLIST,
+	};
+
+	if (cur_var_id == DB || cur_var_id == DBX) {
+		show_err_dialog (GTK_WINDOW(main_win),
+				 _("Unsupported Operation"));
+		return;
+	}
+
+	node = &list[cur_var_id][cur_key_index];
+	header = node->header;
+
+	/* TODO support hash deletion */
+	if (efi_guid_cmp(&header->SignatureType, &efi_guid_x509_cert) != 0) {
+		show_err_dialog (GTK_WINDOW(main_win),
+				 _("Unsupported Operation"));
+		return;
+	}
+
+	if (cur_var_id == MOK || cur_var_id == MOKX) {
+		/* create MokDel or MokXDel */
+		ret = process_mok_request (GTK_WINDOW(main_win),
+					   req[cur_var_id],
+					   node->mok, node->mok_size);
+		if (ret < 0)
+			return;
+
+		if (cur_var_id == MOK)
+			refresh_page (MOK_DEL);
+		else
+			refresh_page (MOKX_DEL);
+		refresh_page (cur_var_id);
+	} else if (cur_var_id == MOK_NEW || cur_var_id == MOKX_NEW ||
+		   cur_var_id == MOK_DEL || cur_var_id == MOKX_DEL) {
+		/* delete_from_pending_request() deletes the key in the
+		 * opposite list. */
+		delete_from_pending_request (&(header->SignatureType),
+					     node->mok, node->mok_size,
+					     req[cur_var_id]);
+		refresh_page (cur_var_id);
+	}
 }
 
 static void
@@ -487,85 +535,14 @@ import_key (MokRequest req)
 {
 	uint8_t *cert = NULL;
 	uint32_t cert_size;
-	uint8_t *var_data = NULL, *new_var_data = NULL;
-	uint8_t *ptr;
-	size_t var_size, new_var_size;
-	uint32_t attributes;
-	char *password = NULL;
-	gboolean root_pw;
 	int ret;
-	const char *var_name[] = {
-		[ENROLL_MOK] = "MokNew",
-		[ENROLL_BLACKLIST] = "MokXNew",
-	};
-	const char *authvar_name[] = {
-		[ENROLL_MOK] = "MokAuth",
-		[ENROLL_BLACKLIST] = "MokXAuth",
-	};
 
 	if (get_certificate (&cert, &cert_size) < 0)
 		goto out;
 
-	if (!is_valid_request (&efi_guid_x509_cert, cert, cert_size, req)) {
-		show_err_dialog (GTK_WINDOW(main_win),
-				 _("The key is already enrolled."));
+	ret = process_mok_request (GTK_WINDOW(main_win), req, cert, cert_size);
+	if (ret < 0)
 		goto out;
-	} else if (delete_from_pending_request (&efi_guid_x509_cert,
-						cert, cert_size, req)) {
-		const char *msg[] = {
-			[ENROLL_MOK] = _("Removed the key from MokDel"),
-			[ENROLL_BLACKLIST] = _("Removed the key from MokXDel"),
-		};
-		show_info_dialog (GTK_WINDOW(main_win), msg[req]);
-	}
-
-	/* Ask for the password */
-	if (show_password_dialog (GTK_WINDOW(main_win), &password,
-				  &root_pw) < 0)
-		goto out;
-
-	/* Read the variable and append the key */
-	ret = efi_get_variable (efi_guid_shim, var_name[req], &var_data,
-				&var_size, &attributes);
-	if (ret < 0 && errno == ENOENT) {
-		var_size = 0;
-	} else if (ret < 0) {
-		const char *msg[] = {
-			[ENROLL_MOK] = _("Failed to get MokNew"),
-			[ENROLL_BLACKLIST] = _("Failed to get MokXNew"),
-		};
-		show_err_dialog (GTK_WINDOW(main_win), msg[req]);
-		goto out;
-	}
-
-	new_var_size = var_size + sizeof(EFI_SIGNATURE_LIST) +
-		       sizeof (efi_guid_t) + cert_size;
-	new_var_data = malloc (new_var_size);
-	if (new_var_data == NULL) {
-		show_err_dialog (GTK_WINDOW(main_win),
-				 _("Failed to allocate memory"));
-		goto out;
-	}
-	if (var_size > 0)
-		memcpy (new_var_data, var_data, var_size);
-	ptr = new_var_data + var_size;
-	allocate_x509_sig (ptr, cert, cert_size);
-
-	ret = efi_set_variable (efi_guid_shim, var_name[req], new_var_data,
-				new_var_size, EFI_NV_RT, S_IRUSR | S_IWUSR);
-	if (ret < 0) {
-		show_err_dialog (GTK_WINDOW(main_win),
-				 _("Failed to write the EFI variable"));
-		goto out;
-	}
-
-	/* Generate the password hash */
-	if (create_authvar (authvar_name[req], password, root_pw) < 0) {
-		test_and_delete_var (var_name[req]);
-		show_err_dialog (GTK_WINDOW(main_win),
-				 _("Failed to generate password hash"));
-		goto out;
-	}
 
 	/* Refresh MokNew or MokXNew page */
 	if (req == ENROLL_MOK)
@@ -573,17 +550,9 @@ import_key (MokRequest req)
 	else
 		refresh_page (MOKX_NEW);
 
-	show_info_dialog (GTK_WINDOW(main_win),
-			  _("Please reboot the system for the change to take effect."));
 out:
 	if (cert != NULL)
 		free (cert);
-	if (password != NULL)
-		free (password);
-	if (var_data != NULL)
-		free (var_data);
-	if (new_var_data != NULL)
-		free (new_var_data);
 }
 
 static void

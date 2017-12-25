@@ -44,4 +44,6 @@ int show_password_dialog (GtkWindow *parent, char **password,
 char *get_cert_name_from_dialog (GtkWindow *parent);
 void show_cert_details (GtkWindow *parent, void *cert_data,
 			uint32_t cert_size);
+int process_mok_request (GtkWindow *parent, MokRequest req,
+			 void *cert, uint32_t cert_size);
 #endif /* __UTILS_GTK_H__ */
