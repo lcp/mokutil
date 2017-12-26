@@ -348,7 +348,12 @@ treeview_clicked (GtkTreeView *treeview, GdkEvent *event, MOKVar *id)
 			  G_CALLBACK(detail_cb), NULL);
 
 	gtk_widget_show_all (GTK_WIDGET(menu));
+#if GTK_MAJOR_VERSION == 3 && GTK_MINOR_VERSION < 22
+	gtk_menu_popup (menu, NULL, NULL, NULL, NULL, button->button,
+			gtk_get_current_event_time());
+#else
 	gtk_menu_popup_at_pointer (menu, event);
+#endif
 
 	return FALSE;
 }
