@@ -806,7 +806,11 @@ get_x509_sig_alg_str (X509 *X509cert)
 	const X509_ALGOR *tsig_alg;
 	const char *str;
 
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
 	tsig_alg = X509_get0_tbs_sigalg(X509cert);
+#else
+	tsig_alg = X509cert->cert_info->signature;
+#endif
 
 	str = OBJ_nid2ln (OBJ_obj2nid (tsig_alg->algorithm));
 
@@ -827,7 +831,11 @@ get_x509_ext_str (const X509 *X509cert, const uint32_t nid)
 	unsigned long num_write;
 #endif
 
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
 	exts = X509_get0_extensions (X509cert);
+#else
+	exts = X509cert->cert_info->extensions;
+#endif
 	loc = X509v3_get_ext_by_NID (exts, nid, -1);
 	ext = X509v3_get_ext (exts, loc);
 
