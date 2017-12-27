@@ -165,15 +165,16 @@ match_hash_array (const efi_guid_t *hash_type, const void *hash,
 }
 
 MokListNode*
-build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
+build_mok_list (const void *data, const unsigned long data_size,
+		uint32_t *mok_num)
 {
 	MokListNode *list = NULL;
 	MokListNode *list_new = NULL;
-	EFI_SIGNATURE_LIST *CertList = data;
+	EFI_SIGNATURE_LIST *CertList = (EFI_SIGNATURE_LIST *)data;
 	EFI_SIGNATURE_DATA *Cert;
 	unsigned long dbsize = data_size;
 	unsigned long count = 0;
-	void *end = data + data_size;
+	const void *end = data + data_size;
 
 	while ((dbsize > 0) && (dbsize >= CertList->SignatureListSize)) {
 		if ((void *)(CertList + 1) > end ||
@@ -260,7 +261,8 @@ build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 
 static int
 delete_data_from_list (const efi_guid_t *var_guid, const char *var_name,
-		       const efi_guid_t *type, void *data, uint32_t data_size)
+		       const efi_guid_t *type, const void *data,
+		       const uint32_t data_size)
 {
 	uint8_t *var_data = NULL;
 	size_t var_data_size = 0;
@@ -383,8 +385,8 @@ done:
 }
 
 int
-delete_from_pending_request (const efi_guid_t *type, void *data,
-			     uint32_t data_size, MokRequest req)
+delete_from_pending_request (const efi_guid_t *type, const void *data,
+			     const uint32_t data_size, const MokRequest req)
 {
 	uint8_t *authvar_data;
 	size_t authvar_data_size;
@@ -484,8 +486,8 @@ done:
 }
 
 int
-is_valid_request (const efi_guid_t *type, void *mok, uint32_t mok_size,
-		  MokRequest req)
+is_valid_request (const efi_guid_t *type, const void *mok,
+		  const uint32_t mok_size, const MokRequest req)
 {
 	switch (req) {
 	case ENROLL_MOK:
@@ -521,7 +523,7 @@ is_valid_request (const efi_guid_t *type, void *mok, uint32_t mok_size,
 }
 
 int
-is_valid_cert (void *cert, uint32_t cert_size)
+is_valid_cert (const void *cert, const uint32_t cert_size)
 {
 	X509 *X509cert;
 	BIO *cert_bio;
@@ -710,7 +712,7 @@ out:
 
 /* === X509 util functions === */
 char *
-get_x509_time_str (ASN1_TIME *time)
+get_x509_time_str (const ASN1_TIME *time)
 {
 	BIO *bio = BIO_new (BIO_s_mem());
 	char *time_str;
@@ -754,7 +756,7 @@ X509_get0_extensions(const X509 *X509cert)
 #endif
 
 const char *
-get_x509_name_str (X509_NAME *X509name, int nid)
+get_x509_name_str (X509_NAME *X509name, const int nid)
 {
 	X509_NAME_ENTRY *cn_entry = NULL;
 	ASN1_STRING *cn_asn1 = NULL;
@@ -820,7 +822,7 @@ out:
 }
 
 const char *
-get_x509_sig_alg_str (X509 *X509cert)
+get_x509_sig_alg_str (const X509 *X509cert)
 {
 	const X509_ALGOR *tsig_alg;
 	const char *str;

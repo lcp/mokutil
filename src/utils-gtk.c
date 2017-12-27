@@ -309,7 +309,8 @@ add_name_entries (GtkWidget *grid, X509_NAME *x509name, int *row)
 }
 
 void
-show_cert_details (GtkWindow *parent, void *cert_data, uint32_t cert_size)
+show_cert_details (GtkWindow *parent, const void *cert_data,
+		   const uint32_t cert_size)
 {
 	GtkWidget *dialog, *content, *frame, *grid;
 	GtkDialogFlags flags;
@@ -441,8 +442,9 @@ show_cert_details (GtkWindow *parent, void *cert_data, uint32_t cert_size)
 
 /* === process_mok_request === */
 int
-process_mok_request (GtkWindow *parent, MokRequest req, const efi_guid_t *type,
-		     void *key, uint32_t key_size)
+process_mok_request (GtkWindow *parent, const MokRequest req,
+		     const efi_guid_t *type, const void *key,
+		     const uint32_t key_size)
 {
 	uint8_t *var_data = NULL, *new_var_data = NULL;
 	uint8_t *ptr;

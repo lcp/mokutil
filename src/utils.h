@@ -80,20 +80,21 @@ unsigned long efichar_from_char (efi_char16_t *dest, const char *src,
 int match_hash_array (const efi_guid_t *hash_type, const void *hash,
 		      const void *hash_array, const uint32_t array_size);
 
-MokListNode* build_mok_list (void *data, unsigned long data_size,
+MokListNode* build_mok_list (const void *data, const unsigned long data_size,
 			     uint32_t *mok_num);
 
-int delete_from_pending_request (const efi_guid_t *type, void *data,
-				 uint32_t data_size, MokRequest req);
+int delete_from_pending_request (const efi_guid_t *type, const void *data,
+				 const uint32_t data_size,
+				 const MokRequest req);
 
 int is_duplicate (const efi_guid_t *type, const void *data,
 		  const uint32_t data_size, const efi_guid_t *vendor,
 		  const char *db_name);
 
-int is_valid_request (const efi_guid_t *type, void *mok, uint32_t mok_size,
-		      MokRequest req);
+int is_valid_request (const efi_guid_t *type, const void *mok,
+		      const uint32_t mok_size, const MokRequest req);
 
-int is_valid_cert (void *cert, uint32_t cert_size);
+int is_valid_cert (const void *cert, const uint32_t cert_size);
 
 int get_password_from_shadow (pw_crypt_t *pw_crypt);
 
@@ -109,10 +110,10 @@ int create_authvar (const char *auth_name, const char *password,
 int read_file_to_buffer (const char *filename, uint8_t **buffer,
 			 uint32_t *buf_size);
 
-char *get_x509_time_str (ASN1_TIME *time);
-const char *get_x509_name_str (X509_NAME *X509name, int nid);
+char *get_x509_time_str (const ASN1_TIME *time);
+const char *get_x509_name_str (X509_NAME *X509name, const int nid);
 char *get_x509_serial_str (X509 *X509cert);
-const char *get_x509_sig_alg_str (X509 *X509cert);
+const char *get_x509_sig_alg_str (const X509 *X509cert);
 char *get_x509_ext_str (const X509 *X509cert, const uint32_t nid);
 
 #endif /* __UTILS_H__ */

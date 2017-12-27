@@ -42,9 +42,9 @@ void show_err_dialog (GtkWindow *parent, const char *msg);
 int show_password_dialog (GtkWindow *parent, char **password,
 			  gboolean *root_pw);
 char *get_cert_name_from_dialog (GtkWindow *parent);
-void show_cert_details (GtkWindow *parent, void *cert_data,
-			uint32_t cert_size);
-int process_mok_request (GtkWindow *parent, MokRequest req,
+void show_cert_details (GtkWindow *parent, const void *cert_data,
+			const uint32_t cert_size);
+int process_mok_request (GtkWindow *parent, const MokRequest req,
 			 const efi_guid_t *type,
-			 void *key, uint32_t key_size);
+			 const void *key, const uint32_t key_size);
 #endif /* __UTILS_GTK_H__ */
