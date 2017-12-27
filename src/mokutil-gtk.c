@@ -192,24 +192,20 @@ append_hash (GtkTreeStore *store, MokListNode *node)
 {
 	GtkTreeIter iter;
 	char *name, *type_str;
+	gboolean is_sha = FALSE;
 
 	if (node == NULL)
 		return;
 
 	int rc = efi_guid_to_name(&node->header->SignatureType, &name);
 	if (rc < 0 || isxdigit(name[0])) {
-		if (name) {
-			free(name);
-			fprintf (stderr, "unknown hash type: %s\n", name);
-		} else {
-			fprintf (stderr, "unknown hash type\n");
-		}
-		return;
+		if (name)
+			free (name);
+		name = strdup ("Unknown");
 	}
 
 	/* We only accept SHA family for now */
-	if (strncmp ("SHA", name, 3) != 0)
-		return;
+	is_sha = !strncmp ("SHA", name, 3);
 
 	type_str = g_strdup_printf ("<b>%s</b>", name);
 	free (name);
@@ -218,7 +214,8 @@ append_hash (GtkTreeStore *store, MokListNode *node)
 	gtk_tree_store_set (store, &iter, TYPE_COLUMN, type_str, -1);
 	g_free (type_str);
 
-	append_hash_entries (node, store, &iter);
+	if (is_sha)
+		append_hash_entries (node, store, &iter);
 }
 
 static MOKVar cur_var_id;
