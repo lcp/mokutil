@@ -349,13 +349,14 @@ detail_cb (GtkMenuItem *menuitem __attribute__((unused)),
 }
 
 static void
-process_depth_one (GdkEvent *event, MOKVar id, int key_index)
+process_depth_one (GtkTreeView *treeview, GtkTreePath *path, GdkEvent *event,
+		   MOKVar id, int key_index)
 {
 	GdkEventButton *button;
 	GtkMenu *menu;
 	GtkWidget *delete, *detail;
 	MokListNode *node;
-	efi_guid_t *type;
+	gboolean is_x509;
 
 	button = (GdkEventButton *)event;
 
@@ -363,20 +364,31 @@ process_depth_one (GdkEvent *event, MOKVar id, int key_index)
 	cur_key_index = key_index;
 
 	node = &list[id][key_index];
-	type = &node->header->SignatureType;
-	if (efi_guid_cmp(type, &efi_guid_x509_cert) != 0)
-		return;
+	is_x509 = !efi_guid_cmp(&node->header->SignatureType,
+				&efi_guid_x509_cert);
 
 	/* Show the details popup for the double-click */
 	if ((button->type == GDK_2BUTTON_PRESS &&
 	     button->button == GDK_BUTTON_PRIMARY)) {
-		detail_cb (NULL, NULL);
+		if (is_x509) {
+			detail_cb (NULL, NULL);
+			return;
+		}
+
+		if (gtk_tree_view_row_expanded (treeview, path))
+			gtk_tree_view_collapse_row (treeview, path);
+		else
+			gtk_tree_view_expand_row (treeview, path, TRUE);
 		return;
 	}
 
 	/* Only catch the right button for the following code */
 	if (!(button->type == GDK_BUTTON_PRESS &&
 	      button->button == GDK_BUTTON_SECONDARY))
+		return;
+
+	/* Only show the menu for x509 */
+	if (!is_x509)
 		return;
 
 	/* Show the popup menu */
@@ -427,7 +439,8 @@ treeview_clicked (GtkTreeView *treeview, GdkEvent *event, MOKVar *id)
 	if (depth == 1) {
 		/* The depth of the path is 1, so we can convert the string
 		 * directly. */
-		process_depth_one (event, *id, atoi (path_str));
+		process_depth_one (treeview, path, event, *id,
+				   atoi (path_str));
 	} else if (depth == 2) {
 		process_depth_two (event, *id, path_str);
 	}
