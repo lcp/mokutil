@@ -668,12 +668,6 @@ generate_menubar_menus (GtkWidget *menu_bar)
 	/* Help Menu */
 	menu = gtk_menu_new ();
 
-	item = gtk_menu_item_new_with_label (_("Help"));
-	/* TODO Implement the help window */
-	gtk_widget_add_accelerator (item, "activate", accel_group,
-				    GDK_KEY_F1, 0, GTK_ACCEL_VISIBLE);
-	gtk_menu_shell_append (GTK_MENU_SHELL(menu), item);
-
 	item = gtk_menu_item_new_with_label (_("About"));
 	g_signal_connect (G_OBJECT(item), "activate",
 			  G_CALLBACK(about_cb), NULL);
