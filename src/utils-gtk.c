@@ -246,7 +246,7 @@ add_fingerprint_entries (GtkWidget *grid, int *row, const uint8_t *cert,
 		}
 	}
 
-	add_cert_row (grid, (*row)++, _("SHA1"), output);
+	add_cert_row (grid, (*row)++, "SHA1", output);
 
 	/* SHA256 fingerprint */
 	SHA256_Init (&ctx_sha256);
@@ -266,7 +266,7 @@ add_fingerprint_entries (GtkWidget *grid, int *row, const uint8_t *cert,
 		}
 	}
 
-	add_cert_row (grid, (*row)++, _("SHA256"), output);
+	add_cert_row (grid, (*row)++, "SHA256", output);
 }
 
 static void
