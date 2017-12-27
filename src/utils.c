@@ -730,6 +730,28 @@ get_x509_time_str (ASN1_TIME *time)
 	return time_str;
 }
 
+/* Functions for openssl backward compatibility */
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+static const unsigned char *
+ASN1_STRING_get0_data(ASN1_STRING *cn_asn1)
+{
+	return ASN1_STRING_data (cn_asn1);
+}
+
+static const X509_ALGOR *
+X509_get0_tbs_sigalg(const X509 *X509cert)
+{
+	return X509cert->cert_info->signature;
+}
+
+static const STACK_OF(X509_EXTENSION) *
+X509_get0_extensions(const X509 *X509cert)
+{
+	return X509cert->cert_info->extensions;
+}
+
+#endif
+
 const char *
 get_x509_name_str (X509_NAME *X509name, int nid)
 {
@@ -749,11 +771,7 @@ get_x509_name_str (X509_NAME *X509name, int nid)
 	if (cn_asn1 == NULL)
 		return NULL;
 
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
 	return (const char *)ASN1_STRING_get0_data (cn_asn1);
-#else
-	return (const char *)ASN1_STRING_data (cn_asn1);;
-#endif
 }
 
 char *
@@ -806,12 +824,7 @@ get_x509_sig_alg_str (X509 *X509cert)
 	const X509_ALGOR *tsig_alg;
 	const char *str;
 
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
 	tsig_alg = X509_get0_tbs_sigalg(X509cert);
-#else
-	tsig_alg = X509cert->cert_info->signature;
-#endif
-
 	str = OBJ_nid2ln (OBJ_obj2nid (tsig_alg->algorithm));
 
 	return str;
@@ -825,17 +838,9 @@ get_x509_ext_str (const X509 *X509cert, const uint32_t nid)
 	int loc;
 	char *str;
 	BIO *out;
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
 	uint64_t num_write;
-#else
-	unsigned long num_write;
-#endif
 
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L
 	exts = X509_get0_extensions (X509cert);
-#else
-	exts = X509cert->cert_info->extensions;
-#endif
 	loc = X509v3_get_ext_by_NID (exts, nid, -1);
 	ext = X509v3_get_ext (exts, loc);
 
