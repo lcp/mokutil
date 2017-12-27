@@ -69,8 +69,8 @@ typedef struct {
 uint32_t efi_hash_size (const efi_guid_t *hash_type);
 uint32_t signature_size (const efi_guid_t *hash_type);
 
-void allocate_x509_sig (void *dest, const uint8_t *cert,
-			const uint32_t cert_size);
+void set_sig_header (void *dest, const efi_guid_t *sig_type,
+		     const uint8_t *cert, const uint32_t cert_size);
 
 int test_and_delete_var (const char *var_name);
 

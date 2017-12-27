@@ -45,5 +45,6 @@ char *get_cert_name_from_dialog (GtkWindow *parent);
 void show_cert_details (GtkWindow *parent, void *cert_data,
 			uint32_t cert_size);
 int process_mok_request (GtkWindow *parent, MokRequest req,
-			 void *cert, uint32_t cert_size);
+			 const efi_guid_t *type,
+			 void *key, uint32_t key_size);
 #endif /* __UTILS_GTK_H__ */

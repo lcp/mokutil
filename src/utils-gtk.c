@@ -440,8 +440,9 @@ show_cert_details (GtkWindow *parent, void *cert_data, uint32_t cert_size)
 }
 
 /* === process_mok_request === */
-int process_mok_request (GtkWindow *parent, MokRequest req,
-			 void *cert, uint32_t cert_size)
+int
+process_mok_request (GtkWindow *parent, MokRequest req, const efi_guid_t *type,
+		     void *key, uint32_t key_size)
 {
 	uint8_t *var_data = NULL, *new_var_data = NULL;
 	uint8_t *ptr;
@@ -463,10 +464,10 @@ int process_mok_request (GtkWindow *parent, MokRequest req,
 		[DELETE_BLACKLIST] = "MokXDelAuth",
 	};
 
-	if (cert == NULL || cert_size == 0)
+	if (key == NULL || key_size == 0)
 		goto out;
 
-	if (!is_valid_request (&efi_guid_x509_cert, cert, cert_size, req)) {
+	if (!is_valid_request (type, key, key_size, req)) {
 		const char *msg[] = {
 			[ENROLL_MOK] = _("Already enrolled"),
 			[DELETE_MOK] = _("Already in the delete list"),
@@ -475,8 +476,7 @@ int process_mok_request (GtkWindow *parent, MokRequest req,
 		};
 		show_err_dialog (parent, msg[req]);
 		goto out;
-	} else if (delete_from_pending_request (&efi_guid_x509_cert,
-						cert, cert_size, req)) {
+	} else if (delete_from_pending_request (type, key, key_size, req)) {
 		const char *msg[] = {
 			[ENROLL_MOK] = _("Removed the key from MokDel"),
 			[DELETE_MOK] = _("Removed the key from MokNew"),
@@ -508,7 +508,7 @@ int process_mok_request (GtkWindow *parent, MokRequest req,
 	}
 
 	new_var_size = var_size + sizeof(EFI_SIGNATURE_LIST) +
-		       sizeof (efi_guid_t) + cert_size;
+		       sizeof (efi_guid_t) + key_size;
 	new_var_data = malloc (new_var_size);
 	if (new_var_data == NULL) {
 		show_err_dialog (parent,
@@ -518,7 +518,7 @@ int process_mok_request (GtkWindow *parent, MokRequest req,
 	if (var_size > 0)
 		memcpy (new_var_data, var_data, var_size);
 	ptr = new_var_data + var_size;
-	allocate_x509_sig (ptr, cert, cert_size);
+	set_sig_header (ptr, type, key, key_size);
 
 	ret = efi_set_variable (efi_guid_shim, var_name[req], new_var_data,
 				new_var_size, EFI_NV_RT, S_IRUSR | S_IWUSR);
@@ -537,7 +537,8 @@ int process_mok_request (GtkWindow *parent, MokRequest req,
 	}
 
 	show_info_dialog (parent,
-			  _("Please reboot the system for the change to take effect."));
+			  _("Please reboot the system for the change to "
+			    "take effect."));
 	ret = 0;
 out:
 	if (password != NULL)

@@ -77,7 +77,8 @@ signature_size (const efi_guid_t *hash_type)
 }
 
 void
-allocate_x509_sig (void *dest, const uint8_t *cert, const uint32_t cert_size)
+set_sig_header (void *dest, const efi_guid_t *sig_type,
+		const uint8_t *cert, const uint32_t cert_size)
 {
 	EFI_SIGNATURE_LIST *CertList;
 	EFI_SIGNATURE_DATA *CertData;
@@ -85,7 +86,7 @@ allocate_x509_sig (void *dest, const uint8_t *cert, const uint32_t cert_size)
 	CertList = dest;
 	CertData = (EFI_SIGNATURE_DATA *)(((uint8_t *)dest) +
 					  sizeof(EFI_SIGNATURE_LIST));
-	CertList->SignatureType = efi_guid_x509_cert;
+	memcpy (&CertList->SignatureType, sig_type, sizeof(efi_guid_t));
 	CertList->SignatureListSize = cert_size +
 	   sizeof(EFI_SIGNATURE_LIST) + sizeof(EFI_SIGNATURE_DATA) - 1;
 	CertList->SignatureHeaderSize = 0;

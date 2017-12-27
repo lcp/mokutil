@@ -227,7 +227,9 @@ delete_key_cb (GtkMenuItem *menuitem __attribute__((unused)),
 	       gpointer *data __attribute__((unused)))
 {
 	MokListNode *node;
-	EFI_SIGNATURE_LIST *header;
+	efi_guid_t *type;
+	void *key = NULL;
+	uint32_t key_size;
 	int ret;
 	MokRequest req[] = {
 		[MOK] = DELETE_MOK,
@@ -245,20 +247,39 @@ delete_key_cb (GtkMenuItem *menuitem __attribute__((unused)),
 	}
 
 	node = &list[cur_var_id][cur_key_index];
-	header = node->header;
+	type = &node->header->SignatureType;
 
-	/* TODO support hash deletion */
-	if (efi_guid_cmp(&header->SignatureType, &efi_guid_x509_cert) != 0) {
-		show_err_dialog (GTK_WINDOW(main_win),
-				 _("Unsupported Operation"));
-		return;
+	if (efi_guid_cmp(type, &efi_guid_x509_cert) == 0) {
+		key = node->mok;
+		key_size = node->mok_size;
+	} else {
+		uint32_t offset, list_size;
+
+		list_size = node->header->SignatureListSize -
+			    sizeof(EFI_SIGNATURE_LIST);
+		key_size = efi_hash_size (type);
+		if (key_size == 0) {
+			show_err_dialog (GTK_WINDOW(main_win),
+					 _("Invalid hash type"));
+			return;
+		}
+
+		offset = cur_hash_index * (key_size + sizeof(efi_guid_t)) +
+			 sizeof(efi_guid_t);
+
+		if ((offset + key_size) > list_size) {
+			show_err_dialog (GTK_WINDOW(main_win),
+					 _("Invalid signature list"));
+			return;
+		}
+		key = node->mok + offset;
 	}
 
 	if (cur_var_id == MOK || cur_var_id == MOKX) {
 		/* create MokDel or MokXDel */
 		ret = process_mok_request (GTK_WINDOW(main_win),
-					   req[cur_var_id],
-					   node->mok, node->mok_size);
+					   req[cur_var_id], type,
+					   key, key_size);
 		if (ret < 0)
 			return;
 
@@ -271,8 +292,7 @@ delete_key_cb (GtkMenuItem *menuitem __attribute__((unused)),
 		   cur_var_id == MOK_DEL || cur_var_id == MOKX_DEL) {
 		/* delete_from_pending_request() deletes the key in the
 		 * opposite list. */
-		delete_from_pending_request (&(header->SignatureType),
-					     node->mok, node->mok_size,
+		delete_from_pending_request (type, key, key_size,
 					     req[cur_var_id]);
 		refresh_page (cur_var_id);
 	}
@@ -637,7 +657,9 @@ import_key (MokRequest req)
 	if (get_certificate (&cert, &cert_size) < 0)
 		goto out;
 
-	ret = process_mok_request (GTK_WINDOW(main_win), req, cert, cert_size);
+	ret = process_mok_request (GTK_WINDOW(main_win), req,
+				   &efi_guid_x509_cert,
+				   cert, cert_size);
 	if (ret < 0)
 		goto out;
 
