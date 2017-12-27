@@ -468,10 +468,10 @@ int process_mok_request (GtkWindow *parent, MokRequest req,
 
 	if (!is_valid_request (&efi_guid_x509_cert, cert, cert_size, req)) {
 		const char *msg[] = {
-			[ENROLL_MOK] = _("The key is already enrolled."),
-			[DELETE_MOK] = _("The key is already in the delete list."),
-			[ENROLL_BLACKLIST] = _("The key is already in the blacklist."),
-			[DELETE_BLACKLIST] = _("The key is already in the delete list."),
+			[ENROLL_MOK] = _("Already enrolled"),
+			[DELETE_MOK] = _("Already in the delete list"),
+			[ENROLL_BLACKLIST] = _("Already in the blacklist"),
+			[DELETE_BLACKLIST] = _("Already in the delete list"),
 		};
 		show_err_dialog (parent, msg[req]);
 		goto out;
