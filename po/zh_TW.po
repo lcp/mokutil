@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mokutil 0.3.0\n"
 "Report-Msgid-Bugs-To: glin@suse.com\n"
-"POT-Creation-Date: 2017-12-22 18:29+0800\n"
+"POT-Creation-Date: 2017-12-27 17:06+0800\n"
 "PO-Revision-Date: 2017-12-21 18:25+0800\n"
 "Last-Translator: Gary Lin <glin@suse.com>\n"
 "Language-Team: Chinese (traditional)\n"
@@ -17,109 +17,85 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: src/mokutil-gtk.c:140 src/utils-gtk.c:333
+#: src/mokutil-gtk.c:142 src/utils-gtk.c:332
 msgid "Invalid certificate"
 msgstr "無效的憑證"
 
-#: src/mokutil-gtk.c:291
+#: src/mokutil-gtk.c:245
+msgid "Unsupported Operation"
+msgstr "不支援的操作"
+
+#: src/mokutil-gtk.c:263
+msgid "Invalid hash type"
+msgstr "無效的雜湊類型"
+
+#: src/mokutil-gtk.c:272
+msgid "Invalid signature list"
+msgstr "無效的簽章清單"
+
+#: src/mokutil-gtk.c:343 src/mokutil-gtk.c:418
 msgid "Delete this key"
 msgstr "刪除這把金鑰"
 
-#: src/mokutil-gtk.c:297
+#: src/mokutil-gtk.c:424
 msgid "Details"
 msgstr "詳細檢視"
 
-#: src/mokutil-gtk.c:319
+#: src/mokutil-gtk.c:484
 msgid "empty"
 msgstr "空的"
 
-#: src/mokutil-gtk.c:325
+#: src/mokutil-gtk.c:490
 msgid "Failed to fetch the list."
 msgstr "清單建立失敗"
 
-#: src/mokutil-gtk.c:342
+#: src/mokutil-gtk.c:507
 msgid "Type"
 msgstr "類型"
 
-#: src/mokutil-gtk.c:349
+#: src/mokutil-gtk.c:514
 msgid "Key"
 msgstr "金鑰"
 
-#: src/mokutil-gtk.c:469
+#: src/mokutil-gtk.c:634
 msgid "Failed to read file"
 msgstr "無法讀檔"
 
-#: src/mokutil-gtk.c:475
+#: src/mokutil-gtk.c:640
 msgid "Not a valid DER certificate"
 msgstr "不是一個有效的 DER 憑證"
 
-#: src/mokutil-gtk.c:511
-msgid "The key is already enrolled."
-msgstr "這把金鑰已經註冊了"
-
-#: src/mokutil-gtk.c:516
-msgid "Removed the key from MokDel"
-msgstr "已從 MokDel 移除這把金鑰"
-
-#: src/mokutil-gtk.c:517
-msgid "Removed the key from MokXDel"
-msgstr "已從 MokXDel 移除這把金鑰"
-
-#: src/mokutil-gtk.c:534
-msgid "Failed to get MokNew"
-msgstr "無法讀取 MokNew"
-
-#: src/mokutil-gtk.c:535
-msgid "Failed to get MokXNew"
-msgstr "無法讀取 MokXNew"
-
-#: src/mokutil-gtk.c:546
-msgid "Failed to allocate memory"
-msgstr "配置記憶體空間失敗"
-
-#: src/mokutil-gtk.c:558
-msgid "Failed to write the EFI variable"
-msgstr "無法寫入 EFI 變數"
-
-#: src/mokutil-gtk.c:566
-msgid "Failed to generate password hash"
-msgstr "密碼雜湊產生失敗"
-
-#: src/mokutil-gtk.c:577
-msgid "Please reboot the system for the change to take effect."
-msgstr "請重新開機讓這個改變生效"
-
-#: src/mokutil-gtk.c:624
+#: src/mokutil-gtk.c:712
 msgid "Utility to manipulate Machine Owner Key"
 msgstr "操控 Machine Owner Key 的小程式"
 
-#: src/mokutil-gtk.c:648
+#: src/mokutil-gtk.c:736
 msgid "Enroll a new key"
 msgstr "註冊新的金鑰"
 
-#: src/mokutil-gtk.c:656
+#: src/mokutil-gtk.c:744
 msgid "Blacklist a key"
 msgstr "將金鑰列入黑名單"
 
-#: src/mokutil-gtk.c:664
+#: src/mokutil-gtk.c:752
 msgid "Inspect a key"
 msgstr "檢視一把金鑰"
 
-#: src/mokutil-gtk.c:675
+#: src/mokutil-gtk.c:763
 msgid "Quit"
 msgstr "離開"
 
-#: src/mokutil-gtk.c:683
+#: src/mokutil-gtk.c:771
 msgid "File"
 msgstr "檔案"
 
-#: src/mokutil-gtk.c:690 src/mokutil-gtk.c:701
-msgid "Help"
-msgstr "說明"
-
-#: src/mokutil-gtk.c:696
+#: src/mokutil-gtk.c:778
 msgid "About"
 msgstr "關於"
+
+#: src/mokutil-gtk.c:783
+msgid "Help"
+msgstr "說明"
 
 #: src/utils-gtk.c:50
 msgid "Information"
@@ -169,86 +145,138 @@ msgstr "選擇一個憑證"
 msgid "_Open"
 msgstr "開啟(O)"
 
-#: src/utils-gtk.c:249
-msgid "SHA1"
-msgstr "SHA1"
-
-#: src/utils-gtk.c:269
-msgid "SHA256"
-msgstr "SHA256"
-
-#: src/utils-gtk.c:291
+#: src/utils-gtk.c:289
 msgid "Name"
 msgstr "名稱"
 
-#: src/utils-gtk.c:292
+#: src/utils-gtk.c:290
 msgid "Organization"
 msgstr "組織"
 
-#: src/utils-gtk.c:293
+#: src/utils-gtk.c:291
 msgid "Organizational Unit"
 msgstr "組織單位"
 
-#: src/utils-gtk.c:294
+#: src/utils-gtk.c:292
 msgid "Country"
 msgstr "國家"
 
-#: src/utils-gtk.c:295
+#: src/utils-gtk.c:293
 msgid "State/Provice"
 msgstr "洲／省"
 
-#: src/utils-gtk.c:296
+#: src/utils-gtk.c:294
 msgid "Locality"
 msgstr "位於"
 
-#: src/utils-gtk.c:327
+#: src/utils-gtk.c:326
 msgid "Failed to allocate BIO"
 msgstr "無法配置 BIO"
 
-#: src/utils-gtk.c:339
+#: src/utils-gtk.c:338
 msgid "Certificate Details"
 msgstr "憑證細節"
 
-#: src/utils-gtk.c:341
+#: src/utils-gtk.c:340
 msgid "Close"
 msgstr "關閉"
 
-#: src/utils-gtk.c:358
+#: src/utils-gtk.c:357
 msgid "Version:"
 msgstr "版本："
 
-#: src/utils-gtk.c:365
+#: src/utils-gtk.c:364
 msgid "Serial:"
 msgstr "序號："
 
-#: src/utils-gtk.c:376
+#: src/utils-gtk.c:375
 msgid "Signature Type:"
 msgstr "簽章演算法："
 
-#: src/utils-gtk.c:385
+#: src/utils-gtk.c:384
 msgid "Subject:"
 msgstr "簽發給："
 
-#: src/utils-gtk.c:396
+#: src/utils-gtk.c:395
 msgid "Issuer:"
 msgstr "簽發者："
 
-#: src/utils-gtk.c:407
+#: src/utils-gtk.c:406
 msgid "Valid Date:"
 msgstr "有效期間："
 
-#: src/utils-gtk.c:410
+#: src/utils-gtk.c:409
 msgid "From"
 msgstr "開始於"
 
-#: src/utils-gtk.c:413
+#: src/utils-gtk.c:412
 msgid "Until"
 msgstr "過期於"
 
-#: src/utils-gtk.c:420
+#: src/utils-gtk.c:419
 msgid "Fingerprint:"
-msgstr "指紋"
+msgstr "指紋："
 
-#: src/utils-gtk.c:431
+#: src/utils-gtk.c:430
 msgid "Key Usage:"
 msgstr "憑證金鑰用法："
+
+#: src/utils-gtk.c:474
+msgid "Already enrolled"
+msgstr "已經註冊了"
+
+#: src/utils-gtk.c:475 src/utils-gtk.c:477
+msgid "Already in the delete list"
+msgstr "已經在刪除名單內"
+
+#: src/utils-gtk.c:476
+msgid "Already in the blacklist"
+msgstr "已經在黑名單內"
+
+#: src/utils-gtk.c:483
+msgid "Removed the key from MokDel"
+msgstr "已從 MokDel 移除這把金鑰"
+
+#: src/utils-gtk.c:484
+msgid "Removed the key from MokNew"
+msgstr "已從 MokNew 移除這把金鑰"
+
+#: src/utils-gtk.c:485
+msgid "Removed the key from MokXDel"
+msgstr "已從 MokXDel 移除這把金鑰"
+
+#: src/utils-gtk.c:486
+msgid "Removed the key from MokXNew"
+msgstr "已從 MokXNew 移除這把金鑰"
+
+#: src/utils-gtk.c:503
+msgid "Failed to get MokNew"
+msgstr "無法讀取 MokNew"
+
+#: src/utils-gtk.c:504
+msgid "Failed to get MokDel"
+msgstr "無法讀取 MokDel"
+
+#: src/utils-gtk.c:505
+msgid "Failed to get MokXNew"
+msgstr "無法讀取 MokXNew"
+
+#: src/utils-gtk.c:506
+msgid "Failed to get MokXDel"
+msgstr "無法讀取 MokXDel"
+
+#: src/utils-gtk.c:517
+msgid "Failed to allocate memory"
+msgstr "配置記憶體空間失敗"
+
+#: src/utils-gtk.c:529
+msgid "Failed to write the EFI variable"
+msgstr "無法寫入 EFI 變數"
+
+#: src/utils-gtk.c:537
+msgid "Failed to generate password hash"
+msgstr "密碼雜湊產生失敗"
+
+#: src/utils-gtk.c:542
+msgid "Please reboot the system for the change to take effect."
+msgstr "請重新開機讓這個改變生效"
