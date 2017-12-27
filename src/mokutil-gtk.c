@@ -220,6 +220,7 @@ append_hash (GtkTreeStore *store, MokListNode *node)
 
 static MOKVar cur_var_id;
 static int cur_key_index;
+static int cur_hash_index;
 
 static void
 delete_key_cb (GtkMenuItem *menuitem __attribute__((unused)),
@@ -278,6 +279,66 @@ delete_key_cb (GtkMenuItem *menuitem __attribute__((unused)),
 }
 
 static void
+process_depth_two (GdkEvent *event, MOKVar id, const char *path_str)
+{
+	GdkEventButton *button;
+	GtkMenu *menu;
+	GtkWidget *delete;
+	MokListNode *node;
+	efi_guid_t *type;
+	int rc, key_index, hash_index;
+	char *name = NULL, **split;
+
+	button = (GdkEventButton *)event;
+
+	/* We don't support delete anything from DB or DBX. */
+	if (id == DB || id == DBX)
+		return;
+
+	/* Only catch the right button for the following code */
+	if (!(button->type == GDK_BUTTON_PRESS &&
+	      button->button == GDK_BUTTON_SECONDARY))
+		return;
+
+	/* Extract the indices */
+	split = g_strsplit (path_str, ":", 2);
+	key_index = atoi (split[0]);
+	hash_index = atoi (split[1]);
+	g_strfreev (split);
+
+	cur_var_id = id;
+	cur_key_index = key_index;
+	cur_hash_index = hash_index;
+
+	node = &list[id][key_index];
+	type = &node->header->SignatureType;
+
+	rc = efi_guid_to_name(type, &name);
+	if (rc < 0 || strncmp ("SHA", name, 3) != 0)
+		goto out;
+
+	/* Show the delete menu */
+	menu = (GtkMenu *)gtk_menu_new ();
+
+	delete = gtk_menu_item_new_with_label (_("Delete this key"));
+	gtk_menu_attach (menu, delete, 0, 1, 0 ,1);
+	g_signal_connect (G_OBJECT(delete), "activate",
+			  G_CALLBACK(delete_key_cb), NULL);
+
+	gtk_widget_show_all (GTK_WIDGET(menu));
+#if GTK_MAJOR_VERSION == 3 && GTK_MINOR_VERSION < 22
+	gtk_menu_popup (menu, NULL, NULL, NULL, NULL, button->button,
+			gtk_get_current_event_time());
+#else
+	gtk_menu_popup_at_pointer (menu, event);
+#endif
+
+out:
+	if (name)
+		free (name);
+}
+
+static void
 detail_cb (GtkMenuItem *menuitem __attribute__((unused)),
 	   gpointer *data __attribute__((unused)))
 {
@@ -287,59 +348,41 @@ detail_cb (GtkMenuItem *menuitem __attribute__((unused)),
 	show_cert_details (GTK_WINDOW(main_win), node->mok, node->mok_size);
 }
 
-static gboolean
-treeview_clicked (GtkTreeView *treeview, GdkEvent *event, MOKVar *id)
+static void
+process_depth_one (GdkEvent *event, MOKVar id, int key_index)
 {
 	GdkEventButton *button;
-	GtkTreePath *path;
 	GtkMenu *menu;
 	GtkWidget *delete, *detail;
-	char *path_str;
 	MokListNode *node;
 	efi_guid_t *type;
 
 	button = (GdkEventButton *)event;
 
-	/* Catch the double-click or the right button */
-	if (!(button->type == GDK_BUTTON_PRESS &&
-	      button->button == GDK_BUTTON_SECONDARY) &&
-	    !(button->type == GDK_2BUTTON_PRESS &&
-	      button->button == GDK_BUTTON_PRIMARY))
-		return FALSE;
+	cur_var_id = id;
+	cur_key_index = key_index;
 
-	gtk_tree_view_get_path_at_pos (treeview, button->x, button->y,
-				       &path, NULL, NULL, NULL);
-
-	if (!path || gtk_tree_path_get_depth(path) != 1)
-		return FALSE;
-
-	path_str = gtk_tree_path_to_string (path);
-	if (!path_str)
-		return FALSE;
-
-	/* The depth of the path is 1, so we can convert the string
-	 * directly */
-	cur_key_index = atoi (path_str);
-	g_free (path_str);
-
-	cur_var_id = *id;
-
-	node = &list[cur_var_id][cur_key_index];
+	node = &list[id][key_index];
 	type = &node->header->SignatureType;
 	if (efi_guid_cmp(type, &efi_guid_x509_cert) != 0)
-		return FALSE;
+		return;
 
 	/* Show the details popup for the double-click */
 	if ((button->type == GDK_2BUTTON_PRESS &&
 	     button->button == GDK_BUTTON_PRIMARY)) {
 		detail_cb (NULL, NULL);
-		return FALSE;
+		return;
 	}
+
+	/* Only catch the right button for the following code */
+	if (!(button->type == GDK_BUTTON_PRESS &&
+	      button->button == GDK_BUTTON_SECONDARY))
+		return;
 
 	/* Show the popup menu */
 	menu = (GtkMenu *)gtk_menu_new ();
 
-	if (*id != DB && *id != DBX) {
+	if (id != DB && id != DBX) {
 		delete = gtk_menu_item_new_with_label (_("Delete this key"));
 		gtk_menu_attach (menu, delete, 0, 1, 0 ,1);
 		g_signal_connect (G_OBJECT(delete), "activate",
@@ -358,6 +401,38 @@ treeview_clicked (GtkTreeView *treeview, GdkEvent *event, MOKVar *id)
 #else
 	gtk_menu_popup_at_pointer (menu, event);
 #endif
+}
+
+static gboolean
+treeview_clicked (GtkTreeView *treeview, GdkEvent *event, MOKVar *id)
+{
+	GdkEventButton *button;
+	GtkTreePath *path;
+	char *path_str;
+	int depth;
+
+	button = (GdkEventButton *)event;
+
+	gtk_tree_view_get_path_at_pos (treeview, button->x, button->y,
+				       &path, NULL, NULL, NULL);
+	depth = gtk_tree_path_get_depth (path);
+
+	if (!path || depth > 2)
+		return FALSE;
+
+	path_str = gtk_tree_path_to_string (path);
+	if (!path_str)
+		return FALSE;
+
+	if (depth == 1) {
+		/* The depth of the path is 1, so we can convert the string
+		 * directly. */
+		process_depth_one (event, *id, atoi (path_str));
+	} else if (depth == 2) {
+		process_depth_two (event, *id, path_str);
+	}
+
+	g_free (path_str);
 
 	return FALSE;
 }
