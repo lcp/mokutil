@@ -298,6 +298,8 @@ treeview_clicked (GtkTreeView *treeview, GdkEvent *event, MOKVar *id)
 	GtkMenu *menu;
 	GtkWidget *delete, *detail;
 	char *path_str;
+	MokListNode *node;
+	efi_guid_t *type;
 
 	button = (GdkEventButton *)event;
 
@@ -324,6 +326,11 @@ treeview_clicked (GtkTreeView *treeview, GdkEvent *event, MOKVar *id)
 	g_free (path_str);
 
 	cur_var_id = *id;
+
+	node = &list[cur_var_id][cur_key_index];
+	type = &node->header->SignatureType;
+	if (efi_guid_cmp(type, &efi_guid_x509_cert) != 0)
+		return FALSE;
 
 	/* Show the details popup for the double-click */
 	if ((button->type == GDK_2BUTTON_PRESS &&
