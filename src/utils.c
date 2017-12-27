@@ -172,6 +172,7 @@ build_mok_list (const void *data, const unsigned long data_size,
 	MokListNode *list_new = NULL;
 	EFI_SIGNATURE_LIST *CertList = (EFI_SIGNATURE_LIST *)data;
 	EFI_SIGNATURE_DATA *Cert;
+	efi_guid_t *sig_type;
 	unsigned long dbsize = data_size;
 	unsigned long count = 0;
 	const void *end = data + data_size;
@@ -186,20 +187,17 @@ build_mok_list (const void *data, const unsigned long data_size,
 			return NULL;
 		}
 
-		if ((efi_guid_cmp (&CertList->SignatureType, &efi_guid_x509_cert) != 0) &&
-		    (efi_guid_cmp (&CertList->SignatureType, &efi_guid_sha1) != 0) &&
-		    (efi_guid_cmp (&CertList->SignatureType, &efi_guid_sha224) != 0) &&
-		    (efi_guid_cmp (&CertList->SignatureType, &efi_guid_sha256) != 0) &&
-		    (efi_guid_cmp (&CertList->SignatureType, &efi_guid_sha384) != 0) &&
-		    (efi_guid_cmp (&CertList->SignatureType, &efi_guid_sha512) != 0)) {
+		sig_type = &CertList->SignatureType;
+		if ((efi_guid_cmp (sig_type, &efi_guid_x509_cert) != 0) &&
+		    (efi_hash_size (sig_type) == 0)) {
 			dbsize -= CertList->SignatureListSize;
 			CertList = (EFI_SIGNATURE_LIST *)((uint8_t *) CertList +
 						  CertList->SignatureListSize);
 			continue;
 		}
 
-		if ((efi_guid_cmp (&CertList->SignatureType, &efi_guid_x509_cert) != 0) &&
-		    (CertList->SignatureSize != signature_size (&CertList->SignatureType))) {
+		if ((efi_guid_cmp (sig_type, &efi_guid_x509_cert) != 0) &&
+		    (CertList->SignatureSize != signature_size (sig_type))) {
 			dbsize -= CertList->SignatureListSize;
 			CertList = (EFI_SIGNATURE_LIST *)((uint8_t *) CertList +
 						  CertList->SignatureListSize);
@@ -228,7 +226,7 @@ build_mok_list (const void *data, const unsigned long data_size,
 		}
 
 		list[count].header = CertList;
-		if (efi_guid_cmp (&CertList->SignatureType, &efi_guid_x509_cert) == 0) {
+		if (efi_guid_cmp (sig_type, &efi_guid_x509_cert) == 0) {
 			/* X509 certificate */
 			list[count].mok_size = CertList->SignatureSize -
 					       sizeof(efi_guid_t);
