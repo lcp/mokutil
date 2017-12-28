@@ -88,11 +88,12 @@ AC_CHECK_FUNCS([memset])
 PKG_CHECK_MODULES(OPENSSL, [openssl >= 0.9.8])
 PKG_CHECK_MODULES(EFIVAR, [efivar >= 0.12])
 
-AC_ARG_ENABLE(gtk, AS_HELP_STRING([--enable-gtk],[Enable gtk3 GUI]), enable_gtk=$enableval,
-		enable_gtk=no)
-AM_CONDITIONAL([GTK], [test x$enable_gtk = xyes])
-if test "x$enable_gtk" = "xyes"; then
-	PKG_CHECK_MODULES(GTK3, [gtk+-3.0])
+# Check if GTK3 UI should be built
+AM_CONDITIONAL([GTK3_GUI], false)
+AC_ARG_ENABLE([gtk], AS_HELP_STRING([--disable-gtk],[Disable GTK3 UI]))
+if test "x$enable_gtk" != "xno"; then
+	PKG_CHECK_MODULES(GTK3, [gtk+-3.0], found_gtk=yes, found_gtk=no)
+	AM_CONDITIONAL([GTK3_GUI], [test x$found_gtk = xyes])
 fi
 
 AC_ARG_WITH([bash-completion-dir],

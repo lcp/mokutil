@@ -15,7 +15,7 @@ mokutil_SOURCES = signature.h \
 		  utils.c \
 		  mokutil.c
 
-if GTK
+if GTK3_GUI
 bin_PROGRAMS	+= mokutil-gtk
 
 mokutil_gtk_CFLAGS  = $(OPENSSL_CFLAGS)	\
