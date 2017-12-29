@@ -107,7 +107,6 @@ GtkWidget *main_win;
 /* For the key page tree view */
 enum {
 	TYPE_COLUMN,
-	TYPE_ALIGN_COLUMN,
 	KEY_COLUMN,
 	N_COLUMNS
 };
@@ -494,8 +493,7 @@ create_mok_page (MOKVar id)
 
 	page = gtk_scrolled_window_new (NULL, NULL);
 
-	store = gtk_tree_store_new(N_COLUMNS, G_TYPE_STRING, G_TYPE_FLOAT,
-				   G_TYPE_STRING);
+	store = gtk_tree_store_new(N_COLUMNS, G_TYPE_STRING, G_TYPE_STRING);
 	treeview = gtk_tree_view_new_with_model (GTK_TREE_MODEL (store));
 	g_object_unref (G_OBJECT (store));
 
@@ -506,7 +504,6 @@ create_mok_page (MOKVar id)
 	renderer = gtk_cell_renderer_text_new ();
 	column = gtk_tree_view_column_new_with_attributes (_("Type"), renderer,
 						"markup", TYPE_COLUMN,
-						"xalign", TYPE_ALIGN_COLUMN,
 						NULL);
 	gtk_tree_view_append_column (GTK_TREE_VIEW (treeview), column);
 
