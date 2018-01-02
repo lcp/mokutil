@@ -41,6 +41,7 @@
 
 #include <glib/gi18n.h>
 #include <gtk/gtk.h>
+#include <gio/gio.h>
 
 #include <openssl/sha.h>
 #include <openssl/x509.h>
@@ -101,6 +102,7 @@ GtkWidget *mokpage[NUM_OF_VARS];
 uint8_t *var_data[NUM_OF_VARS];
 size_t var_size[NUM_OF_VARS];
 MokListNode *list[NUM_OF_VARS];
+GFileMonitor *monitors[NUM_OF_VARS];
 
 GtkWidget *main_win;
 
@@ -469,6 +471,57 @@ treeview_clicked (GtkTreeView *treeview, GdkEvent *event, MOKVar *id)
 	return FALSE;
 }
 
+static void
+monitor_change_cb (GFileMonitor *monitor __attribute__((unused)),
+		   GFile *file __attribute__((unused)),
+		   GFile *other_file __attribute__((unused)),
+		   GFileMonitorEvent event, MOKVar *id)
+{
+	if (event != G_FILE_MONITOR_EVENT_CHANGED &&
+	    event != G_FILE_MONITOR_EVENT_DELETED &&
+	    event != G_FILE_MONITOR_EVENT_CREATED) {
+		return;
+	}
+
+	refresh_page (*id);
+}
+
+static GFileMonitor *
+monitor_variable (MOKVar id)
+{
+	const char *prefix = "/sys/firmware/efi/efivars/";
+	char *guid_str = NULL;
+	char *path = NULL;
+	GFile *file;
+	GFileMonitor *monitor = NULL;
+	int rc;
+
+	rc = efi_guid_to_str (var_guid[id], &guid_str);
+	if (rc < 0)
+		return NULL;
+
+	path = g_strdup_printf ("%s%s-%s", prefix, mokvar_to_string[id],
+				guid_str);
+	if (!path)
+		goto out;
+
+	file = g_file_new_for_path (path);
+	monitor = g_file_monitor_file (file, G_FILE_MONITOR_SEND_MOVED,
+				       NULL, NULL);
+	if (!monitor)
+		goto out;
+
+	g_signal_connect (G_OBJECT(monitor), "changed",
+				   G_CALLBACK(monitor_change_cb),
+				   (gpointer)&mokvar_id[id]);
+out:
+	if (guid_str)
+		free (guid_str);
+	g_free (path);
+
+	return monitor;
+}
+
 static GtkWidget *
 create_mok_page (MOKVar id)
 {
@@ -564,6 +617,8 @@ generate_pages (GtkWidget *container)
 					&attributes);
 		if (ret < 0)
 			var_data[i] = NULL;
+
+		monitors[i] = monitor_variable (i);
 
 		GtkWidget *page_label = gtk_label_new (var_name);
 		mokpage[i] = gtk_box_new (GTK_ORIENTATION_VERTICAL, 0);
@@ -831,6 +886,11 @@ main (int argc, char **argv)
 		if (list[i]) {
 			free (list[i]);
 			list[i] = NULL;
+		}
+
+		if (monitors[i]) {
+			g_object_unref (monitors[i]);
+			monitors[i] = NULL;
 		}
 	}
 
