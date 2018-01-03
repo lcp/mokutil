@@ -283,19 +283,16 @@ delete_key_cb (GtkMenuItem *menuitem __attribute__((unused)),
 					   key, key_size);
 		if (ret < 0)
 			return;
-
-		if (cur_var_id == MOK)
-			refresh_page (MOK_DEL);
-		else
-			refresh_page (MOKX_DEL);
-		refresh_page (cur_var_id);
+		/* monitor_change_cb() will refresh MokDel or MokXDel
+		 * automatically. */
 	} else if (cur_var_id == MOK_NEW || cur_var_id == MOKX_NEW ||
 		   cur_var_id == MOK_DEL || cur_var_id == MOKX_DEL) {
 		/* delete_from_pending_request() deletes the key in the
 		 * opposite list. */
 		delete_from_pending_request (type, key, key_size,
 					     req[cur_var_id]);
-		refresh_page (cur_var_id);
+		/* monitor_change_cb() will refresh the variable
+		 * automatically. */
 	}
 }
 
@@ -715,12 +712,8 @@ import_key (MokRequest req)
 	if (ret < 0)
 		goto out;
 
-	/* Refresh MokNew or MokXNew page */
-	if (req == ENROLL_MOK)
-		refresh_page (MOK_NEW);
-	else
-		refresh_page (MOKX_NEW);
-
+	/* monitor_change_cb() will refresh MokNew or MokXNew
+	 * automatically. */
 out:
 	if (cert != NULL)
 		free (cert);
