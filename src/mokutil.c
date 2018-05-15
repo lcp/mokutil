@@ -764,9 +764,10 @@ generate_hash (pw_crypt_t *pw_crypt, char *password, unsigned int pw_len)
 {
 	pw_crypt_t new_crypt;
 	char settings[SETTINGS_LEN];
+	char *next;
 	char *crypt_string;
 	const char *prefix;
-	int hash_len, prefix_len;
+	int hash_len, settings_len = sizeof (settings) - 2;
 
 	if (!password || !pw_crypt || password[pw_len] != '\0')
 		return -1;
@@ -774,15 +775,19 @@ generate_hash (pw_crypt_t *pw_crypt, char *password, unsigned int pw_len)
 	prefix = get_crypt_prefix (pw_crypt->method);
 	if (!prefix)
 		return -1;
-	prefix_len = strlen(prefix);
 
 	pw_crypt->salt_size = get_salt_size (pw_crypt->method);
 	generate_salt ((char *)pw_crypt->salt, pw_crypt->salt_size);
 
-	strncpy (settings, prefix, prefix_len);
-	strncpy (settings + prefix_len, (const char *)pw_crypt->salt,
-		 pw_crypt->salt_size);
-	settings[pw_crypt->salt_size + prefix_len] = '\0';
+	memset (settings, 0, sizeof (settings));
+	next = stpncpy (settings, prefix, settings_len);
+	if (pw_crypt->salt_size > settings_len - (next - settings)) {
+		errno = EOVERFLOW;
+		return -1;
+	}
+	next = stpncpy (next, (const char *)pw_crypt->salt,
+			pw_crypt->salt_size);
+	*next = '\0';
 
 	crypt_string = crypt (password, settings);
 	if (!crypt_string)
@@ -1929,10 +1934,11 @@ static int
 generate_pw_hash (const char *input_pw)
 {
 	char settings[SETTINGS_LEN];
+	char *next;
 	char *password = NULL;
 	char *crypt_string;
 	const char *prefix;
-	int prefix_len;
+	int settings_len = sizeof (settings) - 2;
 	unsigned int pw_len, salt_size;
 
 	if (input_pw) {
@@ -1958,12 +1964,18 @@ generate_pw_hash (const char *input_pw)
 	prefix = get_crypt_prefix (DEFAULT_CRYPT_METHOD);
 	if (!prefix)
 		return -1;
-	prefix_len = strlen(prefix);
 
-	strncpy (settings, prefix, prefix_len);
+	memset (settings, 0, sizeof (settings));
+	next = stpncpy (settings, prefix, settings_len);
 	salt_size = get_salt_size (DEFAULT_CRYPT_METHOD);
-	generate_salt ((settings + prefix_len), salt_size);
-	settings[DEFAULT_SALT_SIZE + prefix_len] = '\0';
+	if (salt_size > settings_len - (next - settings)) {
+		free(password);
+		errno = EOVERFLOW;
+		return -1;
+	}
+	generate_salt (next, salt_size);
+	next += salt_size;
+	*next = '\0';
 
 	crypt_string = crypt (password, settings);
 	free (password);
