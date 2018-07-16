@@ -83,6 +83,7 @@
 #define IMPORT_HASH        (1 << 21)
 #define DELETE_HASH        (1 << 22)
 #define VERBOSITY          (1 << 23)
+#define TIMEOUT            (1 << 24)
 
 #define DEFAULT_CRYPT_METHOD SHA512_BASED
 #define DEFAULT_SALT_SIZE    SHA512_SALT_MAX
@@ -156,6 +157,7 @@ print_help ()
 	printf ("  --kek\t\t\t\t\tList the keys in KEK\n");
 	printf ("  --db\t\t\t\t\tList the keys in db\n");
 	printf ("  --dbx\t\t\t\t\tList the keys in dbx\n");
+	printf ("  --set-timeout <-1,0..0x7fff>\t\tSet the timeout for MOK prompt\n");
 	printf ("\n");
 	printf ("Supplimentary Options:\n");
 	printf ("  --hash-file <hash file>\t\tUse the specific password hash\n");
@@ -1978,6 +1980,33 @@ generate_pw_hash (const char *input_pw)
 }
 
 static int
+set_timeout (char *t)
+{
+	int timeout = strtol(t, NULL, 10);
+
+	if (errno == ERANGE || timeout > 0x7fff)
+		timeout = 0x7fff;
+	if (timeout < 0)
+		timeout = -1;
+
+	if (timeout != 10) {
+		uint32_t attributes = EFI_VARIABLE_NON_VOLATILE
+				      | EFI_VARIABLE_BOOTSERVICE_ACCESS
+				      | EFI_VARIABLE_RUNTIME_ACCESS;
+		if (efi_set_variable (efi_guid_shim, "MokTimeout",
+				      &timeout, sizeof (timeout),
+				      attributes, S_IRUSR | S_IWUSR) < 0) {
+			fprintf (stderr, "Failed to set MokTimeout\n");
+			return -1;
+		}
+	} else {
+		return test_and_delete_var ("MokTimeout");
+	}
+
+	return 0;
+}
+
+static int
 set_verbosity (uint8_t verbosity)
 {
 	if (verbosity) {
@@ -2026,6 +2055,7 @@ main (int argc, char *argv[])
 	char *hash_file = NULL;
 	char *input_pw = NULL;
 	char *hash_str = NULL;
+	char *timeout = NULL;
 	const char *option;
 	int c, i, f_ind, total = 0;
 	unsigned int command = 0;
@@ -2073,6 +2103,7 @@ main (int argc, char *argv[])
 			{"kek",                no_argument,       0, 0  },
 			{"db",                 no_argument,       0, 0  },
 			{"dbx",                no_argument,       0, 0  },
+			{"timeout",            required_argument, 0, 0  },
 			{0, 0, 0, 0}
 		};
 
@@ -2160,6 +2191,9 @@ main (int argc, char *argv[])
 					command |= LIST_ENROLLED;
 					db_name = DBX;
 				}
+			} else if (strcmp (option, "timeout") == 0) {
+				command |= TIMEOUT;
+				timeout = strdup (optarg);
 			}
 
 			break;
@@ -2419,6 +2453,9 @@ main (int argc, char *argv[])
 		case VERBOSITY:
 			ret = set_verbosity (verbosity);
 			break;
+		case TIMEOUT:
+			ret = set_timeout (timeout);
+			break;
 		default:
 			print_help ();
 			break;
@@ -2430,6 +2467,9 @@ out:
 			free (files[i]);
 		free (files);
 	}
+
+	if (timeout)
+		free (timeout);
 
 	if (key_file)
 		free (key_file);
