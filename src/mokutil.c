@@ -1994,7 +1994,7 @@ set_timeout (char *t)
 				      | EFI_VARIABLE_BOOTSERVICE_ACCESS
 				      | EFI_VARIABLE_RUNTIME_ACCESS;
 		if (efi_set_variable (efi_guid_shim, "MokTimeout",
-				      &timeout, sizeof (timeout),
+				      (uint8_t *)&timeout, sizeof (timeout),
 				      attributes, S_IRUSR | S_IWUSR) < 0) {
 			fprintf (stderr, "Failed to set MokTimeout\n");
 			return -1;
