@@ -1807,7 +1807,9 @@ sb_state ()
 	uint8_t *data;
 	size_t data_size;
 	uint32_t attributes;
-	int32_t state = -1;
+	int32_t secureboot = -1;
+	int32_t setupmode = -1;
+	int32_t moksbstate = -1;
 
 	if (efi_get_variable (efi_guid_global, "SecureBoot", &data, &data_size,
 			      &attributes) < 0) {
@@ -1821,16 +1823,45 @@ sb_state ()
 			data_size);
 	}
 	if (data_size == 4) {
-		state = (int32_t)*(uint32_t *)data;
+		secureboot = (int32_t)*(uint32_t *)data;
 	} else if (data_size == 2) {
-		state = (int32_t)*(uint16_t *)data;
+		secureboot = (int32_t)*(uint16_t *)data;
 	} else if (data_size == 1) {
-		state = (int32_t)*(uint8_t *)data;
+		secureboot = (int32_t)*(uint8_t *)data;
 	}
-	if (state == 1) {
+
+	if (efi_get_variable (efi_guid_global, "SetupMode", &data, &data_size,
+			      &attributes) < 0) {
+		fprintf (stderr, "Failed to read \"SecureBoot\" "
+				 "variable: %m\n");
+		return -1;
+	}
+
+	if (data_size != 1) {
+		printf ("Strange data size %zd for \"SetupMode\" variable\n",
+			data_size);
+	}
+	if (data_size == 4) {
+		setupmode = (int32_t)*(uint32_t *)data;
+	} else if (data_size == 2) {
+		setupmode = (int32_t)*(uint16_t *)data;
+	} else if (data_size == 1) {
+		setupmode = (int32_t)*(uint8_t *)data;
+	}
+
+	if (efi_get_variable (efi_guid_shim, "MokSBStateRT", &data, &data_size,
+			      &attributes) >= 0) {
+		moksbstate = 1;
+	}
+
+	if (secureboot == 1 && setupmode == 0) {
 		printf ("SecureBoot enabled\n");
-	} else if (state == 0) {
+		if (moksbstate == 1)
+			printf ("SecureBoot validation is disabled in shim\n");
+	} else if (secureboot == 0 || setupmode == 1) {
 		printf ("SecureBoot disabled\n");
+		if (setupmode == 1)
+			printf ("Platform is in Setup Mode\n");
 	} else {
 		printf ("Cannot determine secure boot state.\n");
 	}
