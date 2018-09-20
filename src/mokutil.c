@@ -157,7 +157,7 @@ print_help ()
 	printf ("  --kek\t\t\t\t\tList the keys in KEK\n");
 	printf ("  --db\t\t\t\t\tList the keys in db\n");
 	printf ("  --dbx\t\t\t\t\tList the keys in dbx\n");
-	printf ("  --set-timeout <-1,0..0x7fff>\t\tSet the timeout for MOK prompt\n");
+	printf ("  --timeout <-1,0..0x7fff>\t\tSet the timeout for MOK prompt\n");
 	printf ("\n");
 	printf ("Supplimentary Options:\n");
 	printf ("  --hash-file <hash file>\t\tUse the specific password hash\n");
