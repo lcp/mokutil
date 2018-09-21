@@ -2210,28 +2210,24 @@ main (int argc, char *argv[])
 				if (db_name != MOK_LIST_RT) {
 					command |= HELP;
 				} else {
-					command |= LIST_ENROLLED;
 					db_name = PK;
 				}
 			} else if (strcmp (option, "kek") == 0) {
 				if (db_name != MOK_LIST_RT) {
 					command |= HELP;
 				} else {
-					command |= LIST_ENROLLED;
 					db_name = KEK;
 				}
 			} else if (strcmp (option, "db") == 0) {
 				if (db_name != MOK_LIST_RT) {
 					command |= HELP;
 				} else {
-					command |= LIST_ENROLLED;
 					db_name = DB;
 				}
 			} else if (strcmp (option, "dbx") == 0) {
 				if (db_name != MOK_LIST_RT) {
 					command |= HELP;
 				} else {
-					command |= LIST_ENROLLED;
 					db_name = DBX;
 				}
 			} else if (strcmp (option, "timeout") == 0) {
@@ -2363,6 +2359,9 @@ main (int argc, char *argv[])
 
 	if (hash_file && use_root_pw)
 		command |= HELP;
+
+	if (db_name != MOK_LIST_RT && ! (command & ~MOKX))
+		command |= LIST_ENROLLED;
 
 	if (!(command & HELP)) {
 		/* Check whether the machine supports Secure Boot or not */
