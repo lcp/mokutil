@@ -2138,6 +2138,7 @@ main (int argc, char *argv[])
 			{"simple-hash",        no_argument,       0, 's'},
 			{"ignore-db",          no_argument,       0, 0  },
 			{"use-db",             no_argument,       0, 0  },
+			{"mok",                no_argument,       0, 'm'},
 			{"mokx",               no_argument,       0, 'X'},
 			{"import-hash",        required_argument, 0, 0  },
 			{"delete-hash",        required_argument, 0, 0  },
@@ -2151,7 +2152,7 @@ main (int argc, char *argv[])
 		};
 
 		int option_index = 0;
-		c = getopt_long (argc, argv, "cd:f:g::hi:lpst:xDNPX",
+		c = getopt_long (argc, argv, "cd:f:g::hi:lmpst:xDNPX",
 				 long_options, &option_index);
 
 		if (c == -1)
@@ -2336,6 +2337,9 @@ main (int argc, char *argv[])
 		case 's':
 			command |= SIMPLE_HASH;
 			use_simple_hash = 1;
+			break;
+		case 'm':
+			db_name = MOK_LIST_RT;
 			break;
 		case 'X':
 			if (db_name != MOK_LIST_RT) {
