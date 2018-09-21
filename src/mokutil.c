@@ -112,6 +112,24 @@ typedef enum {
 	DBX,
 } DBName;
 
+const char *db_var_name[] = {
+	[MOK_LIST_RT]   = "MokListRT",
+	[MOK_LIST_X_RT] = "MokListXRT",
+	[PK]            = "PK",
+	[KEK]           = "KEK",
+	[DB]            = "db",
+	[DBX]           = "dbx",
+};
+
+const char *db_friendly_name[] = {
+	[MOK_LIST_RT]   = "MOK",
+	[MOK_LIST_X_RT] = "MOKX",
+	[PK]            = "PK",
+	[KEK]           = "KEK",
+	[DB]            = "DB",
+	[DBX]           = "DBX",
+};
+
 typedef struct {
 	EFI_SIGNATURE_LIST *header;
 	uint32_t            mok_size;
@@ -1609,27 +1627,43 @@ revoke_request (MokRequest req)
 }
 
 static int
-export_moks ()
+export_moks (const DBName db_name)
 {
 	uint8_t *data = NULL;
 	size_t data_size = 0;
 	uint32_t attributes;
 	char filename[PATH_MAX];
 	uint32_t mok_num;
+	efi_guid_t guid = efi_guid_shim;
 	MokListNode *list;
 	int fd;
 	mode_t mode;
 	int ret = -1;
 
-	ret = efi_get_variable (efi_guid_shim, "MokListRT", &data, &data_size,
+	switch (db_name) {
+		case MOK_LIST_RT:
+		case MOK_LIST_X_RT:
+			guid = efi_guid_shim;
+			break;
+		case PK:
+		case KEK:
+			guid = efi_guid_global;
+			break;
+		case DB:
+		case DBX:
+			guid = efi_guid_security;
+			break;
+	};
+
+	ret = efi_get_variable (guid, db_var_name[db_name], &data, &data_size,
 				&attributes);
 	if (ret < 0) {
 		if (errno == ENOENT) {
-			printf ("MokListRT is empty\n");
+			printf ("%s is empty\n", db_var_name[db_name]);
 			return 0;
 		}
 
-		fprintf (stderr, "Failed to read MokListRT: %m\n");
+		fprintf (stderr, "Failed to read %s: %m\n", db_var_name[db_name]);
 		return -1;
 	}
 	ret = -1;
@@ -1649,7 +1683,7 @@ export_moks ()
 			continue;
 
 		/* Dump X509 certificate to files */
-		snprintf (filename, PATH_MAX, "MOK-%04d.der", i+1);
+		snprintf (filename, PATH_MAX, "%s-%04d.der", db_friendly_name[db_name], i+1);
 		fd = open (filename, O_CREAT | O_WRONLY, mode);
 		if (fd < 0) {
 			fprintf (stderr, "Failed to open %s: %m\n", filename);
@@ -2422,7 +2456,8 @@ main (int argc, char *argv[])
 			ret = revoke_request (DELETE_MOK);
 			break;
 		case EXPORT:
-			ret = export_moks ();
+		case EXPORT | MOKX:
+			ret = export_moks (db_name);
 			break;
 		case PASSWORD:
 		case PASSWORD | SIMPLE_HASH:
