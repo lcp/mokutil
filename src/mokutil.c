@@ -157,7 +157,7 @@ print_help ()
 	printf ("  --delete <der file...>\t\tDelete specific keys\n");
 	printf ("  --revoke-import\t\t\tRevoke the import request\n");
 	printf ("  --revoke-delete\t\t\tRevoke the delete request\n");
-	printf ("  --export\t\t\t\tExport enrolled keys to files\n");
+	printf ("  --export\t\t\t\tExport keys to files\n");
 	printf ("  --password\t\t\t\tSet MOK password\n");
 	printf ("  --clear-password\t\t\tClear MOK password\n");
 	printf ("  --disable-validation\t\t\tDisable signature validation\n");
@@ -1627,7 +1627,7 @@ revoke_request (MokRequest req)
 }
 
 static int
-export_moks (const DBName db_name)
+export_db_keys (const DBName db_name)
 {
 	uint8_t *data = NULL;
 	size_t data_size = 0;
@@ -2398,7 +2398,7 @@ main (int argc, char *argv[])
 	if (hash_file && use_root_pw)
 		command |= HELP;
 
-	if (db_name != MOK_LIST_RT && ! (command & ~MOKX))
+	if (db_name != MOK_LIST_RT && !(command & ~MOKX))
 		command |= LIST_ENROLLED;
 
 	if (!(command & HELP)) {
@@ -2457,7 +2457,7 @@ main (int argc, char *argv[])
 			break;
 		case EXPORT:
 		case EXPORT | MOKX:
-			ret = export_moks (db_name);
+			ret = export_db_keys (db_name);
 			break;
 		case PASSWORD:
 		case PASSWORD | SIMPLE_HASH:
