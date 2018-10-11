@@ -2005,7 +2005,7 @@ generate_pw_hash (const char *input_pw)
 	char *password = NULL;
 	char *crypt_string;
 	const char *prefix;
-	int settings_len = sizeof (settings) - 2;
+	unsigned int settings_len = sizeof (settings) - 2;
 	unsigned int pw_len, salt_size;
 
 	if (input_pw) {
