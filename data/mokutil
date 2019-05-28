@@ -1,4 +1,4 @@
-#!/bin/bash
+# mokutil(1) completion
 
 _mokutil()
 {
