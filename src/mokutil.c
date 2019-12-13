@@ -1189,7 +1189,7 @@ print_skip_message (const char *filename, void *mok, uint32_t mok_size,
 			printf ("SKIP: %s is already enrolled\n", filename);
 		else if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
 				       &efi_guid_shim, "MokNew"))
-			printf ("SKIP: %s is already in the enrollement request\n", filename);
+			printf ("SKIP: %s is already in the enrollment request\n", filename);
 		break;
 	case DELETE_MOK:
 		if (!is_duplicate (&efi_guid_x509_cert, mok, mok_size,
