@@ -73,6 +73,8 @@ mokutil \- utility to manipulate machine owner keys
 .br
 \fBmokutil\fR [--dbx]
 .br
+\fBmokutil\fR [--timeout \fI-1,0..0x7fff\fR]
+.br
 
 .SH DESCRIPTION
 \fBmokutil\fR is a tool to import or delete the machines owner keys
@@ -90,11 +92,11 @@ List the keys to be enrolled
 List the keys to be deleted
 .TP
 \fB-i, --import\fR
-Collect the followed files and form a enrolling request to shim. The files must
+Collect the following files and form an enrolling request to shim. The files must
 be in DER format.
 .TP
 \fB-d, --delete\fR
-Collect the followed files and form a deleting request to shim. The files must be
+Collect the following files and form a deleting request to shim. The files must be
 in DER format.
 .TP
 \fB--revoke-import\fR
@@ -150,12 +152,12 @@ Tell shim to use the keys in db to verify EFI images (default)
 \fB-X, --mokx\fR
 Manipulate the MOK blacklist (MOKX) instead of the MOK list
 .TP
-\fB-i, --import-hash\fR
+\fB--import-hash\fR
 Create an enrolling request for the hash of a key in DER format. Note that
 this is not the password hash.
 .TP
-\fB-d, --delete-hash\fR
-Create an deleting request for the hash of a key in DER format. Note that
+\fB--delete-hash\fR
+Create a deleting request for the hash of a key in DER format. Note that
 this is not the password hash.
 .TP
 \fB--set-verbosity\fR
@@ -172,4 +174,7 @@ List the keys in the secure boot signature store (db)
 .TP
 \fB--dbx\fR
 List the keys in the secure boot blacklist signature store (dbx)
+.TP
+\fB--timeout\fR
+Set the timeout for MOK prompt
 .TP
