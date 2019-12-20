@@ -2424,7 +2424,11 @@ main (int argc, char *argv[])
 		free (data);
 	}
 
-	switch (command) {
+	if (command & TIMEOUT) {
+		ret = set_timeout (timeout);
+	}
+
+	switch (command & ~TIMEOUT) {
 		case LIST_ENROLLED:
 		case LIST_ENROLLED | MOKX:
 			ret = list_db (db_name);
@@ -2539,9 +2543,6 @@ main (int argc, char *argv[])
 			break;
 		case VERBOSITY:
 			ret = set_verbosity (verbosity);
-			break;
-		case TIMEOUT:
-			ret = set_timeout (timeout);
 			break;
 		default:
 			print_help ();
