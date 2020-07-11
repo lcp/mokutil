@@ -1862,12 +1862,9 @@ sb_state ()
 		printf ("Strange data size %zd for \"SecureBoot\" variable\n",
 			data_size);
 	}
-	if (data_size == 4) {
-		secureboot = (int32_t)*(uint32_t *)data;
-	} else if (data_size == 2) {
-		secureboot = (int32_t)*(uint16_t *)data;
-	} else if (data_size == 1) {
-		secureboot = (int32_t)*(uint8_t *)data;
+	if (data_size == 4 || data_size == 2 || data_size == 1) {
+		secureboot = 0;
+		memcpy(&secureboot, data, data_size);
 	}
 
 	if (efi_get_variable (efi_guid_global, "SetupMode", &data, &data_size,
@@ -1881,12 +1878,9 @@ sb_state ()
 		printf ("Strange data size %zd for \"SetupMode\" variable\n",
 			data_size);
 	}
-	if (data_size == 4) {
-		setupmode = (int32_t)*(uint32_t *)data;
-	} else if (data_size == 2) {
-		setupmode = (int32_t)*(uint16_t *)data;
-	} else if (data_size == 1) {
-		setupmode = (int32_t)*(uint8_t *)data;
+	if (data_size == 4 || data_size == 2 || data_size == 1) {
+		setupmode = 0;
+		memcpy(&setupmode, data, data_size);
 	}
 
 	if (efi_get_variable (efi_guid_shim, "MokSBStateRT", &data, &data_size,
