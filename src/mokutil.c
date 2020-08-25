@@ -492,131 +492,6 @@ match_hash_array (const efi_guid_t *hash_type, const void *hash,
 }
 
 static int
-delete_data_from_list (const efi_guid_t *var_guid, const char *var_name,
-		       const efi_guid_t *type, void *data, uint32_t data_size)
-{
-	uint8_t *var_data = NULL;
-	size_t var_data_size = 0;
-	uint32_t attributes;
-	MokListNode *list;
-	uint32_t mok_num, total, remain;
-	void *end, *start = NULL;
-	int del_ind, ret = 0;
-	uint32_t sig_list_size, sig_size;
-
-	if (!var_name || !data || data_size == 0)
-		return 0;
-
-	ret = efi_get_variable (*var_guid, var_name, &var_data, &var_data_size,
-				&attributes);
-	if (ret < 0) {
-		if (errno == ENOENT)
-			return 0;
-		fprintf (stderr, "Failed to read variable \"%s\": %m\n",
-			 var_name);
-		return -1;
-	}
-
-	total = var_data_size;
-
-	list = build_mok_list (var_data, var_data_size, &mok_num);
-	if (list == NULL)
-		goto done;
-
-	remain = total;
-	for (unsigned int i = 0; i < mok_num; i++) {
-		remain -= list[i].header->SignatureListSize;
-		efi_guid_t sigtype = list[i].header->SignatureType;
-		if (efi_guid_cmp (&sigtype, type) != 0)
-			continue;
-
-		sig_list_size = list[i].header->SignatureListSize;
-
-		if (efi_guid_cmp (type, &efi_guid_x509_cert) == 0) {
-			if (list[i].mok_size != data_size)
-				continue;
-
-			if (memcmp (list[i].mok, data, data_size) == 0) {
-				/* Remove this key */
-				start = (void *)list[i].header;
-				end = start + sig_list_size;
-				total -= sig_list_size;
-				break;
-			}
-		} else {
-			del_ind = match_hash_array (type, data, list[i].mok,
-						    list[i].mok_size);
-			if (del_ind < 0)
-				continue;
-
-			start = (void *)list[i].header;
-			sig_size = signature_size (type);
-			if (sig_list_size == (sizeof(EFI_SIGNATURE_LIST) + sig_size)) {
-				/* Only one hash in the list */
-				end = start + sig_list_size;
-				total -= sig_list_size;
-			} else {
-				/* More than one hash in the list */
-				start += sizeof(EFI_SIGNATURE_LIST) + sig_size * del_ind;
-				end = start + sig_size;
-				total -= sig_size;
-				list[i].header->SignatureListSize -= sig_size;
-				remain += sig_list_size - sizeof(EFI_SIGNATURE_LIST) -
-					  (del_ind + 1) * sig_size;
-			}
-			break;
-		}
-	}
-
-	/* the key or hash is not in this list */
-	if (start == NULL)
-		return 0;
-
-	/* all keys are removed */
-	if (total == 0) {
-		test_and_delete_var (var_name);
-
-		/* delete the password */
-		if (strcmp (var_name, "MokNew") == 0)
-			test_and_delete_var ("MokAuth");
-		else if (strcmp (var_name, "MokXNew") == 0)
-			test_and_delete_var ("MokXAuth");
-		else if (strcmp (var_name, "MokDel") == 0)
-			test_and_delete_var ("MokDelAuth");
-		else if (strcmp (var_name, "MokXDel") == 0)
-			test_and_delete_var ("MokXDelAuth");
-
-		ret = 1;
-		goto done;
-	}
-
-	/* remove the key or hash  */
-	if (remain > 0)
-		memmove (start, end, remain);
-
-	attributes = EFI_VARIABLE_NON_VOLATILE
-		     | EFI_VARIABLE_BOOTSERVICE_ACCESS
-		     | EFI_VARIABLE_RUNTIME_ACCESS;
-	ret = efi_set_variable (*var_guid, var_name,
-				var_data, total, attributes,
-				S_IRUSR | S_IWUSR);
-	if (ret < 0) {
-		fprintf (stderr, "Failed to write variable \"%s\": %m\n",
-			 var_name);
-		goto done;
-	}
-	efi_chmod_variable(*var_guid, var_name, S_IRUSR | S_IWUSR);
-
-	ret = 1;
-done:
-	if (list)
-		free (list);
-	free (var_data);
-
-	return ret;
-}
-
-static int
 list_keys_in_var (const char *var_name, const efi_guid_t guid)
 {
 	uint8_t *data = NULL;
@@ -1127,48 +1002,6 @@ is_valid_request (const efi_guid_t *type, void *mok, uint32_t mok_size,
 	return 1;
 }
 
-static int
-in_pending_request (const efi_guid_t *type, void *data, uint32_t data_size,
-		    MokRequest req)
-{
-	uint8_t *authvar_data;
-	size_t authvar_data_size;
-	uint32_t attributes;
-	int ret;
-
-	const char *authvar_names[] = {
-		[DELETE_MOK] = "MokDelAuth",
-		[ENROLL_MOK] = "MokAuth",
-		[DELETE_BLACKLIST] = "MokXDelAuth",
-		[ENROLL_BLACKLIST] = "MokXAuth"
-	};
-	const char *var_names[] = {
-		[DELETE_MOK] = "MokDel",
-		[ENROLL_MOK] = "Mok",
-		[DELETE_BLACKLIST] = "MokXDel",
-		[ENROLL_BLACKLIST] = "MokX"
-	};
-
-	if (!data || data_size == 0)
-		return 0;
-
-	if (efi_get_variable (efi_guid_shim, authvar_names[req], &authvar_data,
-			      &authvar_data_size, &attributes) < 0)
-		return 0;
-
-	free (authvar_data);
-	/* Check if the password hash is in the old format */
-	if (authvar_data_size == SHA256_DIGEST_LENGTH)
-		return 0;
-
-	ret = delete_data_from_list (&efi_guid_shim, var_names[req],
-				     type, data, data_size);
-	if (ret < 0)
-		return -1;
-
-	return ret;
-}
-
 static void
 print_skip_message (const char *filename, void *mok, uint32_t mok_size,
 		    MokRequest req)
@@ -1241,12 +1074,6 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 		[ENROLL_MOK] = "MokNew",
 		[DELETE_BLACKLIST] = "MokXDel",
 		[ENROLL_BLACKLIST] = "MokXNew"
-	};
-	const char *reverse_req_names[] = {
-		[DELETE_MOK] = "MokNew",
-		[ENROLL_MOK] = "MokDel",
-		[DELETE_BLACKLIST] = "MokXNew",
-		[ENROLL_BLACKLIST] = "MokXDel"
 	};
 
 	if (!files)
@@ -1329,10 +1156,6 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 		if (is_valid_request (&efi_guid_x509_cert, ptr, sizes[i], req)) {
 			ptr += sizes[i];
 			real_size += sizes[i] + sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
-		} else if (in_pending_request (&efi_guid_x509_cert, ptr, sizes[i], req)) {
-			printf ("Removed %s from %s\n", files[i],
-				reverse_req_names[req]);
-			ptr -= sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
 		} else {
 			print_skip_message (files[i], ptr, sizes[i], req);
 			ptr -= sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
@@ -1437,7 +1260,6 @@ issue_hash_request (const char *hash_str, MokRequest req,
 	size_t old_req_data_size = 0;
 	uint32_t attributes;
 	const char *req_name;
-	const char *reverse_req;
 	void *new_list = NULL;
 	void *ptr;
 	unsigned long list_size = 0;
@@ -1466,19 +1288,15 @@ issue_hash_request (const char *hash_str, MokRequest req,
 	switch (req) {
 	case ENROLL_MOK:
 		req_name = "MokNew";
-		reverse_req = "MokDel";
 		break;
 	case DELETE_MOK:
 		req_name = "MokDel";
-		reverse_req = "MokNew";
 		break;
 	case ENROLL_BLACKLIST:
 		req_name = "MokXNew";
-		reverse_req = "MokXDel";
 		break;
 	case DELETE_BLACKLIST:
 		req_name = "MokXDel";
-		reverse_req = "MokXNew";
 		break;
 	default:
 		return -1;
@@ -1486,8 +1304,6 @@ issue_hash_request (const char *hash_str, MokRequest req,
 
 	if (is_valid_request (&hash_type, db_hash, hash_size, req)) {
 		valid = 1;
-	} else if (in_pending_request (&hash_type, db_hash, hash_size, req)) {
-		printf ("Removed hash from %s\n", reverse_req);
 	} else {
 		printf ("Skip hash\n");
 	}
