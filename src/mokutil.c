@@ -1051,6 +1051,32 @@ print_skip_message (const char *filename, void *mok, uint32_t mok_size,
 	}
 }
 
+static const char *
+get_req_var_name (MokRequest req)
+{
+	const char *var_name[] = {
+		[DELETE_MOK] = "MokDel",
+		[ENROLL_MOK] = "MokNew",
+		[DELETE_BLACKLIST] = "MokXDel",
+		[ENROLL_BLACKLIST] = "MokXNew"
+	};
+
+	return var_name[req];
+}
+
+static const char *
+get_req_auth_var_name (MokRequest req)
+{
+	const char *auth_var_name[] = {
+		[DELETE_MOK] = "MokDelAuth",
+		[ENROLL_MOK] = "MokAuth",
+		[DELETE_BLACKLIST] = "MokXDelAuth",
+		[ENROLL_BLACKLIST] = "MokXAuth"
+	};
+
+	return auth_var_name[req];
+}
+
 static int
 issue_mok_request (char **files, uint32_t total, MokRequest req,
 		   const char *hash_file, const int root_pw)
@@ -1069,12 +1095,7 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 	int ret = -1;
 	EFI_SIGNATURE_LIST *CertList;
 	EFI_SIGNATURE_DATA *CertData;
-	const char *req_names[] = {
-		[DELETE_MOK] = "MokDel",
-		[ENROLL_MOK] = "MokNew",
-		[DELETE_BLACKLIST] = "MokXDel",
-		[ENROLL_BLACKLIST] = "MokXNew"
-	};
+	const char *var_name = get_req_var_name (req);
 
 	if (!files)
 		return -1;
@@ -1100,12 +1121,12 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 	list_size += sizeof(EFI_SIGNATURE_LIST) * total;
 	list_size += sizeof(efi_guid_t) * total;
 
-	ret = efi_get_variable (efi_guid_shim, req_names[req], &old_req_data,
+	ret = efi_get_variable (efi_guid_shim, var_name, &old_req_data,
 				&old_req_data_size, &attributes);
 	if (ret < 0) {
 		if (errno != ENOENT) {
 			fprintf (stderr, "Failed to read variable \"%s\": %m\n",
-				 req_names[req]);
+				 var_name);
 			goto error;
 		}
 	} else {
@@ -1116,7 +1137,7 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 	new_list = malloc (list_size);
 	if (!new_list) {
 		fprintf (stderr, "Failed to allocate space for %s\n",
-			 req_names[req]);
+			 var_name);
 		goto error;
 	}
 	ptr = new_list;
@@ -1259,7 +1280,6 @@ issue_hash_request (const char *hash_str, MokRequest req,
 	uint8_t *old_req_data = NULL;
 	size_t old_req_data_size = 0;
 	uint32_t attributes;
-	const char *req_name;
 	void *new_list = NULL;
 	void *ptr;
 	unsigned long list_size = 0;
@@ -1274,6 +1294,7 @@ issue_hash_request (const char *hash_str, MokRequest req,
 	uint8_t valid = 0;
 	MokListNode *mok_list = NULL;
 	uint32_t mok_num;
+	const char *var_name = get_req_var_name (req);
 
 	if (!hash_str)
 		return -1;
@@ -1284,23 +1305,6 @@ issue_hash_request (const char *hash_str, MokRequest req,
 
 	if (hex_str_to_binary (hash_str, db_hash, hash_size) < 0)
 		return -1;
-
-	switch (req) {
-	case ENROLL_MOK:
-		req_name = "MokNew";
-		break;
-	case DELETE_MOK:
-		req_name = "MokDel";
-		break;
-	case ENROLL_BLACKLIST:
-		req_name = "MokXNew";
-		break;
-	case DELETE_BLACKLIST:
-		req_name = "MokXDel";
-		break;
-	default:
-		return -1;
-	}
 
 	if (is_valid_request (&hash_type, db_hash, hash_size, req)) {
 		valid = 1;
@@ -1315,12 +1319,12 @@ issue_hash_request (const char *hash_str, MokRequest req,
 
 	list_size = sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t) + hash_size;
 
-	ret = efi_get_variable (efi_guid_shim, req_name, &old_req_data,
+	ret = efi_get_variable (efi_guid_shim, var_name, &old_req_data,
 				&old_req_data_size, &attributes);
 	if (ret < 0) {
 		if (errno != ENOENT) {
 			fprintf (stderr, "Failed to read variable \"%s\": %m\n",
-				 req_name);
+				 var_name);
 			goto error;
 		}
 	} else {
@@ -1344,7 +1348,7 @@ issue_hash_request (const char *hash_str, MokRequest req,
 	new_list = malloc (list_size);
 	if (!new_list) {
 		fprintf (stderr, "Failed to allocate space for %s: %m\n",
-			 req_name);
+			 var_name);
 		goto error;
 	}
 	ptr = new_list;
@@ -1417,32 +1421,10 @@ error:
 static int
 revoke_request (MokRequest req)
 {
-	switch (req) {
-	case ENROLL_MOK:
-		if (test_and_delete_var ("MokNew") < 0)
-			return -1;
-		if (test_and_delete_var ("MokAuth") < 0)
-			return -1;
-		break;
-	case DELETE_MOK:
-		if (test_and_delete_var ("MokDel") < 0)
-			return -1;
-		if (test_and_delete_var ("MokDelAuth") < 0)
-			return -1;
-		break;
-	case ENROLL_BLACKLIST:
-		if (test_and_delete_var ("MokXNew") < 0)
-			return -1;
-		if (test_and_delete_var ("MokXAuth") < 0)
-			return -1;
-		break;
-	case DELETE_BLACKLIST:
-		if (test_and_delete_var ("MokXDel") < 0)
-			return -1;
-		if (test_and_delete_var ("MokXDelAuth") < 0)
-			return -1;
-		break;
-	}
+	if (test_and_delete_var (get_req_var_name(req)) < 0)
+		return -1;
+	if (test_and_delete_var (get_req_auth_var_name(req)) < 0)
+		return -1;
 
 	return 0;
 }
