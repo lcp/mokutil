@@ -405,7 +405,8 @@ split_24bit (const char *string, uint8_t *hash, int start, int n,
 	return 0;
 }
 
-int restore_md5_array (const char *string, uint8_t *hash)
+static int
+restore_md5_array (const char *string, uint8_t *hash)
 {
 	uint32_t tmp = 0;
 	int value1, value2;
@@ -440,7 +441,7 @@ int restore_md5_array (const char *string, uint8_t *hash)
 	return 0;
 }
 
-int
+static int
 restore_sha256_array (const char *string, uint8_t *hash)
 {
 	uint32_t tmp = 0;
@@ -483,7 +484,7 @@ restore_sha256_array (const char *string, uint8_t *hash)
 	return 0;
 }
 
-int
+static int
 restore_sha512_array (const char *string, uint8_t *hash)
 {
 	uint32_t tmp = 0;
