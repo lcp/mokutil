@@ -51,6 +51,7 @@
 
 #include "mokutil.h"
 #include "signature.h"
+#include "efi_hash.h"
 #include "password-crypt.h"
 #include "util.h"
 
@@ -144,36 +145,6 @@ print_help ()
 	printf ("  --root-pw\t\t\t\tUse the root password\n");
 	printf ("  --simple-hash\t\t\t\tUse the old password hash method\n");
 	printf ("  --mokx\t\t\t\tManipulate the MOK blacklist\n");
-}
-
-static uint32_t
-efi_hash_size (const efi_guid_t *hash_type)
-{
-	if (efi_guid_cmp (hash_type, &efi_guid_sha1) == 0) {
-		return SHA_DIGEST_LENGTH;
-	} else if (efi_guid_cmp (hash_type, &efi_guid_sha224) == 0) {
-		return SHA224_DIGEST_LENGTH;
-	} else if (efi_guid_cmp (hash_type, &efi_guid_sha256) == 0) {
-		return SHA256_DIGEST_LENGTH;
-	} else if (efi_guid_cmp (hash_type, &efi_guid_sha384) == 0) {
-		return SHA384_DIGEST_LENGTH;
-	} else if (efi_guid_cmp (hash_type, &efi_guid_sha512) == 0) {
-		return SHA512_DIGEST_LENGTH;
-	}
-
-	return 0;
-}
-
-static uint32_t
-signature_size (const efi_guid_t *hash_type)
-{
-	uint32_t hash_size;
-
-	hash_size = efi_hash_size (hash_type);
-	if (hash_size)
-		return (hash_size + sizeof(efi_guid_t));
-
-	return 0;
 }
 
 static MokListNode*
@@ -312,53 +283,6 @@ print_x509 (char *cert, int cert_size)
 }
 
 static int
-print_hash_array (efi_guid_t *hash_type, void *hash_array, uint32_t array_size)
-{
-	uint32_t hash_size, remain;
-	uint32_t sig_size;
-	uint8_t *hash;
-	char *name;
-
-	if (!hash_array || array_size == 0) {
-		fprintf (stderr, "invalid hash array\n");
-		return -1;
-	}
-
-	int rc = efi_guid_to_name(hash_type, &name);
-	if (rc < 0 || isxdigit(name[0])) {
-		if (name)
-			free(name);
-		fprintf (stderr, "unknown hash type\n");
-		return -1;
-	}
-
-	hash_size = efi_hash_size (hash_type);
-	sig_size = hash_size + sizeof(efi_guid_t);
-
-	printf ("  [%s]\n", name);
-	free(name);
-	remain = array_size;
-	hash = (uint8_t *)hash_array;
-
-	while (remain > 0) {
-		if (remain < sig_size) {
-			fprintf (stderr, "invalid array size\n");
-			return -1;
-		}
-
-		printf ("  ");
-		hash += sizeof(efi_guid_t);
-		for (unsigned int i = 0; i<hash_size; i++)
-			printf ("%02x", *(hash + i));
-		printf ("\n");
-		hash += hash_size;
-		remain -= sig_size;
-	}
-
-	return 0;
-}
-
-static int
 list_keys (uint8_t *data, size_t data_size)
 {
 	uint32_t mok_num;
@@ -385,37 +309,6 @@ list_keys (uint8_t *data, size_t data_size)
 	free (list);
 
 	return 0;
-}
-
-/* match the hash in the hash array and return the index if matched */
-static int
-match_hash_array (const efi_guid_t *hash_type, const void *hash,
-		  const void *hash_array, const uint32_t array_size)
-{
-	uint32_t hash_size, hash_count;
-	uint32_t sig_size;
-	void *ptr;
-
-	hash_size = efi_hash_size (hash_type);
-	if (!hash_size)
-		return -1;
-
-	sig_size = hash_size + sizeof(efi_guid_t);
-	if ((array_size % sig_size) != 0) {
-		fprintf (stderr, "invalid hash array size\n");
-		return -1;
-	}
-
-	ptr = (void *)hash_array;
-	hash_count = array_size / sig_size;
-	for (unsigned int i = 0; i < hash_count; i++) {
-		ptr += sizeof(efi_guid_t);
-		if (memcmp (ptr, hash, hash_size) == 0)
-			return i;
-		ptr += hash_size;
-	}
-
-	return -1;
 }
 
 static int
@@ -1079,43 +972,6 @@ error:
 		free (new_list);
 
 	return ret;
-}
-
-static int
-identify_hash_type (const char *hash_str, efi_guid_t *type)
-{
-	unsigned int len = strlen (hash_str);
-	int hash_size;
-
-	for (unsigned int i = 0; i < len; i++) {
-		if ((hash_str[i] > '9' || hash_str[i] < '0') &&
-		    (hash_str[i] > 'f' || hash_str[i] < 'a') &&
-		    (hash_str[i] > 'F' || hash_str[i] < 'A'))
-		return -1;
-	}
-
-	switch (len) {
-	case SHA224_DIGEST_LENGTH*2:
-		*type = efi_guid_sha224;
-		hash_size = SHA224_DIGEST_LENGTH;
-		break;
-	case SHA256_DIGEST_LENGTH*2:
-		*type = efi_guid_sha256;
-		hash_size = SHA256_DIGEST_LENGTH;
-		break;
-	case SHA384_DIGEST_LENGTH*2:
-		*type = efi_guid_sha384;
-		hash_size = SHA384_DIGEST_LENGTH;
-		break;
-	case SHA512_DIGEST_LENGTH*2:
-		*type = efi_guid_sha512;
-		hash_size = SHA512_DIGEST_LENGTH;
-		break;
-	default:
-		return -1;
-	}
-
-	return hash_size;
 }
 
 static int
