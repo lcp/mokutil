@@ -92,24 +92,6 @@
 
 static int use_simple_hash;
 
-const char *db_var_name[] = {
-	[MOK_LIST_RT]   = "MokListRT",
-	[MOK_LIST_X_RT] = "MokListXRT",
-	[PK]            = "PK",
-	[KEK]           = "KEK",
-	[DB]            = "db",
-	[DBX]           = "dbx",
-};
-
-const char *db_friendly_name[] = {
-	[MOK_LIST_RT]   = "MOK",
-	[MOK_LIST_X_RT] = "MOKX",
-	[PK]            = "PK",
-	[KEK]           = "KEK",
-	[DB]            = "DB",
-	[DBX]           = "DBX",
-};
-
 typedef struct {
 	EFI_SIGNATURE_LIST *header;
 	uint32_t            mok_size;
@@ -1312,6 +1294,7 @@ revoke_request (MokRequest req)
 static int
 export_db_keys (const DBName db_name)
 {
+	const char *db_var_name;
 	uint8_t *data = NULL;
 	size_t data_size = 0;
 	uint32_t attributes;
@@ -1338,15 +1321,17 @@ export_db_keys (const DBName db_name)
 			break;
 	};
 
-	ret = efi_get_variable (guid, db_var_name[db_name], &data, &data_size,
+	db_var_name = get_db_var_name(db_name);
+
+	ret = efi_get_variable (guid, db_var_name, &data, &data_size,
 				&attributes);
 	if (ret < 0) {
 		if (errno == ENOENT) {
-			printf ("%s is empty\n", db_var_name[db_name]);
+			printf ("%s is empty\n", db_var_name);
 			return 0;
 		}
 
-		fprintf (stderr, "Failed to read %s: %m\n", db_var_name[db_name]);
+		fprintf (stderr, "Failed to read %s: %m\n", db_var_name);
 		return -1;
 	}
 	ret = -1;
@@ -1367,7 +1352,8 @@ export_db_keys (const DBName db_name)
 			continue;
 
 		/* Dump X509 certificate to files */
-		snprintf (filename, PATH_MAX, "%s-%04d.der", db_friendly_name[db_name], i+1);
+		snprintf (filename, PATH_MAX, "%s-%04d.der",
+			  get_db_friendly_name(db_name), i+1);
 		fd = open (filename, O_CREAT | O_WRONLY, mode);
 		if (fd < 0) {
 			fprintf (stderr, "Failed to open %s: %m\n", filename);

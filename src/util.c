@@ -102,6 +102,36 @@ read_hidden_line (char **line, size_t *n)
 }
 
 const char *
+get_db_var_name (const DBName db_name)
+{
+	const char *db_var_names[] = {
+		[MOK_LIST_RT]   = "MokListRT",
+		[MOK_LIST_X_RT] = "MokListXRT",
+		[PK]            = "PK",
+		[KEK]           = "KEK",
+		[DB]            = "db",
+		[DBX]           = "dbx",
+	};
+
+	return db_var_names[db_name];
+}
+
+const char *
+get_db_friendly_name (const DBName db_name)
+{
+	const char *db_friendly_names[] = {
+		[MOK_LIST_RT]   = "MOK",
+		[MOK_LIST_X_RT] = "MOKX",
+		[PK]            = "PK",
+		[KEK]           = "KEK",
+		[DB]            = "DB",
+		[DBX]           = "DBX",
+	};
+
+	return db_friendly_names[db_name];
+}
+
+const char *
 get_req_var_name (MokRequest req)
 {
 	const char *var_name[] = {

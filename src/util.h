@@ -39,6 +39,8 @@ int test_and_delete_mok_var (const char *var_name);
 unsigned long efichar_from_char (efi_char16_t *dest, const char *src,
 				 size_t dest_len);
 int read_hidden_line (char **line, size_t *n);
+const char *get_db_var_name (const DBName db);
+const char *get_db_friendly_name (const DBName db);
 const char *get_req_var_name (MokRequest req);
 const char *get_req_auth_var_name (MokRequest req);
 
