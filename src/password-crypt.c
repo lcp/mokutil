@@ -79,7 +79,7 @@ gen_salt_size (uint16_t min, uint16_t max)
 }
 
 uint16_t
-get_salt_size (int method) {
+get_pw_salt_size (const HashMethod method) {
 	switch (method) {
 	case TRADITIONAL_DES:
 		return T_DES_SALT_MAX;
@@ -98,7 +98,7 @@ get_salt_size (int method) {
 }
 
 int
-get_hash_size (int method)
+get_pw_hash_size (const HashMethod method)
 {
 	switch (method) {
 	case TRADITIONAL_DES:
@@ -119,7 +119,7 @@ get_hash_size (int method)
 }
 
 const char *
-get_crypt_prefix (int method)
+get_crypt_prefix (const HashMethod method)
 {
 	switch (method) {
 	case TRADITIONAL_DES:

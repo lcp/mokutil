@@ -41,14 +41,14 @@
 #define SHA512_SALT_MAX 16
 #define BLOWFISH_SALT_MAX 22
 
-enum HashMethod {
+typedef enum {
 	TRADITIONAL_DES = 0,
 	EXTEND_BSDI_DES,
 	MD5_BASED,
 	SHA256_BASED,
 	SHA512_BASED,
 	BLOWFISH_BASED
-};
+} HashMethod;
 
 typedef struct {
 	uint16_t method;
@@ -64,9 +64,9 @@ typedef struct {
 #define SHA256_B64_LENGTH 43
 #define SHA512_B64_LENGTH 86
 
-uint16_t get_salt_size (int method);
-int get_hash_size (int method);
-const char *get_crypt_prefix (int method);
+uint16_t get_pw_salt_size (const HashMethod method);
+int get_pw_hash_size (const HashMethod method);
+const char *get_crypt_prefix (const HashMethod method);
 int decode_pass (const char *crypt_pass, pw_crypt_t *pw_crypt);
 char int_to_b64 (const int i);
 int b64_to_int (const char c);

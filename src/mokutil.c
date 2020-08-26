@@ -423,7 +423,7 @@ generate_hash (pw_crypt_t *pw_crypt, char *password, unsigned int pw_len)
 	if (!prefix)
 		return -1;
 
-	pw_crypt->salt_size = get_salt_size (pw_crypt->method);
+	pw_crypt->salt_size = get_pw_salt_size (pw_crypt->method);
 	generate_salt ((char *)pw_crypt->salt, pw_crypt->salt_size);
 
 	memset (settings, 0, sizeof (settings));
@@ -443,7 +443,7 @@ generate_hash (pw_crypt_t *pw_crypt, char *password, unsigned int pw_len)
 	if (decode_pass (crypt_string, &new_crypt) < 0)
 		return -1;
 
-	hash_len = get_hash_size (new_crypt.method);
+	hash_len = get_pw_hash_size (new_crypt.method);
 	if (hash_len < 0)
 		return -1;
 	memcpy (pw_crypt->hash, new_crypt.hash, hash_len);
@@ -1492,7 +1492,7 @@ generate_pw_hash (const char *input_pw)
 
 	memset (settings, 0, sizeof (settings));
 	next = stpncpy (settings, prefix, settings_len);
-	salt_size = get_salt_size (DEFAULT_CRYPT_METHOD);
+	salt_size = get_pw_salt_size (DEFAULT_CRYPT_METHOD);
 	if (salt_size > settings_len - (next - settings)) {
 		free(password);
 		errno = EOVERFLOW;
