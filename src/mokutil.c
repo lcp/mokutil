@@ -44,7 +44,6 @@
 #include <sys/time.h>
 
 #include <openssl/sha.h>
-#include <openssl/x509.h>
 
 #include <crypt.h>
 #include <efivar.h>
@@ -52,6 +51,7 @@
 #include "mokutil.h"
 #include "signature.h"
 #include "efi_hash.h"
+#include "efi_x509.h"
 #include "password-crypt.h"
 #include "util.h"
 
@@ -241,45 +241,6 @@ build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 	*mok_num = count;
 
 	return list;
-}
-
-static int
-print_x509 (char *cert, int cert_size)
-{
-	X509 *X509cert;
-	BIO *cert_bio;
-	SHA_CTX ctx;
-	uint8_t fingerprint[SHA_DIGEST_LENGTH];
-
-	cert_bio = BIO_new (BIO_s_mem ());
-	BIO_write (cert_bio, cert, cert_size);
-	if (cert_bio == NULL) {
-		fprintf (stderr, "Failed to write BIO\n");
-		return -1;
-	}
-
-	X509cert = d2i_X509_bio (cert_bio, NULL);
-	if (X509cert == NULL) {
-		fprintf (stderr, "Invalid X509 certificate\n");
-		return -1;
-	}
-
-	SHA1_Init (&ctx);
-	SHA1_Update (&ctx, cert, cert_size);
-	SHA1_Final (fingerprint, &ctx);
-
-	printf ("SHA1 Fingerprint: ");
-	for (unsigned int i = 0; i < SHA_DIGEST_LENGTH; i++) {
-		printf ("%02x", fingerprint[i]);
-		if (i < SHA_DIGEST_LENGTH - 1)
-			printf (":");
-	}
-	printf ("\n");
-	X509_print_fp (stdout, X509cert);
-
-	BIO_free (cert_bio);
-
-	return 0;
 }
 
 static int
@@ -673,29 +634,6 @@ error:
 	if (password)
 		free (password);
 	return ret;
-}
-
-static int
-is_valid_cert (void *cert, uint32_t cert_size)
-{
-	X509 *X509cert;
-	BIO *cert_bio;
-
-	cert_bio = BIO_new (BIO_s_mem ());
-	BIO_write (cert_bio, cert, cert_size);
-	if (cert_bio == NULL) {
-		return 0;
-	}
-
-	X509cert = d2i_X509_bio (cert_bio, NULL);
-	if (X509cert == NULL) {
-		BIO_free (cert_bio);
-		return 0;
-	}
-
-	BIO_free (cert_bio);
-
-	return 1;
 }
 
 static int

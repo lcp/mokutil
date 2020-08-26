@@ -11,6 +11,8 @@ mokutil_LDADD   = $(OPENSSL_LIBS)	\
 mokutil_SOURCES = signature.h \
 		  efi_hash.h \
 		  efi_hash.c \
+		  efi_x509.h \
+		  efi_x509.c \
 		  password-crypt.h \
 		  password-crypt.c \
 		  util.h \
