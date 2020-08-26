@@ -1327,7 +1327,7 @@ sb_state ()
 
 	if (efi_get_variable (efi_guid_global, "SetupMode", &data, &data_size,
 			      &attributes) < 0) {
-		fprintf (stderr, "Failed to read \"SecureBoot\" "
+		fprintf (stderr, "Failed to read \"SetupMode\" "
 				 "variable: %m\n");
 		return -1;
 	}
