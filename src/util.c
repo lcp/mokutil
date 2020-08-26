@@ -132,27 +132,27 @@ get_db_friendly_name (const DBName db_name)
 }
 
 const char *
-get_req_var_name (MokRequest req)
+get_req_var_name (const MokRequest req)
 {
-	const char *var_name[] = {
+	const char *var_names[] = {
 		[DELETE_MOK] = "MokDel",
 		[ENROLL_MOK] = "MokNew",
 		[DELETE_BLACKLIST] = "MokXDel",
 		[ENROLL_BLACKLIST] = "MokXNew"
 	};
 
-	return var_name[req];
+	return var_names[req];
 }
 
 const char *
-get_req_auth_var_name (MokRequest req)
+get_req_auth_var_name (const MokRequest req)
 {
-	const char *auth_var_name[] = {
+	const char *auth_var_names[] = {
 		[DELETE_MOK] = "MokDelAuth",
 		[ENROLL_MOK] = "MokAuth",
 		[DELETE_BLACKLIST] = "MokXDelAuth",
 		[ENROLL_BLACKLIST] = "MokXAuth"
 	};
 
-	return auth_var_name[req];
+	return auth_var_names[req];
 }
