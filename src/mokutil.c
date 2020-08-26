@@ -29,7 +29,6 @@
  * version.  If you delete this exception statement from all source
  * files in the program, then also delete it here.
  */
-#include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
@@ -40,7 +39,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <termios.h>
 #include <getopt.h>
 #include <shadow.h>
 #include <sys/time.h>
@@ -51,8 +49,10 @@
 #include <crypt.h>
 #include <efivar.h>
 
+#include "mokutil.h"
 #include "signature.h"
 #include "password-crypt.h"
+#include "util.h"
 
 #define PASSWORD_MAX 256
 #define PASSWORD_MIN 1
@@ -90,27 +90,7 @@
 #define SETTINGS_LEN         (DEFAULT_SALT_SIZE*2)
 #define BUF_SIZE             300
 
-typedef unsigned long efi_status_t;
-typedef uint8_t  efi_bool_t;
-typedef wchar_t efi_char16_t;		/* UNICODE character */
-
 static int use_simple_hash;
-
-typedef enum {
-	DELETE_MOK = 0,
-	ENROLL_MOK,
-	DELETE_BLACKLIST,
-	ENROLL_BLACKLIST,
-} MokRequest;
-
-typedef enum {
-	MOK_LIST_RT = 0,
-	MOK_LIST_X_RT,
-	PK,
-	KEK,
-	DB,
-	DBX,
-} DBName;
 
 const char *db_var_name[] = {
 	[MOK_LIST_RT]   = "MokListRT",
@@ -182,41 +162,6 @@ print_help ()
 	printf ("  --root-pw\t\t\t\tUse the root password\n");
 	printf ("  --simple-hash\t\t\t\tUse the old password hash method\n");
 	printf ("  --mokx\t\t\t\tManipulate the MOK blacklist\n");
-}
-
-static int
-test_and_delete_var (const char *var_name)
-{
-	size_t size;
-	int ret;
-
-	ret = efi_get_variable_size (efi_guid_shim, var_name, &size);
-	if (ret < 0) {
-		if (errno == ENOENT)
-			return 0;
-		fprintf (stderr, "Failed to access variable \"%s\": %m\n",
-			 var_name);
-	}
-
-	/* Attempt to delete it no matter what, problem efi_get_variable_size()
-	 * had, unless it just doesn't exist anyway. */
-	if (!(ret < 0 && errno == ENOENT)) {
-		if (efi_del_variable (efi_guid_shim, var_name) < 0)
-			fprintf (stderr, "Failed to unset \"%s\": %m\n", var_name);
-	}
-
-	return ret;
-}
-
-static unsigned long
-efichar_from_char (efi_char16_t *dest, const char *src, size_t dest_len)
-{
-	unsigned int i, src_len = strlen(src);
-	for (i=0; i < src_len && i < (dest_len/sizeof(*dest)) - 1; i++) {
-		dest[i] = src[i];
-	}
-	dest[i] = 0;
-	return i * sizeof(*dest);
 }
 
 static uint32_t
@@ -514,39 +459,6 @@ list_keys_in_var (const char *var_name, const efi_guid_t guid)
 	free (data);
 
 	return ret;
-}
-
-static int
-read_hidden_line (char **line, size_t *n)
-{
-	struct termios old, new;
-	int nread;
-	int isTTY = isatty(fileno (stdin));
-
-	if (isTTY) {
-		/* Turn echoing off and fail if we can't. */
-		if (tcgetattr (fileno (stdin), &old) != 0)
-			return -1;
-
-		new = old;
-		new.c_lflag &= ~ECHO;
-
-		if (tcsetattr (fileno (stdin), TCSAFLUSH, &new) != 0)
-			return -1;
-	}
-
-	/* Read the password. */
-	nread = getline (line, n, stdin);
-
-	if (isTTY) {
-		/* Restore terminal. */
-		(void) tcsetattr (fileno (stdin), TCSAFLUSH, &old);
-	}
-
-	/* Remove the newline */
-	(*line)[nread-1] = '\0';
-
-	return nread-1;
 }
 
 static int
@@ -862,7 +774,7 @@ update_request (void *new_list, int list_len, MokRequest req,
 			goto error;
 		}
 	} else {
-		test_and_delete_var (req_name);
+		test_and_delete_mok_var (req_name);
 	}
 
 	/* Write MokAuth, MokDelAuth, MokXAuth, or MokXDelAuth */
@@ -877,7 +789,7 @@ update_request (void *new_list, int list_len, MokRequest req,
 	if (efi_set_variable (efi_guid_shim, auth_name, data, data_size,
 			      attributes, S_IRUSR | S_IWUSR) < 0) {
 		fprintf (stderr, "Failed to write %s\n", auth_name);
-		test_and_delete_var (req_name);
+		test_and_delete_mok_var (req_name);
 		goto error;
 	}
 
@@ -1049,32 +961,6 @@ print_skip_message (const char *filename, void *mok, uint32_t mok_size,
 			printf ("SKIP: %s is already in the MokX deletion request\n", filename);
 		break;
 	}
-}
-
-static const char *
-get_req_var_name (MokRequest req)
-{
-	const char *var_name[] = {
-		[DELETE_MOK] = "MokDel",
-		[ENROLL_MOK] = "MokNew",
-		[DELETE_BLACKLIST] = "MokXDel",
-		[ENROLL_BLACKLIST] = "MokXNew"
-	};
-
-	return var_name[req];
-}
-
-static const char *
-get_req_auth_var_name (MokRequest req)
-{
-	const char *auth_var_name[] = {
-		[DELETE_MOK] = "MokDelAuth",
-		[ENROLL_MOK] = "MokAuth",
-		[DELETE_BLACKLIST] = "MokXDelAuth",
-		[ENROLL_BLACKLIST] = "MokXAuth"
-	};
-
-	return auth_var_name[req];
 }
 
 static int
@@ -1415,9 +1301,9 @@ error:
 static int
 revoke_request (MokRequest req)
 {
-	if (test_and_delete_var (get_req_var_name(req)) < 0)
+	if (test_and_delete_mok_var (get_req_var_name(req)) < 0)
 		return -1;
-	if (test_and_delete_var (get_req_auth_var_name(req)) < 0)
+	if (test_and_delete_mok_var (get_req_auth_var_name(req)) < 0)
 		return -1;
 
 	return 0;
@@ -1869,7 +1755,7 @@ set_timeout (char *t)
 			return -1;
 		}
 	} else {
-		return test_and_delete_var ("MokTimeout");
+		return test_and_delete_mok_var ("MokTimeout");
 	}
 
 	return 0;
@@ -1889,7 +1775,7 @@ set_verbosity (uint8_t verbosity)
 			return -1;
 		}
 	} else {
-		return test_and_delete_var ("SHIM_VERBOSE");
+		return test_and_delete_mok_var ("SHIM_VERBOSE");
 	}
 
 	return 0;
