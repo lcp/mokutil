@@ -458,7 +458,7 @@ generate_hash (pw_crypt_t *pw_crypt, char *password, unsigned int pw_len)
 }
 
 static int
-get_hash_from_file (const char *file, pw_crypt_t *pw_crypt)
+get_pw_hash_from_file (const char *file, pw_crypt_t *pw_crypt)
 {
 	char string[BUF_SIZE];
 	ssize_t read_len = 0;
@@ -518,7 +518,7 @@ get_password_from_shadow (pw_crypt_t *pw_crypt)
 
 static int
 update_request (void *new_list, int list_len, MokRequest req,
-		const char *hash_file, const int root_pw)
+		const char *pw_hash_file, const int root_pw)
 {
 	uint8_t *data;
 	size_t data_size;
@@ -557,8 +557,8 @@ update_request (void *new_list, int list_len, MokRequest req,
 		return -1;
 	}
 
-	if (hash_file) {
-		if (get_hash_from_file (hash_file, &pw_crypt) < 0) {
+	if (pw_hash_file) {
+		if (get_pw_hash_from_file (pw_hash_file, &pw_crypt) < 0) {
 			fprintf (stderr, "Failed to read hash\n");
 			goto error;
 		}
@@ -778,7 +778,7 @@ print_skip_message (const char *filename, void *mok, uint32_t mok_size,
 
 static int
 issue_mok_request (char **files, uint32_t total, MokRequest req,
-		   const char *hash_file, const int root_pw)
+		   const char *pw_hash_file, const int root_pw)
 {
 	uint8_t *old_req_data = NULL;
 	size_t old_req_data_size = 0;
@@ -896,7 +896,7 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 		real_size += old_req_data_size;
 	}
 
-	if (update_request (new_list, real_size, req, hash_file, root_pw) < 0) {
+	if (update_request (new_list, real_size, req, pw_hash_file, root_pw) < 0) {
 		goto error;
 	}
 
@@ -931,7 +931,7 @@ hex_str_to_binary (const char *hex_str, uint8_t *array, unsigned int len)
 
 static int
 issue_hash_request (const char *hash_str, MokRequest req,
-		    const char *hash_file, const int root_pw)
+		    const char *pw_hash_file, const int root_pw)
 {
 	uint8_t *old_req_data = NULL;
 	size_t old_req_data_size = 0;
@@ -1058,7 +1058,7 @@ issue_hash_request (const char *hash_str, MokRequest req,
 		}
 	}
 
-	if (update_request (new_list, list_size, req, hash_file, root_pw) < 0) {
+	if (update_request (new_list, list_size, req, pw_hash_file, root_pw) < 0) {
 		goto error;
 	}
 
@@ -1178,7 +1178,7 @@ error:
 }
 
 static int
-set_password (const char *hash_file, const int root_pw, const int clear)
+set_password (const char *pw_hash_file, const int root_pw, const int clear)
 {
 	uint8_t *data;
 	size_t data_size;
@@ -1192,8 +1192,8 @@ set_password (const char *hash_file, const int root_pw, const int clear)
 	memset (&pw_crypt, 0, sizeof(pw_crypt_t));
 	memset (auth, 0, SHA256_DIGEST_LENGTH);
 
-	if (hash_file) {
-		if (get_hash_from_file (hash_file, &pw_crypt) < 0) {
+	if (pw_hash_file) {
+		if (get_pw_hash_from_file (pw_hash_file, &pw_crypt) < 0) {
 			fprintf (stderr, "Failed to read hash\n");
 			goto error;
 		}
@@ -1445,9 +1445,9 @@ error:
 }
 
 static int
-reset_moks (MokRequest req, const char *hash_file, const int root_pw)
+reset_moks (MokRequest req, const char *pw_hash_file, const int root_pw)
 {
-	if (update_request (NULL, 0, req, hash_file, root_pw)) {
+	if (update_request (NULL, 0, req, pw_hash_file, root_pw)) {
 		fprintf (stderr, "Failed to issue a reset request\n");
 		return -1;
 	}
@@ -1587,7 +1587,7 @@ main (int argc, char *argv[])
 {
 	char **files = NULL;
 	char *key_file = NULL;
-	char *hash_file = NULL;
+	char *pw_hash_file = NULL;
 	char *input_pw = NULL;
 	char *hash_str = NULL;
 	char *timeout = NULL;
@@ -1775,12 +1775,12 @@ main (int argc, char *argv[])
 
 			break;
 		case 'f':
-			if (hash_file) {
+			if (pw_hash_file) {
 				command |= HELP;
 				break;
 			}
-			hash_file = strdup (optarg);
-			if (hash_file == NULL) {
+			pw_hash_file = strdup (optarg);
+			if (pw_hash_file == NULL) {
 				fprintf (stderr, "Could not allocate space: %m\n");
 				exit(1);
 			}
@@ -1853,7 +1853,7 @@ main (int argc, char *argv[])
 	if (use_root_pw == 1 && use_simple_hash == 1)
 		use_simple_hash = 0;
 
-	if (hash_file && use_root_pw)
+	if (pw_hash_file && use_root_pw)
 		command |= HELP;
 
 	if (db_name != MOK_LIST_RT && !(command & ~MOKX))
@@ -1890,22 +1890,22 @@ main (int argc, char *argv[])
 		case IMPORT:
 		case IMPORT | SIMPLE_HASH:
 			ret = issue_mok_request (files, total, ENROLL_MOK,
-						 hash_file, use_root_pw);
+						 pw_hash_file, use_root_pw);
 			break;
 		case DELETE:
 		case DELETE | SIMPLE_HASH:
 			ret = issue_mok_request (files, total, DELETE_MOK,
-						 hash_file, use_root_pw);
+						 pw_hash_file, use_root_pw);
 			break;
 		case IMPORT_HASH:
 		case IMPORT_HASH | SIMPLE_HASH:
 			ret = issue_hash_request (hash_str, ENROLL_MOK,
-						  hash_file, use_root_pw);
+						  pw_hash_file, use_root_pw);
 			break;
 		case DELETE_HASH:
 		case DELETE_HASH | SIMPLE_HASH:
 			ret = issue_hash_request (hash_str, DELETE_MOK,
-						  hash_file, use_root_pw);
+						  pw_hash_file, use_root_pw);
 			break;
 		case REVOKE_IMPORT:
 			ret = revoke_request (ENROLL_MOK);
@@ -1919,7 +1919,7 @@ main (int argc, char *argv[])
 			break;
 		case PASSWORD:
 		case PASSWORD | SIMPLE_HASH:
-			ret = set_password (hash_file, use_root_pw, 0);
+			ret = set_password (pw_hash_file, use_root_pw, 0);
 			break;
 		case CLEAR_PASSWORD:
 		case CLEAR_PASSWORD | SIMPLE_HASH:
@@ -1939,7 +1939,7 @@ main (int argc, char *argv[])
 			break;
 		case RESET:
 		case RESET | SIMPLE_HASH:
-			ret = reset_moks (ENROLL_MOK, hash_file, use_root_pw);
+			ret = reset_moks (ENROLL_MOK, pw_hash_file, use_root_pw);
 			break;
 		case GENERATE_PW_HASH:
 			ret = generate_pw_hash (input_pw);
@@ -1959,22 +1959,22 @@ main (int argc, char *argv[])
 		case IMPORT | MOKX:
 		case IMPORT | SIMPLE_HASH | MOKX:
 			ret = issue_mok_request (files, total, ENROLL_BLACKLIST,
-						 hash_file, use_root_pw);
+						 pw_hash_file, use_root_pw);
 			break;
 		case DELETE | MOKX:
 		case DELETE | SIMPLE_HASH | MOKX:
 			ret = issue_mok_request (files, total, DELETE_BLACKLIST,
-						 hash_file, use_root_pw);
+						 pw_hash_file, use_root_pw);
 			break;
 		case IMPORT_HASH | MOKX:
 		case IMPORT_HASH | SIMPLE_HASH | MOKX:
 			ret = issue_hash_request (hash_str, ENROLL_BLACKLIST,
-						  hash_file, use_root_pw);
+						  pw_hash_file, use_root_pw);
 			break;
 		case DELETE_HASH | MOKX:
 		case DELETE_HASH | SIMPLE_HASH | MOKX:
 			ret = issue_hash_request (hash_str, DELETE_BLACKLIST,
-						  hash_file, use_root_pw);
+						  pw_hash_file, use_root_pw);
 			break;
 		case REVOKE_IMPORT | MOKX:
 			ret = revoke_request (ENROLL_BLACKLIST);
@@ -1984,7 +1984,7 @@ main (int argc, char *argv[])
 			break;
 		case RESET | MOKX:
 		case RESET | SIMPLE_HASH | MOKX:
-			ret = reset_moks (ENROLL_BLACKLIST, hash_file, use_root_pw);
+			ret = reset_moks (ENROLL_BLACKLIST, pw_hash_file, use_root_pw);
 			break;
 		case TEST_KEY | MOKX:
 			ret = test_key (ENROLL_BLACKLIST, key_file);
@@ -2013,8 +2013,8 @@ out:
 	if (key_file)
 		free (key_file);
 
-	if (hash_file)
-		free (hash_file);
+	if (pw_hash_file)
+		free (pw_hash_file);
 
 	if (input_pw)
 		free (input_pw);
