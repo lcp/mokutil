@@ -89,3 +89,76 @@ is_valid_cert (const uint8_t *cert, const uint32_t cert_size)
 
 	return 1;
 }
+
+/**
+ * Check whether the given CA cert is the immediate CA of the given cert
+ **/
+int
+is_immediate_ca (const uint8_t *cert, const uint32_t cert_size,
+		 const uint8_t *ca_cert, const uint32_t ca_cert_size)
+{
+	X509 *X509cert = NULL;
+	X509 *X509ca = NULL;
+	X509_STORE *cert_store = NULL;
+	X509_STORE_CTX *cert_ctx = NULL;
+	int ret = 0;
+
+	if (cert == NULL || ca_cert == NULL)
+		return 0;
+
+	if (EVP_add_digest (EVP_md5 ()) == 0)
+		return 0;
+	if (EVP_add_digest (EVP_sha1 ()) == 0)
+		return 0;
+	if (EVP_add_digest (EVP_sha256 ()) == 0)
+		return 0;
+
+	X509cert = d2i_X509 (NULL, &cert, cert_size);
+	if (X509cert == NULL)
+		return 0;
+
+	X509ca = d2i_X509 (NULL, &ca_cert, ca_cert_size);
+	if (X509ca == NULL)
+		return 0;
+
+	cert_store = X509_STORE_new ();
+	if (cert_store == NULL)
+		goto err;
+
+	if (X509_STORE_add_cert (cert_store, X509ca) == 0)
+		goto err;
+
+	/* Follow edk2 CryptoPkg to allow partial certificate chains and
+	 * disable time checks */
+	X509_STORE_set_flags (cert_store,
+			      X509_V_FLAG_PARTIAL_CHAIN | X509_V_FLAG_NO_CHECK_TIME);
+
+	cert_ctx = X509_STORE_CTX_new ();
+	if (cert_ctx == NULL)
+		goto err;
+
+	if (X509_STORE_CTX_init (cert_ctx, cert_store, X509cert, NULL) == 0)
+		goto err;
+
+	/* Verify the cert */
+	ret = X509_verify_cert (cert_ctx);
+	/* Treat the exceptional error as FALSE */
+	if (ret < 0)
+		ret = 0;
+	X509_STORE_CTX_cleanup (cert_ctx);
+
+err:
+	if (X509cert)
+		X509_free (X509cert);
+
+	if (X509ca)
+		X509_free (X509ca);
+
+	if (cert_store)
+		X509_STORE_free (cert_store);
+
+	if (cert_store)
+		X509_STORE_CTX_free (cert_ctx);
+
+	return ret;
+}
