@@ -15,11 +15,11 @@ mokutil \- utility to manipulate machine owner keys
 .br
 \fBmokutil\fR [--import \fIkeylist\fR| -i \fIkeylist\fR]
         ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
-         [--simple-hash | -s] | [--mokx | -X])
+         [--mokx | -X])
 .br
 \fBmokutil\fR [--delete \fIkeylist\fR | -d \fIkeylist\fR]
         ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
-         [--simple-hash | -s] | [--mokx |- X])
+         [--mokx |- X])
 .br
 \fBmokutil\fR [--revoke-import]
         ([--mokx | -X])
@@ -30,11 +30,9 @@ mokutil \- utility to manipulate machine owner keys
 \fBmokutil\fR [--export | -x]
 .br
 \fBmokutil\fR [--password | -p]
-        ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
-         [--simple-hash | -s])
+        ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P])
 .br
 \fBmokutil\fR [--clear-password | -c]
-        ([--simple-hash | -s])
 .br
 \fBmokutil\fR [--disable-validation]
 .br
@@ -47,7 +45,7 @@ mokutil \- utility to manipulate machine owner keys
 .br
 \fBmokutil\fR [--reset]
         ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
-         [--simple-hash | -s] | [--mok | -X])
+         [--mok | -X])
 .br
 \fBmokutil\fR [--generate-hash=\fIpassword\fR | -g\fIpassword\fR]
 .br
@@ -57,11 +55,11 @@ mokutil \- utility to manipulate machine owner keys
 .br
 \fBmokutil\fR [--import-hash \fIhash\fR]
         ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
-         [--simple-hash | -s] | [--mokx | -X])
+         [--mokx | -X])
 .br
 \fBmokutil\fR [--delete-hash \fIhash\fR]
         ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
-         [--simple-hash | -s] | [--mokx | -X])
+         [--mokx | -X])
 .br
 \fBmokutil\fR [--set-verbosity (\fItrue\fR | \fIfalse\fR)]
 .br
@@ -137,11 +135,6 @@ Use the password hash from a specific file
 .TP
 \fB-P, --root-pw\fR
 Use the root password hash from /etc/shadow
-.TP
-\fB-s, --simple-hash\fR
-Use the old SHA256 password hash method to hash the password
-.br
-Note: --root-pw invalidates --simple-hash
 .TP
 \fB--ignore-db\fR
 Tell shim to not use the keys in db to verify EFI images
