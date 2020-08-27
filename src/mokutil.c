@@ -931,11 +931,13 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 		read_size = read (fd, ptr, sizes[i]);
 		if (read_size < 0 || read_size != (int64_t)sizes[i]) {
 			fprintf (stderr, "Failed to read %s\n", files[i]);
+			close (fd);
 			goto error;
 		}
 		if (!is_valid_cert (ptr, read_size)) {
 			fprintf (stderr, "Abort!!! %s is not a valid x509 certificate in DER format\n",
 			         files[i]);
+			close (fd);
 			goto error;
 		}
 
@@ -943,6 +945,7 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 		if (force_ca_check && is_ca_enrolled (ptr, sizes[i], req)) {
 			fprintf (stderr, "CA of %s is already enrolled\n",
 				 files[i]);
+			close (fd);
 			goto error;
 		}
 
