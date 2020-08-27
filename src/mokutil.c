@@ -77,13 +77,13 @@
 #define TEST_KEY           (1 << 14)
 #define RESET              (1 << 15)
 #define GENERATE_PW_HASH   (1 << 16)
-#define IGNORE_DB          (1 << 18)
-#define USE_DB             (1 << 19)
-#define MOKX               (1 << 20)
-#define IMPORT_HASH        (1 << 21)
-#define DELETE_HASH        (1 << 22)
-#define VERBOSITY          (1 << 23)
-#define TIMEOUT            (1 << 24)
+#define IGNORE_DB          (1 << 17)
+#define USE_DB             (1 << 18)
+#define MOKX               (1 << 19)
+#define IMPORT_HASH        (1 << 20)
+#define DELETE_HASH        (1 << 21)
+#define VERBOSITY          (1 << 22)
+#define TIMEOUT            (1 << 23)
 
 #define DEFAULT_CRYPT_METHOD SHA512_BASED
 #define DEFAULT_SALT_SIZE    SHA512_SALT_MAX
