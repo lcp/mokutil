@@ -943,10 +943,9 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 
 		/* Check whether CA is already enrolled */
 		if (force_ca_check && is_ca_enrolled (ptr, sizes[i], req)) {
-			fprintf (stderr, "CA of %s is already enrolled\n",
-				 files[i]);
+			printf ("CA enrolled. Skip %s\n", files[i]);
 			close (fd);
-			goto error;
+			continue;
 		}
 
 		if (is_valid_request (&efi_guid_x509_cert, ptr, sizes[i], req)) {
