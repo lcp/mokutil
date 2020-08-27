@@ -1451,7 +1451,8 @@ enable_db()
 }
 
 static inline int
-read_file(int fd, void **bufp, size_t *lenptr) {
+read_file(int fd, void **bufp, size_t *lenptr)
+{
 	int alloced = 0, size = 0, i = 0;
 	void *buf = NULL;
 	void *buf_new = NULL;
