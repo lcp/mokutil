@@ -92,6 +92,7 @@
 #define BUF_SIZE             300
 
 static int use_simple_hash;
+static int force_ca_check;
 
 typedef struct {
 	EFI_SIGNATURE_LIST *header;
@@ -145,6 +146,7 @@ print_help ()
 	printf ("  --root-pw\t\t\t\tUse the root password\n");
 	printf ("  --simple-hash\t\t\t\tUse the old password hash method\n");
 	printf ("  --mokx\t\t\t\tManipulate the MOK blacklist\n");
+	printf ("  --ignore-ca-check\t\t\tDon't check CA of the given certificate\n");
 }
 
 static MokListNode*
@@ -727,6 +729,70 @@ is_valid_request (const efi_guid_t *type, void *mok, uint32_t mok_size,
 	return 1;
 }
 
+static int
+is_ca_in_db (const void *cert, const uint32_t cert_size,
+	     const efi_guid_t *vendor, const char *db_name)
+{
+	uint8_t *var_data;
+	size_t var_data_size;
+	uint32_t attributes;
+	uint32_t node_num;
+	MokListNode *list;
+	int ret = 0;
+
+	if (!cert || cert_size == 0 || !vendor || !db_name)
+		return 0;
+
+	ret = efi_get_variable (*vendor, db_name, &var_data, &var_data_size,
+				&attributes);
+	if (ret < 0)
+		return 0;
+
+	list = build_mok_list (var_data, var_data_size, &node_num);
+	if (list == NULL) {
+		goto done;
+	}
+
+	for (unsigned int i = 0; i < node_num; i++) {
+		efi_guid_t sigtype = list[i].header->SignatureType;
+		if (efi_guid_cmp (&sigtype, &efi_guid_x509_cert) != 0)
+			continue;
+
+		if (is_immediate_ca (cert, cert_size, list[i].mok,
+				     list[i].mok_size)) {
+			ret = 1;
+			break;
+		}
+	}
+
+done:
+	if (list)
+		free (list);
+	free (var_data);
+
+	return ret;
+}
+
+/* Check whether the CA cert is already enrolled */
+static int
+is_ca_enrolled (void *mok, uint32_t mok_size, MokRequest req)
+{
+	switch (req) {
+	case ENROLL_MOK:
+		if (is_ca_in_db (mok, mok_size, &efi_guid_shim, "MokListRT"))
+			return 1;
+		break;
+	case ENROLL_BLACKLIST:
+		if (is_ca_in_db (mok, mok_size, &efi_guid_shim, "MokListXRT"))
+			return 1;
+		break;
+	default:
+		return 0;
+	}
+
+	return 0;
+}
+
 static void
 print_skip_message (const char *filename, void *mok, uint32_t mok_size,
 		    MokRequest req)
@@ -870,6 +936,13 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 		if (!is_valid_cert (ptr, read_size)) {
 			fprintf (stderr, "Abort!!! %s is not a valid x509 certificate in DER format\n",
 			         files[i]);
+			goto error;
+		}
+
+		/* Check whether CA is already enrolled */
+		if (force_ca_check && is_ca_enrolled (ptr, sizes[i], req)) {
+			fprintf (stderr, "CA of %s is already enrolled\n",
+				 files[i]);
 			goto error;
 		}
 
@@ -1426,6 +1499,17 @@ test_key (MokRequest req, const char *key_file)
 		goto error;
 	}
 
+	if (!is_valid_cert (key, read_size)) {
+		fprintf (stderr, "Not a valid x509 certificate\n");
+		goto error;
+	}
+
+	if (force_ca_check && is_ca_enrolled (key, read_size, req)) {
+		fprintf (stderr, "CA of %s is already enrolled\n",
+			 key_file);
+		goto error;
+	}
+
 	if (is_valid_request (&efi_guid_x509_cert, key, read_size, req)) {
 		printf ("%s is not enrolled\n", key_file);
 		ret = 0;
@@ -1600,6 +1684,7 @@ main (int argc, char *argv[])
 	int ret = -1;
 
 	use_simple_hash = 0;
+	force_ca_check = 1;
 
 	if (!efi_variables_supported ()) {
 		fprintf (stderr, "EFI variables are not supported on this system\n");
@@ -1640,6 +1725,7 @@ main (int argc, char *argv[])
 			{"db",                 no_argument,       0, 0  },
 			{"dbx",                no_argument,       0, 0  },
 			{"timeout",            required_argument, 0, 0  },
+			{"ignore-ca-check",    no_argument,       0, 0  },
 			{0, 0, 0, 0}
 		};
 
@@ -1726,6 +1812,8 @@ main (int argc, char *argv[])
 			} else if (strcmp (option, "timeout") == 0) {
 				command |= TIMEOUT;
 				timeout = strdup (optarg);
+			} else if (strcmp (option, "ignore-ca-check") == 0) {
+				force_ca_check = 0;
 			}
 
 			break;
