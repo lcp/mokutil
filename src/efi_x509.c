@@ -74,24 +74,18 @@ print_x509 (const char *cert, const int cert_size)
 }
 
 int
-is_valid_cert (const void *cert, const uint32_t cert_size)
+is_valid_cert (const uint8_t *cert, const uint32_t cert_size)
 {
 	X509 *X509cert;
-	BIO *cert_bio;
 
-	cert_bio = BIO_new (BIO_s_mem ());
-	BIO_write (cert_bio, cert, cert_size);
-	if (cert_bio == NULL) {
+	if (cert == NULL)
 		return 0;
-	}
 
-	X509cert = d2i_X509_bio (cert_bio, NULL);
-	if (X509cert == NULL) {
-		BIO_free (cert_bio);
+	X509cert = d2i_X509 (NULL, &cert, cert_size);
+	if (X509cert == NULL)
 		return 0;
-	}
 
-	BIO_free (cert_bio);
+	X509_free (X509cert);
 
 	return 1;
 }

@@ -32,7 +32,9 @@
 #ifndef __EFI_X509_h__
 #define __EFI_X509_h__
 
+#include <stdint.h>
+
 int print_x509 (const char *cert, const int cert_size);
-int is_valid_cert (const void *cert, const uint32_t cert_size);
+int is_valid_cert (const uint8_t *cert, const uint32_t cert_size);
 
 #endif /* __EFI_X509_h__ */
