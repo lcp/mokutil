@@ -77,7 +77,6 @@
 #define TEST_KEY           (1 << 14)
 #define RESET              (1 << 15)
 #define GENERATE_PW_HASH   (1 << 16)
-#define SIMPLE_HASH        (1 << 17)
 #define IGNORE_DB          (1 << 18)
 #define USE_DB             (1 << 19)
 #define MOKX               (1 << 20)
@@ -91,7 +90,6 @@
 #define SETTINGS_LEN         (DEFAULT_SALT_SIZE*2)
 #define BUF_SIZE             300
 
-static int use_simple_hash;
 static int force_ca_check;
 
 typedef struct {
@@ -144,7 +142,6 @@ print_help ()
 	printf ("Supplimentary Options:\n");
 	printf ("  --hash-file <hash file>\t\tUse the specific password hash\n");
 	printf ("  --root-pw\t\t\t\tUse the root password\n");
-	printf ("  --simple-hash\t\t\t\tUse the old password hash method\n");
 	printf ("  --mokx\t\t\t\tManipulate the MOK blacklist\n");
 	printf ("  --ignore-ca-check\t\t\tDon't check CA of the given certificate\n");
 }
@@ -361,32 +358,6 @@ error:
 	return ret;
 }
 
-static int
-generate_auth (void *new_list, int list_len, char *password,
-	       unsigned int pw_len, uint8_t *auth)
-{
-	efi_char16_t efichar_pass[PASSWORD_MAX+1];
-	unsigned long efichar_len;
-	SHA256_CTX ctx;
-
-	if (!password || !auth)
-		return -1;
-
-	efichar_len = efichar_from_char (efichar_pass, password,
-					 pw_len * sizeof(efi_char16_t));
-
-	SHA256_Init (&ctx);
-
-	if (new_list)
-		SHA256_Update (&ctx, new_list, list_len);
-
-	SHA256_Update (&ctx, efichar_pass, efichar_len);
-
-	SHA256_Final (auth, &ctx);
-
-	return 0;
-}
-
 static void
 generate_salt (char salt[], unsigned int salt_size)
 {
@@ -526,7 +497,6 @@ update_request (void *new_list, int list_len, MokRequest req,
 	size_t data_size;
 	const char *req_name, *auth_name;
 	pw_crypt_t pw_crypt;
-	uint8_t auth[SHA256_DIGEST_LENGTH];
 	char *password = NULL;
 	unsigned int pw_len;
 	int auth_ret;
@@ -575,12 +545,7 @@ update_request (void *new_list, int list_len, MokRequest req,
 			goto error;
 		}
 
-		if (!use_simple_hash) {
-			auth_ret = generate_hash (&pw_crypt, password, pw_len);
-		} else {
-			auth_ret = generate_auth (new_list, list_len, password,
-						  pw_len, auth);
-		}
+		auth_ret = generate_hash (&pw_crypt, password, pw_len);
 		if (auth_ret < 0) {
 			fprintf (stderr, "Couldn't generate hash\n");
 			goto error;
@@ -616,13 +581,8 @@ update_request (void *new_list, int list_len, MokRequest req,
 	}
 
 	/* Write MokAuth, MokDelAuth, MokXAuth, or MokXDelAuth */
-	if (!use_simple_hash) {
-		data = (void *)&pw_crypt;
-		data_size = PASSWORD_CRYPT_SIZE;
-	} else {
-		data = (void *)auth;
-		data_size = SHA256_DIGEST_LENGTH;
-	}
+	data = (void *)&pw_crypt;
+	data_size = PASSWORD_CRYPT_SIZE;
 
 	if (efi_set_variable (efi_guid_shim, auth_name, data, data_size,
 			      attributes, S_IRUSR | S_IWUSR) < 0) {
@@ -1283,26 +1243,16 @@ set_password (const char *pw_hash_file, const int root_pw, const int clear)
 			goto error;
 		}
 
-		if (!use_simple_hash) {
-			pw_crypt.method = DEFAULT_CRYPT_METHOD;
-			auth_ret = generate_hash (&pw_crypt, password, pw_len);
-		} else {
-			auth_ret = generate_auth (NULL, 0, password, pw_len,
-						  auth);
-		}
+		pw_crypt.method = DEFAULT_CRYPT_METHOD;
+		auth_ret = generate_hash (&pw_crypt, password, pw_len);
 		if (auth_ret < 0) {
 			fprintf (stderr, "Couldn't generate hash\n");
 			goto error;
 		}
 	}
 
-	if (!use_simple_hash) {
-		data = (void *)&pw_crypt;
-		data_size = PASSWORD_CRYPT_SIZE;
-	} else {
-		data = (void *)auth;
-		data_size = SHA256_DIGEST_LENGTH;
-	}
+	data = (void *)auth;
+	data_size = SHA256_DIGEST_LENGTH;
 	uint32_t attributes = EFI_VARIABLE_NON_VOLATILE
 			      | EFI_VARIABLE_BOOTSERVICE_ACCESS
 			      | EFI_VARIABLE_RUNTIME_ACCESS;
@@ -1686,7 +1636,6 @@ main (int argc, char *argv[])
 	DBName db_name = MOK_LIST_RT;
 	int ret = -1;
 
-	use_simple_hash = 0;
 	force_ca_check = 1;
 
 	if (!efi_variables_supported ()) {
@@ -1715,7 +1664,6 @@ main (int argc, char *argv[])
 			{"hash-file",          required_argument, 0, 'f'},
 			{"generate-hash",      optional_argument, 0, 'g'},
 			{"root-pw",            no_argument,       0, 'P'},
-			{"simple-hash",        no_argument,       0, 's'},
 			{"ignore-db",          no_argument,       0, 0  },
 			{"use-db",             no_argument,       0, 0  },
 			{"mok",                no_argument,       0, 'm'},
@@ -1917,10 +1865,6 @@ main (int argc, char *argv[])
 		case 'x':
 			command |= EXPORT;
 			break;
-		case 's':
-			command |= SIMPLE_HASH;
-			use_simple_hash = 1;
-			break;
 		case 'm':
 			db_name = MOK_LIST_RT;
 			break;
@@ -1940,9 +1884,6 @@ main (int argc, char *argv[])
 			abort ();
 		}
 	}
-
-	if (use_root_pw == 1 && use_simple_hash == 1)
-		use_simple_hash = 0;
 
 	if (pw_hash_file && use_root_pw)
 		command |= HELP;
@@ -1979,22 +1920,18 @@ main (int argc, char *argv[])
 			ret = list_keys_in_var ("MokDel", efi_guid_shim);
 			break;
 		case IMPORT:
-		case IMPORT | SIMPLE_HASH:
 			ret = issue_mok_request (files, total, ENROLL_MOK,
 						 pw_hash_file, use_root_pw);
 			break;
 		case DELETE:
-		case DELETE | SIMPLE_HASH:
 			ret = issue_mok_request (files, total, DELETE_MOK,
 						 pw_hash_file, use_root_pw);
 			break;
 		case IMPORT_HASH:
-		case IMPORT_HASH | SIMPLE_HASH:
 			ret = issue_hash_request (hash_str, ENROLL_MOK,
 						  pw_hash_file, use_root_pw);
 			break;
 		case DELETE_HASH:
-		case DELETE_HASH | SIMPLE_HASH:
 			ret = issue_hash_request (hash_str, DELETE_MOK,
 						  pw_hash_file, use_root_pw);
 			break;
@@ -2009,11 +1946,9 @@ main (int argc, char *argv[])
 			ret = export_db_keys (db_name);
 			break;
 		case PASSWORD:
-		case PASSWORD | SIMPLE_HASH:
 			ret = set_password (pw_hash_file, use_root_pw, 0);
 			break;
 		case CLEAR_PASSWORD:
-		case CLEAR_PASSWORD | SIMPLE_HASH:
 			ret = set_password (NULL, 0, 1);
 			break;
 		case DISABLE_VALIDATION:
@@ -2029,7 +1964,6 @@ main (int argc, char *argv[])
 			ret = test_key (ENROLL_MOK, key_file);
 			break;
 		case RESET:
-		case RESET | SIMPLE_HASH:
 			ret = reset_moks (ENROLL_MOK, pw_hash_file, use_root_pw);
 			break;
 		case GENERATE_PW_HASH:
@@ -2048,22 +1982,18 @@ main (int argc, char *argv[])
 			ret = list_keys_in_var ("MokXDel", efi_guid_shim);
 			break;
 		case IMPORT | MOKX:
-		case IMPORT | SIMPLE_HASH | MOKX:
 			ret = issue_mok_request (files, total, ENROLL_BLACKLIST,
 						 pw_hash_file, use_root_pw);
 			break;
 		case DELETE | MOKX:
-		case DELETE | SIMPLE_HASH | MOKX:
 			ret = issue_mok_request (files, total, DELETE_BLACKLIST,
 						 pw_hash_file, use_root_pw);
 			break;
 		case IMPORT_HASH | MOKX:
-		case IMPORT_HASH | SIMPLE_HASH | MOKX:
 			ret = issue_hash_request (hash_str, ENROLL_BLACKLIST,
 						  pw_hash_file, use_root_pw);
 			break;
 		case DELETE_HASH | MOKX:
-		case DELETE_HASH | SIMPLE_HASH | MOKX:
 			ret = issue_hash_request (hash_str, DELETE_BLACKLIST,
 						  pw_hash_file, use_root_pw);
 			break;
@@ -2074,7 +2004,6 @@ main (int argc, char *argv[])
 			ret = revoke_request (DELETE_BLACKLIST);
 			break;
 		case RESET | MOKX:
-		case RESET | SIMPLE_HASH | MOKX:
 			ret = reset_moks (ENROLL_BLACKLIST, pw_hash_file, use_root_pw);
 			break;
 		case TEST_KEY | MOKX:
