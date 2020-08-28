@@ -782,49 +782,49 @@ print_skip_message (const char *filename, void *mok, uint32_t mok_size,
 	case ENROLL_MOK:
 		if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
 				  &efi_guid_global, "PK"))
-			printf ("SKIP: %s is already in PK\n", filename);
+			printf ("%s is already in PK\n", filename);
 		else if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
 				       &efi_guid_global, "KEK"))
-			printf ("SKIP: %s is already in KEK\n", filename);
+			printf ("%s is already in KEK\n", filename);
 		else if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
 				       &efi_guid_security, "db"))
-			printf ("SKIP: %s is already in db\n", filename);
+			printf ("%s is already in db\n", filename);
 		else if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
 				       &efi_guid_shim, "MokListRT"))
-			printf ("SKIP: %s is already enrolled\n", filename);
+			printf ("%s is already enrolled\n", filename);
 		else if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
 				       &efi_guid_shim, "MokNew"))
-			printf ("SKIP: %s is already in the enrollment request\n", filename);
+			printf ("%s is already in the enrollment request\n", filename);
 		else if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
 				       &efi_guid_security, "dbx"))
-			printf ("SKIP: %s is blocked in dbx\n", filename);
+			printf ("%s is blocked in dbx\n", filename);
 		else if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
 				       &efi_guid_shim, "MokListXRT"))
-			printf ("SKIP: %s is blocked in MokListXRT\n", filename);
+			printf ("%s is blocked in MokListXRT\n", filename);
 		break;
 	case DELETE_MOK:
 		if (!is_duplicate (&efi_guid_x509_cert, mok, mok_size,
 				   &efi_guid_shim, "MokListRT"))
-			printf ("SKIP: %s is not in MokList\n", filename);
+			printf ("%s is not in MokList\n", filename);
 		else if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
 				       &efi_guid_shim, "MokDel"))
-			printf ("SKIP: %s is already in the deletion request\n", filename);
+			printf ("%s is already in the deletion request\n", filename);
 		break;
 	case ENROLL_BLACKLIST:
 		if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
 				  &efi_guid_shim, "MokListXRT"))
-			printf ("SKIP: %s is already in MokListX\n", filename);
+			printf ("%s is already in MokListX\n", filename);
 		else if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
 				       &efi_guid_shim, "MokXNew"))
-			printf ("SKIP: %s is already in the MokX enrollment request\n", filename);
+			printf ("%s is already in the MokX enrollment request\n", filename);
 		break;
 	case DELETE_BLACKLIST:
 		if (!is_duplicate (&efi_guid_x509_cert, mok, mok_size,
 				   &efi_guid_shim, "MokListXRT"))
-			printf ("SKIP: %s is not in MokListX\n", filename);
+			printf ("%s is not in MokListX\n", filename);
 		else if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
 				       &efi_guid_shim, "MokXDel"))
-			printf ("SKIP: %s is already in the MokX deletion request\n", filename);
+			printf ("%s is already in the MokX deletion request\n", filename);
 		break;
 	}
 }
@@ -946,6 +946,7 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 			ptr += sizes[i];
 			real_size += sizes[i] + sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
 		} else {
+			printf ("SKIP: ");
 			print_skip_message (files[i], ptr, sizes[i], req);
 			ptr -= sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
 		}
@@ -1507,7 +1508,7 @@ test_key (MokRequest req, const char *key_file)
 		printf ("%s is not enrolled\n", key_file);
 		ret = 0;
 	} else {
-		printf ("%s is already enrolled\n", key_file);
+		print_skip_message (key_file, key, read_size, req);
 		ret = 1;
 	}
 
