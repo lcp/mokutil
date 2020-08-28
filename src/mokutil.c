@@ -665,6 +665,10 @@ is_valid_request (const efi_guid_t *type, void *mok, uint32_t mok_size,
 		    is_duplicate (type, mok, mok_size, &efi_guid_shim, "MokNew")) {
 			return 0;
 		}
+		/* Also check the blocklists */
+		if (is_duplicate (type, mok, mok_size, &efi_guid_security, "dbx") ||
+		    is_duplicate (type, mok, mok_size, &efi_guid_shim, "MokListXRT"))
+			return 0;
 		break;
 	case DELETE_MOK:
 		if (!is_duplicate (type, mok, mok_size, &efi_guid_shim, "MokListRT") ||
@@ -753,6 +757,23 @@ is_ca_enrolled (void *mok, uint32_t mok_size, MokRequest req)
 	return 0;
 }
 
+/* Check whether the CA cert is blocked */
+static int
+is_ca_blocked (void *mok, uint32_t mok_size, MokRequest req)
+{
+	switch (req) {
+	case ENROLL_MOK:
+		if (is_ca_in_db (mok, mok_size, &efi_guid_security, "dbx") ||
+		    is_ca_in_db (mok, mok_size, &efi_guid_shim, "MokListXRT"))
+			return 1;
+		break;
+	default:
+		return 0;
+	}
+
+	return 0;
+}
+
 static void
 print_skip_message (const char *filename, void *mok, uint32_t mok_size,
 		    MokRequest req)
@@ -774,6 +795,12 @@ print_skip_message (const char *filename, void *mok, uint32_t mok_size,
 		else if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
 				       &efi_guid_shim, "MokNew"))
 			printf ("SKIP: %s is already in the enrollment request\n", filename);
+		else if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
+				       &efi_guid_security, "dbx"))
+			printf ("SKIP: %s is blocked in dbx\n", filename);
+		else if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
+				       &efi_guid_shim, "MokListXRT"))
+			printf ("SKIP: %s is blocked in MokListXRT\n", filename);
 		break;
 	case DELETE_MOK:
 		if (!is_duplicate (&efi_guid_x509_cert, mok, mok_size,
@@ -904,6 +931,13 @@ issue_mok_request (char **files, uint32_t total, MokRequest req,
 		/* Check whether CA is already enrolled */
 		if (force_ca_check && is_ca_enrolled (ptr, sizes[i], req)) {
 			printf ("CA enrolled. Skip %s\n", files[i]);
+			close (fd);
+			continue;
+		}
+
+		/* Check whether CA is blocked */
+		if (force_ca_check && is_ca_blocked (ptr, sizes[i], req)) {
+			printf ("CA blocked. Skip %s\n", files[i]);
 			close (fd);
 			continue;
 		}
@@ -1459,6 +1493,12 @@ test_key (MokRequest req, const char *key_file)
 
 	if (force_ca_check && is_ca_enrolled (key, read_size, req)) {
 		fprintf (stderr, "CA of %s is already enrolled\n",
+			 key_file);
+		goto error;
+	}
+
+	if (force_ca_check && is_ca_blocked (key, read_size, req)) {
+		fprintf (stderr, "CA of %s is blocked\n",
 			 key_file);
 		goto error;
 	}
