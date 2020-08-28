@@ -496,7 +496,7 @@ static int
 is_duplicate (const efi_guid_t *type, const void *data, const uint32_t data_size,
 	      const efi_guid_t *vendor, const char *db_name)
 {
-	uint8_t *var_data;
+	uint8_t *var_data = NULL;
 	size_t var_data_size;
 	uint32_t attributes;
 	uint32_t node_num;
@@ -589,7 +589,7 @@ static int
 is_ca_in_db (const void *cert, const uint32_t cert_size,
 	     const efi_guid_t *vendor, const char *db_name)
 {
-	uint8_t *var_data;
+	uint8_t *var_data = NULL;
 	size_t var_data_size;
 	uint32_t attributes;
 	uint32_t node_num;
@@ -1241,7 +1241,7 @@ enable_validation(void)
 static int
 sb_state ()
 {
-	uint8_t *data;
+	uint8_t *data = NULL;
 	size_t data_size;
 	uint32_t attributes;
 	int32_t secureboot = -1;
@@ -1263,7 +1263,9 @@ sb_state ()
 		secureboot = 0;
 		memcpy(&secureboot, data, data_size);
 	}
+	free (data);
 
+	data = NULL;
 	if (efi_get_variable (efi_guid_global, "SetupMode", &data, &data_size,
 			      &attributes) < 0) {
 		fprintf (stderr, "Failed to read \"SetupMode\" "
@@ -1279,10 +1281,13 @@ sb_state ()
 		setupmode = 0;
 		memcpy(&setupmode, data, data_size);
 	}
+	free (data);
 
+	data = NULL;
 	if (efi_get_variable (efi_guid_shim, "MokSBStateRT", &data, &data_size,
 			      &attributes) >= 0) {
 		moksbstate = 1;
+		free (data);
 	}
 
 	if (secureboot == 1 && setupmode == 0) {
@@ -1296,8 +1301,6 @@ sb_state ()
 	} else {
 		printf ("Cannot determine secure boot state.\n");
 	}
-
-	free (data);
 
 	return 0;
 }
@@ -1814,7 +1817,7 @@ main (int argc, char *argv[])
 	if (!(command & HELP)) {
 		/* Check whether the machine supports Secure Boot or not */
 		int rc;
-		uint8_t *data;
+		uint8_t *data = NULL;
 		size_t data_size;
 		uint32_t attributes;
 
