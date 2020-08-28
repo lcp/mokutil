@@ -392,8 +392,6 @@ static int
 update_request (void *new_list, const int list_len, const MokRequest req,
 		const char *pw_hash_file, const int root_pw)
 {
-	uint8_t *data;
-	size_t data_size;
 	const char *req_name, *auth_name;
 	pw_crypt_t pw_crypt;
 	char *password = NULL;
@@ -453,12 +451,10 @@ update_request (void *new_list, const int list_len, const MokRequest req,
 
 	if (new_list) {
 		/* Write MokNew, MokDel, MokXNew, or MokXDel*/
-		data = new_list;
-		data_size = list_len;
-
-		if (efi_set_variable (efi_guid_shim, req_name,
-				      data, data_size, attributes,
-				      S_IRUSR | S_IWUSR) < 0) {
+		ret = efi_set_variable (efi_guid_shim, req_name,
+					new_list, list_len, attributes,
+					S_IRUSR | S_IWUSR);
+		if (ret < 0) {
 			switch (req) {
 			case ENROLL_MOK:
 				fprintf (stderr, "Failed to enroll new keys\n");
@@ -480,11 +476,10 @@ update_request (void *new_list, const int list_len, const MokRequest req,
 	}
 
 	/* Write MokAuth, MokDelAuth, MokXAuth, or MokXDelAuth */
-	data = (void *)&pw_crypt;
-	data_size = PASSWORD_CRYPT_SIZE;
-
-	if (efi_set_variable (efi_guid_shim, auth_name, data, data_size,
-			      attributes, S_IRUSR | S_IWUSR) < 0) {
+	ret = efi_set_variable (efi_guid_shim, auth_name, (void *)&pw_crypt,
+				PASSWORD_CRYPT_SIZE, attributes,
+				S_IRUSR | S_IWUSR);
+	if (ret < 0) {
 		fprintf (stderr, "Failed to write %s\n", auth_name);
 		test_and_delete_mok_var (req_name);
 		goto error;
@@ -1139,8 +1134,6 @@ error:
 static int
 set_password (const char *pw_hash_file, const int root_pw, const int clear)
 {
-	uint8_t *data;
-	size_t data_size;
 	pw_crypt_t pw_crypt;
 	char *password = NULL;
 	unsigned int pw_len;
@@ -1173,13 +1166,12 @@ set_password (const char *pw_hash_file, const int root_pw, const int clear)
 		}
 	}
 
-	data = (void *)&pw_crypt;
-	data_size = PASSWORD_CRYPT_SIZE;
 	uint32_t attributes = EFI_VARIABLE_NON_VOLATILE
 			      | EFI_VARIABLE_BOOTSERVICE_ACCESS
 			      | EFI_VARIABLE_RUNTIME_ACCESS;
-	ret = efi_set_variable (efi_guid_shim, "MokPW", data, data_size,
-				attributes, S_IRUSR | S_IWUSR);
+	ret = efi_set_variable (efi_guid_shim, "MokPW", (void *)&pw_crypt,
+				PASSWORD_CRYPT_SIZE, attributes,
+				S_IRUSR | S_IWUSR);
 	if (ret < 0) {
 		fprintf (stderr, "Failed to write MokPW: %m\n");
 		goto error;
