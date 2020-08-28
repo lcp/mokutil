@@ -147,15 +147,16 @@ print_help ()
 }
 
 static MokListNode*
-build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
+build_mok_list (const void *data, const unsigned long data_size,
+		uint32_t *mok_num)
 {
 	MokListNode *list = NULL;
 	MokListNode *list_new = NULL;
-	EFI_SIGNATURE_LIST *CertList = data;
+	EFI_SIGNATURE_LIST *CertList = (void *)data;
 	EFI_SIGNATURE_DATA *Cert;
 	unsigned long dbsize = data_size;
 	unsigned long count = 0;
-	void *end = data + data_size;
+	const void *end = data + data_size;
 
 	while ((dbsize > 0) && (dbsize >= CertList->SignatureListSize)) {
 		if ((void *)(CertList + 1) > end ||
@@ -243,7 +244,7 @@ build_mok_list (void *data, unsigned long data_size, uint32_t *mok_num)
 }
 
 static int
-list_keys (uint8_t *data, size_t data_size)
+list_keys (const uint8_t *data, const size_t data_size)
 {
 	uint32_t mok_num;
 	MokListNode *list;
@@ -298,7 +299,7 @@ list_keys_in_var (const char *var_name, const efi_guid_t guid)
 
 static int
 get_password (char **password, unsigned int *len,
-	      unsigned int min, unsigned int max)
+	      const unsigned int min, const unsigned int max)
 {
 	char *password_1, *password_2;
 	unsigned int len_1, len_2;
@@ -359,7 +360,7 @@ error:
 }
 
 static void
-generate_salt (char salt[], unsigned int salt_size)
+generate_salt (char salt[], const unsigned int salt_size)
 {
 	struct timeval tv;
 	char *rand_str;
@@ -380,7 +381,8 @@ generate_salt (char salt[], unsigned int salt_size)
 }
 
 static int
-generate_hash (pw_crypt_t *pw_crypt, char *password, unsigned int pw_len)
+generate_hash (pw_crypt_t *pw_crypt, const char *password,
+	       const unsigned int pw_len)
 {
 	pw_crypt_t new_crypt;
 	char settings[SETTINGS_LEN];
@@ -490,7 +492,7 @@ get_password_from_shadow (pw_crypt_t *pw_crypt)
 }
 
 static int
-update_request (void *new_list, int list_len, MokRequest req,
+update_request (void *new_list, const int list_len, const MokRequest req,
 		const char *pw_hash_file, const int root_pw)
 {
 	uint8_t *data;
@@ -653,8 +655,8 @@ done:
 }
 
 static int
-is_valid_request (const efi_guid_t *type, void *mok, uint32_t mok_size,
-		  MokRequest req)
+is_valid_request (const efi_guid_t *type, const void *mok,
+		  const uint32_t mok_size, const MokRequest req)
 {
 	switch (req) {
 	case ENROLL_MOK:
@@ -737,7 +739,7 @@ done:
 
 /* Check whether the CA cert is already enrolled */
 static int
-is_ca_enrolled (void *mok, uint32_t mok_size, MokRequest req)
+is_ca_enrolled (const void *mok, const uint32_t mok_size, const MokRequest req)
 {
 	switch (req) {
 	case ENROLL_MOK:
@@ -757,7 +759,7 @@ is_ca_enrolled (void *mok, uint32_t mok_size, MokRequest req)
 
 /* Check whether the CA cert is blocked */
 static int
-is_ca_blocked (void *mok, uint32_t mok_size, MokRequest req)
+is_ca_blocked (const void *mok, const uint32_t mok_size, const MokRequest req)
 {
 	switch (req) {
 	case ENROLL_MOK:
@@ -773,8 +775,8 @@ is_ca_blocked (void *mok, uint32_t mok_size, MokRequest req)
 }
 
 static void
-print_skip_message (const char *filename, void *mok, uint32_t mok_size,
-		    MokRequest req)
+print_skip_message (const char *filename, const void *mok,
+		    const uint32_t mok_size, const MokRequest req)
 {
 	switch (req) {
 	case ENROLL_MOK:
@@ -822,7 +824,7 @@ print_skip_message (const char *filename, void *mok, uint32_t mok_size,
 }
 
 static int
-issue_mok_request (char **files, uint32_t total, MokRequest req,
+issue_mok_request (char **files, const uint32_t total, const MokRequest req,
 		   const char *pw_hash_file, const int root_pw)
 {
 	uint8_t *old_req_data = NULL;
@@ -975,7 +977,7 @@ error:
 }
 
 static int
-hex_str_to_binary (const char *hex_str, uint8_t *array, unsigned int len)
+hex_str_to_binary (const char *hex_str, uint8_t *array, const unsigned int len)
 {
 	char *pos;
 
@@ -992,7 +994,7 @@ hex_str_to_binary (const char *hex_str, uint8_t *array, unsigned int len)
 }
 
 static int
-issue_hash_request (const char *hash_str, MokRequest req,
+issue_hash_request (const char *hash_str, const MokRequest req,
 		    const char *pw_hash_file, const int root_pw)
 {
 	uint8_t *old_req_data = NULL;
@@ -1131,7 +1133,7 @@ error:
 }
 
 static int
-revoke_request (MokRequest req)
+revoke_request (const MokRequest req)
 {
 	if (test_and_delete_mok_var (get_req_var_name(req)) < 0)
 		return -1;
@@ -1292,7 +1294,7 @@ error:
 }
 
 static int
-set_toggle (const char * VarName, uint32_t state)
+set_toggle (const char * VarName, const uint32_t state)
 {
 	uint32_t attributes;
 	MokToggleVar tvar;
@@ -1422,7 +1424,7 @@ enable_db()
 }
 
 static inline int
-read_file(int fd, void **bufp, size_t *lenptr)
+read_file(const int fd, void **bufp, size_t *lenptr)
 {
 	int alloced = 0, size = 0, i = 0;
 	void *buf = NULL;
@@ -1455,7 +1457,7 @@ read_file(int fd, void **bufp, size_t *lenptr)
 }
 
 static int
-test_key (MokRequest req, const char *key_file)
+test_key (const MokRequest req, const char *key_file)
 {
 	void *key = NULL;
 	size_t read_size;
@@ -1509,7 +1511,7 @@ error:
 }
 
 static int
-reset_moks (MokRequest req, const char *pw_hash_file, const int root_pw)
+reset_moks (const MokRequest req, const char *pw_hash_file, const int root_pw)
 {
 	if (update_request (NULL, 0, req, pw_hash_file, root_pw)) {
 		fprintf (stderr, "Failed to issue a reset request\n");
@@ -1579,7 +1581,7 @@ generate_pw_hash (const char *input_pw)
 }
 
 static int
-set_timeout (char *t)
+set_timeout (const char *t)
 {
 	int timeout = strtol(t, NULL, 10);
 
@@ -1606,7 +1608,7 @@ set_timeout (char *t)
 }
 
 static int
-set_verbosity (uint8_t verbosity)
+set_verbosity (const uint8_t verbosity)
 {
 	if (verbosity) {
 		uint32_t attributes = EFI_VARIABLE_NON_VOLATILE
@@ -1626,7 +1628,7 @@ set_verbosity (uint8_t verbosity)
 }
 
 static inline int
-list_db (DBName db_name)
+list_db (const DBName db_name)
 {
 	switch (db_name) {
 		case MOK_LIST_RT:
