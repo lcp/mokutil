@@ -1142,14 +1142,12 @@ set_password (const char *pw_hash_file, const int root_pw, const int clear)
 	uint8_t *data;
 	size_t data_size;
 	pw_crypt_t pw_crypt;
-	uint8_t auth[SHA256_DIGEST_LENGTH];
 	char *password = NULL;
 	unsigned int pw_len;
 	int auth_ret;
 	int ret = -1;
 
 	memset (&pw_crypt, 0, sizeof(pw_crypt_t));
-	memset (auth, 0, SHA256_DIGEST_LENGTH);
 
 	if (pw_hash_file) {
 		if (get_pw_hash_from_file (pw_hash_file, &pw_crypt) < 0) {
@@ -1175,8 +1173,8 @@ set_password (const char *pw_hash_file, const int root_pw, const int clear)
 		}
 	}
 
-	data = (void *)auth;
-	data_size = SHA256_DIGEST_LENGTH;
+	data = (void *)&pw_crypt;
+	data_size = PASSWORD_CRYPT_SIZE;
 	uint32_t attributes = EFI_VARIABLE_NON_VOLATILE
 			      | EFI_VARIABLE_BOOTSERVICE_ACCESS
 			      | EFI_VARIABLE_RUNTIME_ACCESS;
