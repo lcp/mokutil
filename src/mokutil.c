@@ -1009,7 +1009,6 @@ issue_hash_request (const char *hash_str, MokRequest req,
 	uint8_t db_hash[SHA512_DIGEST_LENGTH];
 	int hash_size;
 	int merge_ind = -1;
-	uint8_t valid = 0;
 	MokListNode *mok_list = NULL;
 	uint32_t mok_num;
 	const char *var_name = get_req_var_name (req);
@@ -1024,13 +1023,8 @@ issue_hash_request (const char *hash_str, MokRequest req,
 	if (hex_str_to_binary (hash_str, db_hash, hash_size) < 0)
 		return -1;
 
-	if (is_valid_request (&hash_type, db_hash, hash_size, req)) {
-		valid = 1;
-	} else {
+	if (is_valid_request (&hash_type, db_hash, hash_size, req) == 0) {
 		printf ("Skip hash\n");
-	}
-
-	if (!valid) {
 		ret = 0;
 		goto error;
 	}
