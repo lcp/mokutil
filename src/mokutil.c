@@ -915,7 +915,11 @@ issue_mok_request (char **files, const uint32_t total, const MokRequest req,
 			close (fd);
 			goto error;
 		}
-		if (!is_valid_cert (ptr, read_size)) {
+
+		const void *mok = ptr;
+		const uint32_t mok_size = sizes[i];
+
+		if (!is_valid_cert (mok, mok_size)) {
 			fprintf (stderr, "Abort!!! %s is not a valid x509 certificate in DER format\n",
 			         files[i]);
 			close (fd);
@@ -923,25 +927,25 @@ issue_mok_request (char **files, const uint32_t total, const MokRequest req,
 		}
 
 		/* Check whether CA is already enrolled */
-		if (force_ca_check && is_ca_enrolled (ptr, sizes[i], req)) {
+		if (force_ca_check && is_ca_enrolled (mok, mok_size, req)) {
 			printf ("CA enrolled. Skip %s\n", files[i]);
 			close (fd);
 			continue;
 		}
 
 		/* Check whether CA is blocked */
-		if (force_ca_check && is_ca_blocked (ptr, sizes[i], req)) {
+		if (force_ca_check && is_ca_blocked (mok, mok_size, req)) {
 			printf ("CA blocked. Skip %s\n", files[i]);
 			close (fd);
 			continue;
 		}
 
-		if (is_valid_request (&efi_guid_x509_cert, ptr, sizes[i], req)) {
-			ptr += sizes[i];
-			real_size += sizes[i] + sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
+		if (is_valid_request (&efi_guid_x509_cert, mok, mok_size, req)) {
+			ptr += mok_size;
+			real_size += mok_size + sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
 		} else {
 			printf ("SKIP: ");
-			print_skip_message (files[i], ptr, sizes[i], req);
+			print_skip_message (files[i], mok, mok_size, req);
 			ptr -= sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
 		}
 
