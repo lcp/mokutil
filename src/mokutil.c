@@ -1236,14 +1236,14 @@ error:
 	return ret;
 }
 
-static int
-disable_validation()
+static inline int
+disable_validation(void)
 {
 	return set_toggle("MokSB", 0);
 }
 
-static int
-enable_validation()
+static inline int
+enable_validation(void)
 {
 	return set_toggle("MokSB", 1);
 }
@@ -1312,14 +1312,14 @@ sb_state ()
 	return 0;
 }
 
-static int
-disable_db()
+static inline int
+disable_db(void)
 {
 	return set_toggle("MokDB", 0);
 }
 
-static int
-enable_db()
+static inline int
+enable_db(void)
 {
 	return set_toggle("MokDB", 1);
 }
