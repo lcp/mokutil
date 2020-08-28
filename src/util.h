@@ -35,6 +35,8 @@
 #include <efivar.h>
 #include "mokutil.h"
 
+MokListNode *build_mok_list (const void *data, const uintptr_t data_size,
+			     uint32_t *mok_num);
 int test_and_delete_mok_var (const char *var_name);
 unsigned long efichar_from_char (efi_char16_t *dest, const char *src,
 				 size_t dest_len);

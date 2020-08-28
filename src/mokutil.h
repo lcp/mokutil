@@ -35,6 +35,8 @@
 #include <ctype.h>
 #include <wchar.h>
 
+#include "signature.h"
+
 typedef unsigned long efi_status_t;
 typedef uint8_t efi_bool_t;
 typedef wchar_t efi_char16_t;		/* UNICODE character */
@@ -54,5 +56,11 @@ typedef enum {
 	DB,
 	DBX,
 } DBName;
+
+typedef struct {
+	EFI_SIGNATURE_LIST *header;
+	uint32_t            mok_size;
+	void               *mok;
+} MokListNode;
 
 #endif /* __MOKUTIL_H__ */

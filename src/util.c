@@ -29,9 +29,110 @@
  * files in the program, then also delete it here.
  */
 
+#include <stdlib.h>
 #include <termios.h>
 
+#include "efi_hash.h"
 #include "util.h"
+
+MokListNode*
+build_mok_list (const void *data, const uintptr_t data_size,
+		uint32_t *mok_num)
+{
+	MokListNode *list = NULL;
+	MokListNode *list_new = NULL;
+	EFI_SIGNATURE_LIST *CertList = (void *)data;
+	EFI_SIGNATURE_DATA *Cert;
+	unsigned long dbsize = data_size;
+	unsigned long count = 0;
+	const void *end = data + data_size;
+
+	while ((dbsize > 0) && (dbsize >= CertList->SignatureListSize)) {
+		if ((void *)(CertList + 1) > end ||
+		    CertList->SignatureListSize == 0 ||
+		    CertList->SignatureListSize <= CertList->SignatureSize) {
+			fprintf (stderr, "Corrupted signature list\n");
+			if (list)
+				free (list);
+			return NULL;
+		}
+
+		efi_guid_t sigtype = CertList->SignatureType;
+
+		if ((efi_guid_cmp (&sigtype, &efi_guid_x509_cert) != 0) &&
+		    (efi_guid_cmp (&sigtype, &efi_guid_sha1) != 0) &&
+		    (efi_guid_cmp (&sigtype, &efi_guid_sha224) != 0) &&
+		    (efi_guid_cmp (&sigtype, &efi_guid_sha256) != 0) &&
+		    (efi_guid_cmp (&sigtype, &efi_guid_sha384) != 0) &&
+		    (efi_guid_cmp (&sigtype, &efi_guid_sha512) != 0)) {
+			dbsize -= CertList->SignatureListSize;
+			CertList = (EFI_SIGNATURE_LIST *)((uint8_t *) CertList +
+						  CertList->SignatureListSize);
+			continue;
+		}
+
+		if ((efi_guid_cmp (&sigtype, &efi_guid_x509_cert) != 0) &&
+		    (CertList->SignatureSize != signature_size (&sigtype))) {
+			dbsize -= CertList->SignatureListSize;
+			CertList = (EFI_SIGNATURE_LIST *)((uint8_t *) CertList +
+						  CertList->SignatureListSize);
+			continue;
+		}
+
+		Cert = (EFI_SIGNATURE_DATA *) (((uint8_t *) CertList) +
+		  sizeof (EFI_SIGNATURE_LIST) + CertList->SignatureHeaderSize);
+
+		if ((void *)(Cert + 1) > end ||
+		    CertList->SignatureSize <= sizeof(efi_guid_t)) {
+			if (list)
+				free (list);
+			fprintf (stderr, "Corrupted signature\n");
+			return NULL;
+		}
+
+		list_new = realloc(list, sizeof(MokListNode) * (count + 1));
+		if (list_new) {
+			list = list_new;
+		} else {
+			if (list)
+				free (list);
+			fprintf(stderr, "Unable to allocate MOK list\n");
+			return NULL;
+		}
+
+		list[count].header = CertList;
+		if (efi_guid_cmp (&sigtype, &efi_guid_x509_cert) == 0) {
+			/* X509 certificate */
+			list[count].mok_size = CertList->SignatureSize -
+					       sizeof(efi_guid_t);
+			list[count].mok = (void *)Cert->SignatureData;
+		} else {
+			/* hash array */
+			list[count].mok_size = CertList->SignatureListSize -
+					       sizeof(EFI_SIGNATURE_LIST) -
+					       CertList->SignatureHeaderSize;
+			list[count].mok = (void *)Cert;
+		}
+
+		if (list[count].mok_size > (unsigned long)end -
+					   (unsigned long)list[count].mok) {
+			fprintf (stderr, "Corrupted data\n");
+			free (list);
+			return NULL;
+		}
+
+		count++;
+		dbsize -= CertList->SignatureListSize;
+		CertList = (EFI_SIGNATURE_LIST *) ((uint8_t *) CertList +
+						  CertList->SignatureListSize);
+	}
+
+	*mok_num = count;
+
+	return list;
+}
+
+
 
 int
 test_and_delete_mok_var (const char *var_name)
