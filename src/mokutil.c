@@ -658,9 +658,7 @@ is_valid_request (const efi_guid_t *type, void *mok, uint32_t mok_size,
 {
 	switch (req) {
 	case ENROLL_MOK:
-		if (is_duplicate (type, mok, mok_size, &efi_guid_global, "PK") ||
-		    is_duplicate (type, mok, mok_size, &efi_guid_global, "KEK") ||
-		    is_duplicate (type, mok, mok_size, &efi_guid_security, "db") ||
+		if (is_duplicate (type, mok, mok_size, &efi_guid_security, "db") ||
 		    is_duplicate (type, mok, mok_size, &efi_guid_shim, "MokListRT") ||
 		    is_duplicate (type, mok, mok_size, &efi_guid_shim, "MokNew")) {
 			return 0;
@@ -781,13 +779,7 @@ print_skip_message (const char *filename, void *mok, uint32_t mok_size,
 	switch (req) {
 	case ENROLL_MOK:
 		if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
-				  &efi_guid_global, "PK"))
-			printf ("%s is already in PK\n", filename);
-		else if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
-				       &efi_guid_global, "KEK"))
-			printf ("%s is already in KEK\n", filename);
-		else if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
-				       &efi_guid_security, "db"))
+				  &efi_guid_security, "db"))
 			printf ("%s is already in db\n", filename);
 		else if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
 				       &efi_guid_shim, "MokListRT"))
