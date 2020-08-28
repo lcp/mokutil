@@ -257,7 +257,7 @@ error:
 }
 
 static void
-generate_salt (char salt[], const unsigned int salt_size)
+generate_pw_salt (char salt[], const unsigned int salt_size)
 {
 	struct timeval tv;
 	char *rand_str;
@@ -278,8 +278,8 @@ generate_salt (char salt[], const unsigned int salt_size)
 }
 
 static int
-generate_hash (pw_crypt_t *pw_crypt, const char *password,
-	       const unsigned int pw_len)
+generate_pw_crypt (pw_crypt_t *pw_crypt, const char *password,
+		   const unsigned int pw_len)
 {
 	pw_crypt_t new_crypt;
 	char settings[SETTINGS_LEN];
@@ -296,7 +296,7 @@ generate_hash (pw_crypt_t *pw_crypt, const char *password,
 		return -1;
 
 	pw_crypt->salt_size = get_pw_salt_size (pw_crypt->method);
-	generate_salt ((char *)pw_crypt->salt, pw_crypt->salt_size);
+	generate_pw_salt ((char *)pw_crypt->salt, pw_crypt->salt_size);
 
 	memset (settings, 0, sizeof (settings));
 	next = stpncpy (settings, prefix, settings_len);
@@ -444,7 +444,7 @@ update_request (void *new_list, const int list_len, const MokRequest req,
 			goto error;
 		}
 
-		auth_ret = generate_hash (&pw_crypt, password, pw_len);
+		auth_ret = generate_pw_crypt (&pw_crypt, password, pw_len);
 		if (auth_ret < 0) {
 			fprintf (stderr, "Couldn't generate hash\n");
 			goto error;
@@ -1168,7 +1168,7 @@ set_password (const char *pw_hash_file, const int root_pw, const int clear)
 		}
 
 		pw_crypt.method = DEFAULT_CRYPT_METHOD;
-		auth_ret = generate_hash (&pw_crypt, password, pw_len);
+		auth_ret = generate_pw_crypt (&pw_crypt, password, pw_len);
 		if (auth_ret < 0) {
 			fprintf (stderr, "Couldn't generate hash\n");
 			goto error;
@@ -1465,7 +1465,7 @@ generate_pw_hash (const char *input_pw)
 		errno = EOVERFLOW;
 		return -1;
 	}
-	generate_salt (next, salt_size);
+	generate_pw_salt (next, salt_size);
 	next += salt_size;
 	*next = '\0';
 
