@@ -137,7 +137,7 @@ print_help ()
 	printf ("  --hash-file <hash file>\t\tUse the specific password hash\n");
 	printf ("  --root-pw\t\t\t\tUse the root password\n");
 	printf ("  --mokx\t\t\t\tManipulate the MOK blacklist\n");
-	printf ("  --ignore-ca-check\t\t\tDon't check CA of the given certificate\n");
+	printf ("  --ca-check\t\t\t\tCheck if CA of the key is enrolled/blocked\n");
 }
 
 static int
@@ -1559,7 +1559,7 @@ main (int argc, char *argv[])
 	DBName db_name = MOK_LIST_RT;
 	int ret = -1;
 
-	force_ca_check = 1;
+	force_ca_check = 0;
 
 	if (!efi_variables_supported ()) {
 		fprintf (stderr, "EFI variables are not supported on this system\n");
@@ -1599,7 +1599,7 @@ main (int argc, char *argv[])
 			{"db",                 no_argument,       0, 0  },
 			{"dbx",                no_argument,       0, 0  },
 			{"timeout",            required_argument, 0, 0  },
-			{"ignore-ca-check",    no_argument,       0, 0  },
+			{"ca-check",           no_argument,       0, 0  },
 			{0, 0, 0, 0}
 		};
 
@@ -1686,8 +1686,8 @@ main (int argc, char *argv[])
 			} else if (strcmp (option, "timeout") == 0) {
 				command |= TIMEOUT;
 				timeout = strdup (optarg);
-			} else if (strcmp (option, "ignore-ca-check") == 0) {
-				force_ca_check = 0;
+			} else if (strcmp (option, "ca-check") == 0) {
+				force_ca_check = 1;
 			}
 
 			break;
