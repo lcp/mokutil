@@ -1600,11 +1600,12 @@ main (int argc, char *argv[])
 			{"dbx",                no_argument,       0, 0  },
 			{"timeout",            required_argument, 0, 0  },
 			{"ca-check",           no_argument,       0, 0  },
+			{"version",            no_argument,       0, 'v'},
 			{0, 0, 0, 0}
 		};
 
 		int option_index = 0;
-		c = getopt_long (argc, argv, "cd:f:g::hi:lmpst:xDNPX",
+		c = getopt_long (argc, argv, "cd:f:g::hi:lmpst:xDNPXv",
 				 long_options, &option_index);
 
 		if (c == -1)
@@ -1799,6 +1800,9 @@ main (int argc, char *argv[])
 				db_name = MOK_LIST_X_RT;
 			}
 			break;
+		case 'v':
+			printf ("%s\n", VERSION);
+			goto out;
 		case 'h':
 		case '?':
 			command |= HELP;

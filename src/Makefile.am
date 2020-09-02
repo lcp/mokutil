@@ -2,7 +2,8 @@ bin_PROGRAMS    = mokutil
 
 mokutil_CFLAGS  = $(OPENSSL_CFLAGS)	\
 		  $(EFIVAR_CFLAGS)	\
-		  $(WARNINGFLAGS_C)
+		  $(WARNINGFLAGS_C)	\
+		  -DVERSION="\"$(VERSION)\""
 
 mokutil_LDADD   = $(OPENSSL_LIBS)	\
 		  $(EFIVAR_LIBS)	\
