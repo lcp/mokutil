@@ -15,7 +15,7 @@ mokutil \- utility to manipulate machine owner keys
 .br
 \fBmokutil\fR [--import \fIkeylist\fR| -i \fIkeylist\fR]
         ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
-         [--mokx | -X])
+         [--mokx | -X] | [--ca-check])
 .br
 \fBmokutil\fR [--delete \fIkeylist\fR | -d \fIkeylist\fR]
         ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
@@ -41,7 +41,7 @@ mokutil \- utility to manipulate machine owner keys
 \fBmokutil\fR [--sb-state]
 .br
 \fBmokutil\fR [--test-key \fIkeyfile\fR | -t \fIkeyfile\fR]
-        ([--mokx | -X])
+        ([--mokx | -X] | [--ca-check])
 .br
 \fBmokutil\fR [--reset]
         ([--hash-file \fIhashfile\fR | -f \fIhashfile\fR] | [--root-pw | -P] |
@@ -170,4 +170,8 @@ List the keys in the secure boot blacklist signature store (dbx)
 .TP
 \fB--timeout\fR
 Set the timeout for MOK prompt
+.TP
+\fB--ca-check\fR
+Check if the CA of the given key is already enrolled or blocked in the key
+databases.
 .TP
