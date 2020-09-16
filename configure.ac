@@ -85,6 +85,7 @@ AC_CHECK_FUNCS([memset])
 
 PKG_CHECK_MODULES(OPENSSL, [openssl >= 0.9.8])
 PKG_CHECK_MODULES(EFIVAR, [efivar >= 0.12])
+PKG_CHECK_MODULES(LIBKEYUTILS, [libkeyutils >= 1.5])
 
 AC_ARG_WITH([bash-completion-dir],
     AS_HELP_STRING([--with-bash-completion-dir[=PATH]],
