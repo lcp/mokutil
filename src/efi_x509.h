@@ -38,5 +38,6 @@ int print_x509 (const uint8_t *cert, const int cert_size);
 int is_valid_cert (const uint8_t *cert, const uint32_t cert_size);
 int is_immediate_ca (const uint8_t *cert, const uint32_t cert_size,
 		     const uint8_t *ca_cert, const uint32_t ca_cert_size);
+int get_cert_skid(const uint8_t *cert, const uint32_t cert_size, char **skid);
 
 #endif /* __EFI_X509_H__ */

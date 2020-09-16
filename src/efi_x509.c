@@ -31,6 +31,7 @@
 
 #include <stdio.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 
 #include "efi_x509.h"
 
@@ -151,6 +152,62 @@ err:
 
 	if (cert_store)
 		X509_STORE_CTX_free (cert_ctx);
+
+	return ret;
+}
+
+/**
+ * Get the Subject Key Identifier of the given certificate
+ *
+ * This function allocates the SKID string and the caller is responsible to
+ * free the string.
+ *
+ * Return value:
+ * -  0 : Success
+ * - -1 : Error
+ */
+int
+get_cert_skid(const uint8_t *cert, const uint32_t cert_size, char **skid)
+{
+	X509 *X509cert;
+	const ASN1_OCTET_STRING *asn1_id;
+	const uint8_t *data;
+	int data_len, i;
+	char *id_str, *ptr;
+	int ret = -1;
+
+	X509cert = d2i_X509 (NULL, &cert, cert_size);
+	if (X509cert == NULL) {
+		fprintf (stderr, "invalid x509 certificate\n");
+		goto out;
+	}
+
+	asn1_id = X509_get0_subject_key_id (X509cert);
+	if (asn1_id == NULL) {
+		fprintf (stderr, "Failed to get Subject Key ID\n");
+		goto out;
+	}
+
+	data = ASN1_STRING_get0_data (asn1_id);
+	data_len = ASN1_STRING_length (asn1_id);
+
+	id_str = malloc (data_len*2 + 1);
+	if (id_str == NULL) {
+		fprintf (stderr, "Failed to allocated id string\n");
+		goto out;
+	}
+
+	ptr = id_str;
+	for (i = 0; i < data_len; i++) {
+		snprintf (ptr, 3, "%02x", data[i]);
+		ptr += 2;
+	}
+
+	*skid = id_str;
+	ret = 0;
+out:
+	if (X509cert)
+		X509_free (X509cert);
 
 	return ret;
 }
