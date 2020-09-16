@@ -52,6 +52,7 @@
 #include "signature.h"
 #include "efi_hash.h"
 #include "efi_x509.h"
+#include "keyring.h"
 #include "password-crypt.h"
 #include "util.h"
 
@@ -91,6 +92,7 @@
 #define BUF_SIZE             300
 
 static int force_ca_check;
+static int check_keyring;
 
 typedef struct {
 	uint32_t mok_toggle_state;
@@ -138,6 +140,7 @@ print_help ()
 	printf ("  --root-pw\t\t\t\tUse the root password\n");
 	printf ("  --mokx\t\t\t\tManipulate the MOK blacklist\n");
 	printf ("  --ca-check\t\t\t\tCheck if CA of the key is enrolled/blocked\n");
+	printf ("  --ignore-keyring\t\t\tDon't check if the key is the kernel keyring\n");
 }
 
 static int
@@ -666,6 +669,25 @@ is_ca_blocked (const void *mok, const uint32_t mok_size, const MokRequest req)
 	return 0;
 }
 
+/* Check whether the key is already in the kernel trusted keyring */
+static int
+is_in_trusted_keyring (const void *cert, const uint32_t cert_size)
+{
+	char *skid = NULL;
+	int ret;
+
+	if (get_cert_skid (cert, cert_size, &skid) < 0)
+		return 0;
+
+	ret = match_skid_in_trusted_keyring (skid);
+	if (ret < 0)
+		ret = 0;
+
+	free (skid);
+
+	return ret;
+}
+
 static void
 print_skip_message (const char *filename, const void *mok,
 		    const uint32_t mok_size, const MokRequest req)
@@ -816,6 +838,15 @@ issue_mok_request (char **files, const uint32_t total, const MokRequest req,
 			         files[i]);
 			close (fd);
 			goto error;
+		}
+
+		/* Check whether the key is already in the trusted keyring */
+		if (req == ENROLL_MOK && check_keyring &&
+		    is_in_trusted_keyring (mok, mok_size)) {
+			printf ("Already in kernel trusted keyring. Skip %s\n",
+				files[i]);
+			close (fd);
+			continue;
 		}
 
 		/* Check whether CA is already enrolled */
@@ -1374,6 +1405,12 @@ test_key (const MokRequest req, const char *key_file)
 		goto error;
 	}
 
+	if (check_keyring && is_in_trusted_keyring (key, read_size)) {
+		fprintf (stderr, "%s is already in the built-in trusted keyring\n",
+			 key_file);
+		goto error;
+	}
+
 	if (force_ca_check && is_ca_enrolled (key, read_size, req)) {
 		fprintf (stderr, "CA of %s is already enrolled\n",
 			 key_file);
@@ -1560,6 +1597,7 @@ main (int argc, char *argv[])
 	int ret = -1;
 
 	force_ca_check = 0;
+	check_keyring = 1;
 
 	if (!efi_variables_supported ()) {
 		fprintf (stderr, "EFI variables are not supported on this system\n");
@@ -1600,6 +1638,7 @@ main (int argc, char *argv[])
 			{"dbx",                no_argument,       0, 0  },
 			{"timeout",            required_argument, 0, 0  },
 			{"ca-check",           no_argument,       0, 0  },
+			{"ignore-keyring",     no_argument,       0, 0  },
 			{"version",            no_argument,       0, 'v'},
 			{0, 0, 0, 0}
 		};
@@ -1689,6 +1728,8 @@ main (int argc, char *argv[])
 				timeout = strdup (optarg);
 			} else if (strcmp (option, "ca-check") == 0) {
 				force_ca_check = 1;
+			} else if (strcmp (option, "ignore-keyring") == 0) {
+				check_keyring = 0;
 			}
 
 			break;
