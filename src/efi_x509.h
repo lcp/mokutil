@@ -29,8 +29,8 @@
  * files in the program, then also delete it here.
  */
 
-#ifndef __EFI_X509_h__
-#define __EFI_X509_h__
+#ifndef __EFI_X509_H__
+#define __EFI_X509_H__
 
 #include <stdint.h>
 
@@ -39,4 +39,4 @@ int is_valid_cert (const uint8_t *cert, const uint32_t cert_size);
 int is_immediate_ca (const uint8_t *cert, const uint32_t cert_size,
 		     const uint8_t *ca_cert, const uint32_t ca_cert_size);
 
-#endif /* __EFI_X509_h__ */
+#endif /* __EFI_X509_H__ */
