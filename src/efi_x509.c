@@ -35,21 +35,13 @@
 #include "efi_x509.h"
 
 int
-print_x509 (const char *cert, const int cert_size)
+print_x509 (const uint8_t *cert, const int cert_size)
 {
 	X509 *X509cert;
-	BIO *cert_bio;
 	SHA_CTX ctx;
 	uint8_t fingerprint[SHA_DIGEST_LENGTH];
 
-	cert_bio = BIO_new (BIO_s_mem ());
-	BIO_write (cert_bio, cert, cert_size);
-	if (cert_bio == NULL) {
-		fprintf (stderr, "Failed to write BIO\n");
-		return -1;
-	}
-
-	X509cert = d2i_X509_bio (cert_bio, NULL);
+	X509cert = d2i_X509 (NULL, &cert, cert_size);
 	if (X509cert == NULL) {
 		fprintf (stderr, "Invalid X509 certificate\n");
 		return -1;
@@ -68,7 +60,7 @@ print_x509 (const char *cert, const int cert_size)
 	printf ("\n");
 	X509_print_fp (stdout, X509cert);
 
-	BIO_free (cert_bio);
+	X509_free (X509cert);
 
 	return 0;
 }

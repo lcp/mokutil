@@ -155,7 +155,7 @@ list_keys (const uint8_t *data, const size_t data_size)
 		printf ("[key %d]\n", i+1);
 		efi_guid_t sigtype = list[i].header->SignatureType;
 		if (efi_guid_cmp (&sigtype, &efi_guid_x509_cert) == 0) {
-			print_x509 ((char *)list[i].mok, list[i].mok_size);
+			print_x509 (list[i].mok, list[i].mok_size);
 		} else {
 			print_hash_array (&sigtype,
 					  list[i].mok, list[i].mok_size);
