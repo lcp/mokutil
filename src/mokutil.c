@@ -1595,6 +1595,7 @@ main (int argc, char *argv[])
 	uint8_t verbosity = 0;
 	DBName db_name = MOK_LIST_RT;
 	int ret = -1;
+	int sb_check;
 
 	force_ca_check = 0;
 	check_keyring = 1;
@@ -1859,7 +1860,9 @@ main (int argc, char *argv[])
 	if (db_name != MOK_LIST_RT && !(command & ~MOKX))
 		command |= LIST_ENROLLED;
 
-	if (!(command & HELP)) {
+	sb_check = !(command & HELP || command & TEST_KEY ||
+		     command & VERBOSITY || command & TIMEOUT);
+	if (sb_check) {
 		/* Check whether the machine supports Secure Boot or not */
 		int rc;
 		uint8_t *data = NULL;
