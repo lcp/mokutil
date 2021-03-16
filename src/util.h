@@ -35,6 +35,11 @@
 #include <efivar.h>
 #include "mokutil.h"
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
+int mok_get_variable(const char *name, uint8_t **datap, size_t *data_sizep);
 MokListNode *build_mok_list (const void *data, const uintptr_t data_size,
 			     uint32_t *mok_num);
 int test_and_delete_mok_var (const char *var_name);
