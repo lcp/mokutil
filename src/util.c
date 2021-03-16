@@ -35,6 +35,63 @@
 #include "efi_hash.h"
 #include "util.h"
 
+int
+mok_get_variable(const char *name, uint8_t **datap, size_t *data_sizep)
+{
+	char filename[] = "/sys/firmware/efi/mok-variables/implausibly-long-mok-variable-name";
+	size_t filename_sz = sizeof(filename);
+	int fd, rc;
+	struct stat sb = { 0, };
+	uint8_t *buf;
+	size_t bufsz, pos = 0;
+	ssize_t ssz;
+
+	*datap = 0;
+	data_sizep = 0;
+
+	snprintf(filename, filename_sz, "/sys/firmware/efi/mok-variables/%s", name);
+
+	fd = open(filename, O_RDONLY);
+	if (fd < 0)
+		return fd;
+
+	rc = fstat(fd, &sb);
+	if (rc < 0) {
+err_close:
+		close(fd);
+		return rc;
+	}
+
+	if (sb.st_size == 0) {
+		errno = ENOENT;
+		rc = -1;
+		goto err_close;
+	}
+
+	bufsz = sb.st_size;
+	buf = calloc(1, bufsz);
+	if (!buf)
+		goto err_close;
+
+	while (pos < bufsz) {
+		ssz = read(fd, &buf[pos], bufsz - pos);
+		if (ssz < 0) {
+			if (errno == EAGAIN ||
+			    errno == EWOULDBLOCK ||
+			    errno == EINTR)
+				continue;
+			free(buf);
+			goto err_close;
+		}
+
+		pos += ssz;
+	}
+	*datap = buf;
+	*data_sizep = pos;
+
+	return 0;
+}
+
 MokListNode*
 build_mok_list (const void *data, const uintptr_t data_size,
 		uint32_t *mok_num)
