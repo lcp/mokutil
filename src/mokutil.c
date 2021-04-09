@@ -2084,7 +2084,7 @@ main (int argc, char *argv[])
 			ret = set_timeout (timeout);
 			break;
 		case LIST_SBAT:
-			ret = print_var_content ("SBAT", efi_guid_shim);
+			ret = print_var_content ("SbatLevelRT", efi_guid_shim);
 			break;
 		default:
 			print_help ();
