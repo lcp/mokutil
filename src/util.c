@@ -47,7 +47,7 @@ mok_get_variable(const char *name, uint8_t **datap, size_t *data_sizep)
 	ssize_t ssz;
 
 	*datap = 0;
-	data_sizep = 0;
+	*data_sizep = 0;
 
 	snprintf(filename, filename_sz, "/sys/firmware/efi/mok-variables/%s", name);
 
