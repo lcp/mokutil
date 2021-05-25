@@ -39,8 +39,10 @@ int
 print_x509 (const uint8_t *cert, const int cert_size)
 {
 	X509 *X509cert;
-	SHA_CTX ctx;
-	uint8_t fingerprint[SHA_DIGEST_LENGTH];
+	EVP_MD_CTX *ctx;
+	const EVP_MD *md;
+	unsigned int md_len;
+	unsigned char fingerprint[EVP_MAX_MD_SIZE];
 
 	X509cert = d2i_X509 (NULL, &cert, cert_size);
 	if (X509cert == NULL) {
@@ -48,19 +50,45 @@ print_x509 (const uint8_t *cert, const int cert_size)
 		return -1;
 	}
 
-	SHA1_Init (&ctx);
-	SHA1_Update (&ctx, cert, cert_size);
-	SHA1_Final (fingerprint, &ctx);
+	md = EVP_get_digestbyname ("SHA1");
+	if(md == NULL) {
+		fprintf (stderr, "Failed to get SHA1 digest\n");
+		goto cleanup_cert;
+	}
+
+	ctx = EVP_MD_CTX_create ();
+	if (ctx == NULL) {
+		fprintf (stderr, "Failed to create digest context\n");
+	        goto cleanup_cert;
+	}
+
+	if (!EVP_DigestInit_ex (ctx, md, NULL)) {
+		fprintf (stderr, "Failed to initialize digest context\n");
+		goto cleanup_ctx;
+	}
+
+	if (!EVP_DigestUpdate (ctx, cert, cert_size)) {
+		fprintf (stderr, "Failed to hash into the digest context\n");
+		goto cleanup_ctx;
+	}
+
+	if (!EVP_DigestFinal_ex (ctx, fingerprint, &md_len)) {
+		fprintf (stderr, "Failed to get digest value\n");
+		goto cleanup_ctx;
+	}
 
 	printf ("SHA1 Fingerprint: ");
-	for (unsigned int i = 0; i < SHA_DIGEST_LENGTH; i++) {
+	for (unsigned int i = 0; i < md_len; i++) {
 		printf ("%02x", fingerprint[i]);
-		if (i < SHA_DIGEST_LENGTH - 1)
+		if (i < md_len - 1)
 			printf (":");
 	}
 	printf ("\n");
 	X509_print_fp (stdout, X509cert);
 
+cleanup_ctx:
+	EVP_MD_CTX_destroy (ctx);
+cleanup_cert:
 	X509_free (X509cert);
 
 	return 0;
