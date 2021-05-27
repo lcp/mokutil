@@ -42,9 +42,10 @@ print_x509 (const uint8_t *cert, const int cert_size)
 	EVP_MD_CTX *ctx;
 	const EVP_MD *md;
 	unsigned int md_len;
+	const unsigned char *in = (const unsigned char *)cert;
 	unsigned char fingerprint[EVP_MAX_MD_SIZE];
 
-	X509cert = d2i_X509 (NULL, &cert, cert_size);
+	X509cert = d2i_X509 (NULL, &in, cert_size);
 	if (X509cert == NULL) {
 		fprintf (stderr, "Invalid X509 certificate\n");
 		return -1;
