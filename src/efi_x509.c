@@ -141,7 +141,7 @@ is_immediate_ca (const uint8_t *cert, const uint32_t cert_size,
 
 	X509ca = d2i_X509 (NULL, &ca_cert, ca_cert_size);
 	if (X509ca == NULL)
-		return 0;
+		goto err;
 
 	cert_store = X509_STORE_new ();
 	if (cert_store == NULL)
