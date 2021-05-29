@@ -43,6 +43,8 @@ int mok_get_variable(const char *name, uint8_t **datap, size_t *data_sizep);
 MokListNode *build_mok_list (const void *data, const uintptr_t data_size,
 			     uint32_t *mok_num);
 int test_and_delete_mok_var (const char *var_name);
+int delete_data_from_req_var (const MokRequest req, const efi_guid_t *type,
+			      const void *data, const uint32_t data_size);
 unsigned long efichar_from_char (efi_char16_t *dest, const char *src,
 				 size_t dest_len);
 int read_hidden_line (char **line, size_t *n);
@@ -50,5 +52,7 @@ const char *get_db_var_name (const DBName db);
 const char *get_db_friendly_name (const DBName db);
 const char *get_req_var_name (const MokRequest req);
 const char *get_req_auth_var_name (const MokRequest req);
+MokRequest get_reverse_req (const MokRequest req);
+const char *get_reverse_req_var_name (const MokRequest req);
 
 #endif /* __UTIL_H__ */

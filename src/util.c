@@ -189,8 +189,6 @@ build_mok_list (const void *data, const uintptr_t data_size,
 	return list;
 }
 
-
-
 int
 test_and_delete_mok_var (const char *var_name)
 {
@@ -211,6 +209,126 @@ test_and_delete_mok_var (const char *var_name)
 		if (efi_del_variable (efi_guid_shim, var_name) < 0)
 			fprintf (stderr, "Failed to unset \"%s\": %m\n", var_name);
 	}
+
+	return ret;
+}
+
+int
+delete_data_from_req_var (const MokRequest req, const efi_guid_t *type,
+			  const void *data, const uint32_t data_size)
+{
+	const efi_guid_t *var_guid = &efi_guid_shim;
+	const char *var_name = get_req_var_name (req);
+	const char *authvar_name = get_req_auth_var_name (req);
+	uint8_t *var_data = NULL;
+	size_t var_data_size = 0;
+	uint32_t attributes;
+	MokListNode *list;
+	uint32_t mok_num, total, remain;
+	void *end, *start = NULL;
+	int del_ind, ret = 0;
+	uint32_t sig_list_size, sig_size;
+
+	if (!var_name || !data || data_size == 0)
+		return 0;
+
+	ret = efi_get_variable (*var_guid, var_name, &var_data, &var_data_size,
+				&attributes);
+	if (ret < 0) {
+		if (errno == ENOENT)
+			return 0;
+		fprintf (stderr, "Failed to read variable \"%s\": %m\n",
+			 var_name);
+		return -1;
+	}
+
+	total = var_data_size;
+
+	list = build_mok_list (var_data, var_data_size, &mok_num);
+	if (list == NULL)
+		goto done;
+
+	remain = total;
+	for (unsigned int i = 0; i < mok_num; i++) {
+		remain -= list[i].header->SignatureListSize;
+		efi_guid_t sigtype = list[i].header->SignatureType;
+		if (efi_guid_cmp (&sigtype, type) != 0)
+			continue;
+
+		sig_list_size = list[i].header->SignatureListSize;
+
+		if (efi_guid_cmp (type, &efi_guid_x509_cert) == 0) {
+			if (list[i].mok_size != data_size)
+				continue;
+
+			if (memcmp (list[i].mok, data, data_size) == 0) {
+				/* Remove this key */
+				start = (void *)list[i].header;
+				end = start + sig_list_size;
+				total -= sig_list_size;
+				break;
+			}
+		} else {
+			del_ind = match_hash_array (type, data, list[i].mok,
+						    list[i].mok_size);
+			if (del_ind < 0)
+				continue;
+
+			start = (void *)list[i].header;
+			sig_size = signature_size (type);
+			if (sig_list_size == (sizeof(EFI_SIGNATURE_LIST) + sig_size)) {
+				/* Only one hash in the list */
+				end = start + sig_list_size;
+				total -= sig_list_size;
+			} else {
+				/* More than one hash in the list */
+				start += sizeof(EFI_SIGNATURE_LIST) + sig_size * del_ind;
+				end = start + sig_size;
+				total -= sig_size;
+				list[i].header->SignatureListSize -= sig_size;
+				remain += sig_list_size - sizeof(EFI_SIGNATURE_LIST) -
+					  (del_ind + 1) * sig_size;
+			}
+			break;
+		}
+	}
+
+	/* the key or hash is not in this list */
+	if (start == NULL)
+		return 0;
+
+	/* all keys are removed */
+	if (total == 0) {
+		if (test_and_delete_mok_var (var_name) != 0)
+			goto done;
+		if (test_and_delete_mok_var (authvar_name) != 0)
+			goto done;
+		ret = 1;
+		goto done;
+	}
+
+	/* remove the key or hash  */
+	if (remain > 0)
+		memmove (start, end, remain);
+
+	attributes = EFI_VARIABLE_NON_VOLATILE
+		     | EFI_VARIABLE_BOOTSERVICE_ACCESS
+		     | EFI_VARIABLE_RUNTIME_ACCESS;
+	ret = efi_set_variable (*var_guid, var_name,
+				var_data, total, attributes,
+				S_IRUSR | S_IWUSR);
+	if (ret < 0) {
+		fprintf (stderr, "Failed to write variable \"%s\": %m\n",
+			 var_name);
+		goto done;
+	}
+	efi_chmod_variable(*var_guid, var_name, S_IRUSR | S_IWUSR);
+
+	ret = 1;
+done:
+	if (list)
+		free (list);
+	free (var_data);
 
 	return ret;
 }
@@ -313,4 +431,25 @@ get_req_auth_var_name (const MokRequest req)
 	};
 
 	return auth_var_names[req];
+}
+
+MokRequest
+get_reverse_req (const MokRequest req)
+{
+	const MokRequest reverse_reqs[] = {
+		[DELETE_MOK] = ENROLL_MOK,
+		[ENROLL_MOK] = DELETE_MOK,
+		[DELETE_BLACKLIST] = ENROLL_BLACKLIST,
+		[ENROLL_BLACKLIST] = DELETE_BLACKLIST,
+	};
+
+	return reverse_reqs[req];
+}
+
+const char *
+get_reverse_req_var_name (const MokRequest req)
+{
+	const MokRequest reverse_req = get_reverse_req (req);
+
+	return get_req_var_name (reverse_req);
 }

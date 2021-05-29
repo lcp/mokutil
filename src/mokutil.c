@@ -757,6 +757,18 @@ is_in_trusted_keyring (const void *cert, const uint32_t cert_size)
 	return ret;
 }
 
+static int
+in_reverse_pending_request (const efi_guid_t *type, const void *data,
+			    uint32_t data_size, const MokRequest req)
+{
+	MokRequest reverse_req = get_reverse_req (req);
+
+	if (!data || data_size == 0)
+		return 0;
+
+	return delete_data_from_req_var (reverse_req, type, data, data_size);
+}
+
 static void
 print_skip_message (const char *filename, const void *mok,
 		    const uint32_t mok_size, const MokRequest req)
@@ -935,6 +947,10 @@ issue_mok_request (char **files, const uint32_t total, const MokRequest req,
 		if (is_valid_request (&efi_guid_x509_cert, mok, mok_size, req)) {
 			ptr += mok_size;
 			real_size += mok_size + sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
+		} else if (in_reverse_pending_request (&efi_guid_x509_cert, mok, mok_size, req)) {
+			printf ("Removed %s from %s\n", files[i],
+				get_reverse_req_var_name (req));
+			ptr -= sizeof(EFI_SIGNATURE_LIST) + sizeof(efi_guid_t);
 		} else {
 			printf ("SKIP: ");
 			print_skip_message (files[i], mok, mok_size, req);
@@ -1023,6 +1039,10 @@ issue_hash_request (const char *hash_str, const MokRequest req,
 
 	if (is_valid_request (&hash_type, db_hash, hash_size, req) == 0) {
 		printf ("Skip hash\n");
+		ret = 0;
+		goto error;
+	} else if (in_reverse_pending_request (&hash_type, db_hash, hash_size, req)) {
+		printf ("Removed hash from %s\n", get_reverse_req_var_name (req));
 		ret = 0;
 		goto error;
 	}
