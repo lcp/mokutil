@@ -63,6 +63,10 @@ mokutil \- utility to manipulate machine owner keys
 .br
 \fBmokutil\fR [--set-verbosity (\fItrue\fR | \fIfalse\fR)]
 .br
+\fBmokutil\fR [--set-fallback-verbosity (\fItrue\fR | \fIfalse\fR)]
+.br
+\fBmokutil\fR [--set-fallback-noreboot (\fItrue\fR | \fIfalse\fR)]
+.br
 \fBmokutil\fR [--pk]
 .br
 \fBmokutil\fR [--kek]
@@ -157,6 +161,12 @@ this is not the password hash.
 .TP
 \fB--set-verbosity\fR
 Set the SHIM_VERBOSE to make shim more or less verbose
+.TP
+\fB--set-fallback-verbosity\fR
+Set the FALLBACK_VERBOSE to make fallback more or less verbose
+.TP
+\fB--set-fallback-noreboot\fR
+Set the FB_NO_REBOOT to prevent fallback from automatically rebooting the system
 .TP
 \fB--pk\fR
 List the keys in the public Platform Key (PK)
