@@ -24,6 +24,14 @@ _mokutil()
 		COMPREPLY=( $( compgen -W "true false") )
 		return 0
 		;;
+	--set-fallback-verbosity)
+		COMPREPLY=( $( compgen -W "true false") )
+		return 0
+		;;
+	--set-fallback-noreboot)
+		COMPREPLY=( $( compgen -W "true false") )
+		return 0
+		;;
 	--generate-hash|-g)
 		COMPREPLY=( $( compgen -o nospace -P= -W "") )
 		return 0

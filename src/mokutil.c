@@ -83,6 +83,8 @@
 #define VERBOSITY          (1 << 22)
 #define TIMEOUT            (1 << 23)
 #define LIST_SBAT          (1 << 24)
+#define FB_VERBOSITY       (1 << 25)
+#define FB_NOREBOOT        (1 << 26)
 
 #define DEFAULT_CRYPT_METHOD SHA512_BASED
 #define DEFAULT_SALT_SIZE    SHA512_SALT_MAX
@@ -127,6 +129,8 @@ print_help ()
 	printf ("  --import-hash <hash>\t\t\tImport a hash into MOK or MOKX\n");
 	printf ("  --delete-hash <hash>\t\t\tDelete a hash in MOK or MOKX\n");
 	printf ("  --set-verbosity <true/false>\t\tSet the verbosity bit for shim\n");
+	printf ("  --set-fallback-verbosity <true/false>\t\tSet the verbosity bit for fallback\n");
+	printf ("  --set-fallback-noreboot <true/false>\t\tPrevent fallback from automatically rebooting\n");
 	printf ("  --pk\t\t\t\t\tList the keys in PK\n");
 	printf ("  --kek\t\t\t\t\tList the keys in KEK\n");
 	printf ("  --db\t\t\t\t\tList the keys in db\n");
@@ -1672,6 +1676,46 @@ set_verbosity (const uint8_t verbosity)
 	return 0;
 }
 
+static int
+set_fallback_verbosity (const uint8_t verbosity)
+{
+	if (verbosity) {
+		uint32_t attributes = EFI_VARIABLE_NON_VOLATILE
+				      | EFI_VARIABLE_BOOTSERVICE_ACCESS
+				      | EFI_VARIABLE_RUNTIME_ACCESS;
+		if (efi_set_variable (efi_guid_shim, "FALLBACK_VERBOSE",
+				      (uint8_t *)&verbosity, sizeof (verbosity),
+				      attributes, S_IRUSR | S_IWUSR) < 0) {
+			fprintf (stderr, "Failed to set FALLBACK_VERBOSE\n");
+			return -1;
+		}
+	} else {
+		return test_and_delete_mok_var ("FALLBACK_VERBOSE");
+	}
+
+	return 0;
+}
+
+static int
+set_fallback_noreboot (const uint8_t noreboot)
+{
+	if (noreboot) {
+		uint32_t attributes = EFI_VARIABLE_NON_VOLATILE
+				      | EFI_VARIABLE_BOOTSERVICE_ACCESS
+				      | EFI_VARIABLE_RUNTIME_ACCESS;
+		if (efi_set_variable (efi_guid_shim, "FB_NO_REBOOT",
+				      (uint8_t *)&noreboot, sizeof (noreboot),
+				      attributes, S_IRUSR | S_IWUSR) < 0) {
+			fprintf (stderr, "Failed to set FB_NO_REBOOT\n");
+			return -1;
+		}
+	} else {
+		return test_and_delete_mok_var ("FB_NO_REBOOT");
+	}
+
+	return 0;
+}
+
 static inline int
 list_db (const DBName db_name)
 {
@@ -1707,6 +1751,8 @@ main (int argc, char *argv[])
 	unsigned int command = 0;
 	int use_root_pw = 0;
 	uint8_t verbosity = 0;
+	uint8_t fb_verbosity = 0;
+	uint8_t fb_noreboot = 0;
 	DBName db_name = MOK_LIST_RT;
 	int ret = -1;
 	int sb_check;
@@ -1747,6 +1793,8 @@ main (int argc, char *argv[])
 			{"import-hash",        required_argument, 0, 0  },
 			{"delete-hash",        required_argument, 0, 0  },
 			{"set-verbosity",      required_argument, 0, 0  },
+			{"set-fallback-verbosity", required_argument, 0, 0  },
+			{"set-fallback-noreboot", required_argument, 0, 0  },
 			{"pk",                 no_argument,       0, 0  },
 			{"kek",                no_argument,       0, 0  },
 			{"db",                 no_argument,       0, 0  },
@@ -1813,6 +1861,22 @@ main (int argc, char *argv[])
 					verbosity = 1;
 				else if (strcmp (optarg, "false") == 0)
 					verbosity = 0;
+				else
+					command |= HELP;
+			} else if (strcmp (option, "set-fallback-verbosity") == 0) {
+				command |= FB_VERBOSITY;
+				if (strcmp (optarg, "true") == 0)
+					fb_verbosity = 1;
+				else if (strcmp (optarg, "false") == 0)
+					fb_verbosity = 0;
+				else
+					command |= HELP;
+			} else if (strcmp (option, "set-fallback-noreboot") == 0) {
+				command |= FB_NOREBOOT;
+				if (strcmp (optarg, "true") == 0)
+					fb_noreboot = 1;
+				else if (strcmp (optarg, "false") == 0)
+					fb_noreboot = 0;
 				else
 					command |= HELP;
 			} else if (strcmp (option, "pk") == 0) {
@@ -1978,7 +2042,8 @@ main (int argc, char *argv[])
 		command |= LIST_ENROLLED;
 
 	sb_check = !(command & HELP || command & TEST_KEY ||
-		     command & VERBOSITY || command & TIMEOUT);
+		     command & VERBOSITY || command & TIMEOUT ||
+		     command & FB_VERBOSITY || command & FB_NOREBOOT);
 	if (sb_check) {
 		/* Check whether the machine supports Secure Boot or not */
 		int rc;
@@ -2099,6 +2164,12 @@ main (int argc, char *argv[])
 			break;
 		case VERBOSITY:
 			ret = set_verbosity (verbosity);
+			break;
+		case FB_VERBOSITY:
+			ret = set_fallback_verbosity (fb_verbosity);
+			break;
+		case FB_NOREBOOT:
+			ret = set_fallback_noreboot (fb_noreboot);
 			break;
 		case TIMEOUT:
 			ret = set_timeout (timeout);
