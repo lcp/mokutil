@@ -49,11 +49,14 @@ fi
 
 if test "$GCC" = "yes"; then
 	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wall -Wextra"
-	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wcast-align -Wno-uninitialized"
+	if test "`uname -m`" = "loongarch64"; then
+		WARNINGFLAGS_C="$WARNINGFLAGS_C -Wno-uninitialized"
+	else
+		WARNINGFLAGS_C="$WARNINGFLAGS_C -Wcast-align -Wno-uninitialized"
+	fi
 	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wmissing-declarations"
 #	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wredundant-decls"
 #	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wpointer-arith"
-	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wcast-align"
 	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wwrite-strings"
 	WARNINGFLAGS_C="$WARNINGFLAGS_C -Winit-self"
 	WARNINGFLAGS_C="$WARNINGFLAGS_C -Wreturn-type"
