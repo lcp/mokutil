@@ -75,7 +75,9 @@ mokutil \- utility to manipulate machine owner keys
 .br
 \fBmokutil\fR [--dbx]
 .br
-\fBmokutil\fR [--sbat]
+\fBmokutil\fR [--list-sbat-revocations]
+.br
+\fBmokutil\fR [--set-sbat-policy (\fIlatest\fR | \fIprevious\fR | \fIdelete\fR)]
 .br
 \fBmokutil\fR [--timeout \fI-1,0..0x7fff\fR]
 .br
@@ -180,8 +182,16 @@ List the keys in the secure boot signature store (db)
 \fB--dbx\fR
 List the keys in the secure boot blacklist signature store (dbx)
 .TP
-\fB--sbat\fR
+\fB--list-sbat-revocations\fR
 List the entries in the Secure Boot Advanced Targeting store (SBAT)
+.TP
+\fB--set-sbat-policy (\fIlatest\fR | \fIprevious\fR | \fIdelete\fR)\fR
+Set the SbatPolicy UEFI Variable to have shim apply either the latest
+or the previous SBAT revocations.  If UEFI Secure Boot is disabled, then
+delete will reset the SBAT revocations to an empty revocation list.
+While latest and previous are persistent configuration, delete will be
+cleared by shim on the next boot whether or not it succeeds. The default
+behavior is for shim to apply the previous revocations.
 .TP
 \fB--timeout\fR
 Set the timeout for MOK prompt

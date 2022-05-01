@@ -87,6 +87,7 @@
 #define FB_NOREBOOT        (1 << 26)
 #define TRUST_MOK          (1 << 27)
 #define UNTRUST_MOK        (1 << 28)
+#define SET_SBAT           (1 << 29)
 
 #define DEFAULT_CRYPT_METHOD SHA512_BASED
 #define DEFAULT_SALT_SIZE    SHA512_SALT_MAX
@@ -135,12 +136,13 @@ print_help ()
 	printf ("  --set-fallback-noreboot <true/false>\t\tPrevent fallback from automatically rebooting\n");
 	printf ("  --trust-mok\t\t\t\tTrust MOK keys within the kernel keyring\n");
 	printf ("  --untrust-mok\t\t\t\tDo not trust MOK keys\n");
+	printf ("  --set-sbat-policy <latest/previous/delete>\t\tApply Latest, Previous, or Blank SBAT revocations\n");
 	printf ("  --pk\t\t\t\t\tList the keys in PK\n");
 	printf ("  --kek\t\t\t\t\tList the keys in KEK\n");
 	printf ("  --db\t\t\t\t\tList the keys in db\n");
 	printf ("  --dbx\t\t\t\t\tList the keys in dbx\n");
 	printf ("  --timeout <-1,0..0x7fff>\t\tSet the timeout for MOK prompt\n");
-	printf ("  --sbat\t\t\t\tList the entries in SBAT\n");
+	printf ("  --list-sbat-revocations\t\t\t\tList the entries in SBAT\n");
 	printf ("\n");
 	printf ("Supplimentary Options:\n");
 	printf ("  --hash-file <hash file>\t\tUse the specific password hash\n");
@@ -1753,6 +1755,26 @@ list_db (const DBName db_name)
 	return -1;
 }
 
+static int
+manage_sbat (const uint8_t sbat_policy)
+{
+	if (sbat_policy) {
+		uint32_t attributes = EFI_VARIABLE_NON_VOLATILE
+				      | EFI_VARIABLE_BOOTSERVICE_ACCESS
+				      | EFI_VARIABLE_RUNTIME_ACCESS;
+		if (efi_set_variable (efi_guid_shim, "SbatPolicy",
+				      (uint8_t *)&sbat_policy,
+				      sizeof (sbat_policy),
+				      attributes, S_IRUSR | S_IWUSR) < 0) {
+			fprintf (stderr, "Failed to set SbatPolicy\n");
+			return -1;
+		}
+	} else {
+		return test_and_delete_mok_var ("SbatPolicy");
+	}
+	return 0;
+}
+
 int
 main (int argc, char *argv[])
 {
@@ -1769,6 +1791,7 @@ main (int argc, char *argv[])
 	uint8_t verbosity = 0;
 	uint8_t fb_verbosity = 0;
 	uint8_t fb_noreboot = 0;
+	uint8_t sbat_policy = 0;
 	DBName db_name = MOK_LIST_RT;
 	int ret = -1;
 	int sb_check;
@@ -1813,10 +1836,12 @@ main (int argc, char *argv[])
 			{"set-fallback-noreboot", required_argument, 0, 0  },
 			{"trust-mok",          no_argument,       0, 0  },
 			{"untrust-mok",        no_argument,       0, 0  },
+			{"set-sbat-policy",    required_argument, 0, 0  },
 			{"pk",                 no_argument,       0, 0  },
 			{"kek",                no_argument,       0, 0  },
 			{"db",                 no_argument,       0, 0  },
 			{"dbx",                no_argument,       0, 0  },
+			{"list-sbat-revocations", no_argument,       0, 0  },
 			{"sbat",               no_argument,       0, 0  },
 			{"timeout",            required_argument, 0, 0  },
 			{"ca-check",           no_argument,       0, 0  },
@@ -1901,6 +1926,16 @@ main (int argc, char *argv[])
 					fb_noreboot = 0;
 				else
 					command |= HELP;
+			} else if (strcmp (option, "set-sbat-policy") == 0) {
+				command |= SET_SBAT;
+				if (strcmp (optarg, "latest") == 0)
+					sbat_policy = 1;
+				else if (strcmp (optarg, "previous") == 0)
+					sbat_policy = 2;
+				else if (strcmp (optarg, "delete") == 0)
+					sbat_policy = 3;
+				else
+					command |= HELP;
 			} else if (strcmp (option, "pk") == 0) {
 				if (db_name != MOK_LIST_RT) {
 					command |= HELP;
@@ -1925,6 +1960,8 @@ main (int argc, char *argv[])
 				} else {
 					db_name = DBX;
 				}
+			}  else if (strcmp (option, "list-sbat-revocations") == 0) {
+				command |= LIST_SBAT;
 			}  else if (strcmp (option, "sbat") == 0) {
 				command |= LIST_SBAT;
 			} else if (strcmp (option, "timeout") == 0) {
@@ -2204,6 +2241,9 @@ main (int argc, char *argv[])
 			break;
 		case LIST_SBAT:
 			ret = print_var_content ("SbatLevelRT", efi_guid_shim);
+			break;
+		case SET_SBAT:
+			ret = manage_sbat(sbat_policy);
 			break;
 		default:
 			print_help ();
