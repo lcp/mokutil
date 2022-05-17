@@ -2087,10 +2087,9 @@ main (int argc, char *argv[])
 			goto out;
 		case 'h':
 		case '?':
+		default:
 			command |= HELP;
 			break;
-		default:
-			abort ();
 		}
 	}
 
