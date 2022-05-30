@@ -1851,7 +1851,7 @@ main (int argc, char *argv[])
 		};
 
 		int option_index = 0;
-		c = getopt_long (argc, argv, "cd:f:g::hi:lmpst:xDNPXv",
+		c = getopt_long (argc, argv, "cd:f:g::hi:lmpt:xDNPXv",
 				 long_options, &option_index);
 
 		if (c == -1)
