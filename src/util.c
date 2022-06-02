@@ -295,8 +295,10 @@ delete_data_from_req_var (const MokRequest req, const efi_guid_t *type,
 	}
 
 	/* the key or hash is not in this list */
-	if (start == NULL)
-		return 0;
+	if (start == NULL) {
+		ret = 0;
+		goto done;
+	}
 
 	/* all keys are removed */
 	if (total == 0) {
