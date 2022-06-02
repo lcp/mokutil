@@ -57,22 +57,21 @@ mok_get_variable(const char *name, uint8_t **datap, size_t *data_sizep)
 		return fd;
 
 	rc = fstat(fd, &sb);
-	if (rc < 0) {
-err_close:
-		close(fd);
-		return rc;
-	}
+	if (rc < 0)
+		goto done;
 
 	if (sb.st_size == 0) {
 		errno = ENOENT;
 		rc = -1;
-		goto err_close;
+		goto done;
 	}
 
 	bufsz = sb.st_size;
 	buf = calloc(1, bufsz);
-	if (!buf)
-		goto err_close;
+	if (!buf) {
+		rc = -1;
+		goto done;
+	}
 
 	while (pos < bufsz) {
 		ssz = read(fd, &buf[pos], bufsz - pos);
@@ -82,15 +81,18 @@ err_close:
 			    errno == EINTR)
 				continue;
 			free(buf);
-			goto err_close;
+			rc = -1;
+			goto done;
 		}
 
 		pos += ssz;
 	}
 	*datap = buf;
 	*data_sizep = pos;
-
-	return 0;
+	rc = 0;
+done:
+	close(fd);
+	return rc;
 }
 
 MokListNode*
