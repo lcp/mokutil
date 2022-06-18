@@ -10,6 +10,7 @@ AC_CONFIG_HEADERS([config.h])
 # Checks for programs.
 AC_PROG_CC
 AM_PROG_CC_C_O
+PKG_PROG_PKG_CONFIG
 
 # Checks for libraries.
 AC_ARG_ENABLE(debug, AC_HELP_STRING([--enable-debug], [turn on debug]), CFLAGS="$CFLAGS -g")
@@ -95,7 +96,7 @@ AC_ARG_WITH([bash-completion-dir],
 
 if test "x$with_bash_completion_dir" = "xyes"; then
     PKG_CHECK_MODULES([BASH_COMPLETION], [bash-completion >= 2.0],
-        [BASH_COMPLETION_DIR="`pkg-config --variable=completionsdir bash-completion`"],
+        [BASH_COMPLETION_DIR="`$PKG_CONFIG --variable=completionsdir bash-completion`"],
         [BASH_COMPLETION_DIR="$datadir/bash-completion/completions"])
 else
     BASH_COMPLETION_DIR="$with_bash_completion_dir"
