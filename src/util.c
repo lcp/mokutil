@@ -161,6 +161,7 @@ build_mok_list (const void *data, const uintptr_t data_size,
 		}
 
 		list[count].header = CertList;
+		list[count].owner  = Cert->SignatureOwner;
 		if (efi_guid_cmp (&sigtype, &efi_guid_x509_cert) == 0) {
 			/* X509 certificate */
 			list[count].mok_size = CertList->SignatureSize -

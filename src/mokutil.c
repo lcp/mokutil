@@ -164,7 +164,16 @@ list_keys (const uint8_t *data, const size_t data_size)
 	}
 
 	for (unsigned int i = 0; i < mok_num; i++) {
+		char *owner_str = NULL;
+		int ret;
 		printf ("[key %d]\n", i+1);
+
+		ret = efi_guid_to_str(&list[i].owner, &owner_str);
+		if (ret > 0) {
+			printf ("Owner: %s\n", owner_str);
+			free (owner_str);
+		}
+
 		efi_guid_t sigtype = list[i].header->SignatureType;
 		if (efi_guid_cmp (&sigtype, &efi_guid_x509_cert) == 0) {
 			print_x509 (list[i].mok, list[i].mok_size);

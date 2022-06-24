@@ -59,6 +59,7 @@ typedef enum {
 
 typedef struct {
 	EFI_SIGNATURE_LIST *header;
+	efi_guid_t          owner;
 	uint32_t            mok_size;
 	void               *mok;
 } MokListNode;
