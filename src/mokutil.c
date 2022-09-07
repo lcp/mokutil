@@ -203,7 +203,13 @@ list_keys_in_var (const char *var_name, const efi_guid_t guid)
 	if (ret >= 0) {
 		ret = list_keys (data, data_sz);
 		free(data);
-		return ret;
+		if (ret != -1)
+			return 0;
+		/*
+		 * If list_keys() returns -1, then we have problem
+		 * with the data from /sys/firmware/efi/mok-variables/.
+		 * Continue to try our luck with efivar/efivarfs.
+		 */
 	}
 
 	for (i = 0; i < SIZE_MAX; i++) {
@@ -533,9 +539,9 @@ error:
 }
 
 static int
-is_one_duplicate (const efi_guid_t *type,
-		  const void *data, const uint32_t data_size,
-		  uint8_t *var_data, size_t var_data_size)
+check_one_duplicate (const efi_guid_t *type,
+		     const void *data, const uint32_t data_size,
+		     uint8_t *var_data, size_t var_data_size)
 {
 	uint32_t node_num;
 	MokListNode *list;
@@ -545,9 +551,8 @@ is_one_duplicate (const efi_guid_t *type,
 		return 0;
 
 	list = build_mok_list (var_data, var_data_size, &node_num);
-	if (list == NULL) {
-		goto done;
-	}
+	if (list == NULL)
+		return -1;
 
 	for (unsigned int i = 0; i < node_num; i++) {
 		efi_guid_t sigtype = list[i].header->SignatureType;
@@ -571,9 +576,7 @@ is_one_duplicate (const efi_guid_t *type,
 		}
 	}
 
-done:
-	if (list)
-		free (list);
+	free (list);
 
 	return ret;
 }
@@ -594,12 +597,17 @@ is_duplicate (const efi_guid_t *type,
 		size_t var_data_size = 0;
 		ret = mok_get_variable(db_name, &var_data, &var_data_size);
 		if (ret >= 0) {
-			ret = is_one_duplicate(type, data, data_size,
-					       var_data, var_data_size);
+			ret = check_one_duplicate(type, data, data_size,
+						  var_data, var_data_size);
 			if (ret >= 0) {
 				free (var_data);
 				return ret;
 			}
+			/*
+			 * If check_duplicate() returns -1, then we have problem
+			 * with the data from /sys/firmware/efi/mok-variables/.
+			 * Continue to try our luck with efivar/efivarfs.
+			 */
 			var_data = NULL;
 			var_data_size = 0;
 		}
@@ -620,8 +628,8 @@ is_duplicate (const efi_guid_t *type,
 		if (ret < 0)
 			return 0;
 
-		ret = is_one_duplicate(type, data, data_size,
-				       var_data, var_data_size);
+		ret = check_one_duplicate(type, data, data_size,
+					  var_data, var_data_size);
 		free (var_data);
 		/*
 		 * If ret is < 0, the next one will error as well.
