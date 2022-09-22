@@ -1233,6 +1233,7 @@ export_db_keys (const DBName db_name)
 
 	list = build_mok_list (data, data_size, &mok_num);
 	if (list == NULL) {
+		free(data);
 		return -1;
 	}
 
