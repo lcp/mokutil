@@ -2033,6 +2033,10 @@ main (int argc, char *argv[])
 			for (i = 0; i < total; i++) {
 				f_ind = i + optind - 1;
 				files[i] = malloc (strlen(argv[f_ind]) + 1);
+				if (files[i] == NULL) {
+					fprintf (stderr, "Could not allocate space: %m\n");
+					exit(1);
+				}
 				strcpy (files[i], argv[f_ind]);
 			}
 
