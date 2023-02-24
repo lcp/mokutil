@@ -816,7 +816,7 @@ print_skip_message (const char *filename, const void *mok,
 			printf ("%s is blocked in dbx\n", filename);
 		else if (is_duplicate (&efi_guid_x509_cert, mok, mok_size,
 				       &efi_guid_shim, "MokListXRT"))
-			printf ("%s is blocked in MokListXRT\n", filename);
+			printf ("%s is blocked in MokListX\n", filename);
 		break;
 	case DELETE_MOK:
 		if (!is_duplicate (&efi_guid_x509_cert, mok, mok_size,
