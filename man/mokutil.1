@@ -81,6 +81,10 @@ mokutil \- utility to manipulate machine owner keys
 .br
 \fBmokutil\fR [--timeout \fI-1,0..0x7fff\fR]
 .br
+\fBmokutil\fR [--trust-mok]
+.br
+\fBmokutil\fR [--untrust-mok]
+.br
 
 .SH DESCRIPTION
 \fBmokutil\fR is a tool to import or delete the machines owner keys
@@ -202,4 +206,10 @@ databases.
 .TP
 \fB--ignore-keyring\fR
 Ignore the kernel builtin trusted keys keyring check when enrolling a key into MokList
+.TP
+\fB--trust-mok\fR
+Trust MOK keys within the kernel keyring
+.TP
+\fB--untrust-mok\fR
+Do not trust MOK keys within the kernel keyring
 .TP
