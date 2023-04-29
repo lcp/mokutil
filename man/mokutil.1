@@ -189,13 +189,17 @@ List the keys in the secure boot blacklist signature store (dbx)
 \fB--list-sbat-revocations\fR
 List the entries in the Secure Boot Advanced Targeting store (SBAT)
 .TP
-\fB--set-sbat-policy (\fIlatest\fR | \fIprevious\fR | \fIdelete\fR)\fR
+\fB--set-sbat-policy (\fIlatest\fR | \fIprevious\fR)\fR
 Set the SbatPolicy UEFI Variable to have shim apply either the latest
 or the previous SBAT revocations.  If UEFI Secure Boot is disabled, then
-delete will reset the SBAT revocations to an empty revocation list.
-While latest and previous are persistent configuration, delete will be
-cleared by shim on the next boot whether or not it succeeds. The default
-behavior is for shim to apply the previous revocations.
+shim will automatically delete SBAT revocations
+.TP
+\fB--set-ssp-policy (\fIlatest\fR | \fIprevious\fR | \fIdelete\fR)\fR
+Set the SspPolicy UEFI Variable to have shim apply either the latest
+or the previous Windows SkuSiPolicy to manage bootmgr revocations. Since
+these are non-native revocations, shim will not automatically delete
+them. If this is needed, spp-policy can be set to delete when Secure
+Boot is disabled. The delete policy is non-persistent.
 .TP
 \fB--timeout\fR
 Set the timeout for MOK prompt
