@@ -88,6 +88,7 @@
 #define TRUST_MOK          (1 << 27)
 #define UNTRUST_MOK        (1 << 28)
 #define SET_SBAT           (1 << 29)
+#define SET_SSP            (1 << 30)
 
 #define DEFAULT_CRYPT_METHOD SHA512_BASED
 #define DEFAULT_SALT_SIZE    SHA512_SALT_MAX
@@ -136,13 +137,16 @@ print_help ()
 	printf ("  --set-fallback-noreboot <true/false>\t\tPrevent fallback from automatically rebooting\n");
 	printf ("  --trust-mok\t\t\t\tTrust MOK keys within the kernel keyring\n");
 	printf ("  --untrust-mok\t\t\t\tDo not trust MOK keys\n");
-	printf ("  --set-sbat-policy <latest/previous/delete>\t\tApply Latest, Previous, or Blank SBAT revocations\n");
+	printf ("  --set-sbat-policy <latest/previous>"
+			"\tApply Latest or Previous SBAT revocations\n");
+	printf ("  --set-ssp-policy <latest/previous/delete>\n"
+			"\t\t\t\t\tApply Latest, Previous, or delete SkuSiPolicy\n");
 	printf ("  --pk\t\t\t\t\tList the keys in PK\n");
 	printf ("  --kek\t\t\t\t\tList the keys in KEK\n");
 	printf ("  --db\t\t\t\t\tList the keys in db\n");
 	printf ("  --dbx\t\t\t\t\tList the keys in dbx\n");
 	printf ("  --timeout <-1,0..0x7fff>\t\tSet the timeout for MOK prompt\n");
-	printf ("  --list-sbat-revocations\t\t\t\tList the entries in SBAT\n");
+	printf ("  --list-sbat-revocations\t\tList the entries in SBAT\n");
 	printf ("\n");
 	printf ("Supplimentary Options:\n");
 	printf ("  --hash-file <hash file>\t\tUse the specific password hash\n");
@@ -1774,21 +1778,27 @@ list_db (const DBName db_name)
 }
 
 static int
-manage_sbat (const uint8_t sbat_policy)
+manage_policy (unsigned int command, const uint8_t policy)
 {
-	if (sbat_policy) {
+	const char *varname;
+	if (command == SET_SBAT)
+		varname = "SbatPolicy";
+	if (command == SET_SSP)
+		varname = "SSPPolicy";
+
+	if (policy) {
 		uint32_t attributes = EFI_VARIABLE_NON_VOLATILE
 				      | EFI_VARIABLE_BOOTSERVICE_ACCESS
 				      | EFI_VARIABLE_RUNTIME_ACCESS;
-		if (efi_set_variable (efi_guid_shim, "SbatPolicy",
-				      (uint8_t *)&sbat_policy,
-				      sizeof (sbat_policy),
+		if (efi_set_variable (efi_guid_shim, varname,
+				      (uint8_t *)&policy,
+				      sizeof (policy),
 				      attributes, S_IRUSR | S_IWUSR) < 0) {
 			fprintf (stderr, "Failed to set SbatPolicy\n");
 			return -1;
 		}
 	} else {
-		return test_and_delete_mok_var ("SbatPolicy");
+		return test_and_delete_mok_var (varname);
 	}
 	return 0;
 }
@@ -1809,7 +1819,7 @@ main (int argc, char *argv[])
 	uint8_t verbosity = 0;
 	uint8_t fb_verbosity = 0;
 	uint8_t fb_noreboot = 0;
-	uint8_t sbat_policy = 0;
+	uint8_t policy = 0;
 	DBName db_name = MOK_LIST_RT;
 	int ret = -1;
 	int sb_check;
@@ -1850,6 +1860,7 @@ main (int argc, char *argv[])
 			{"trust-mok",          no_argument,       0, 0  },
 			{"untrust-mok",        no_argument,       0, 0  },
 			{"set-sbat-policy",    required_argument, 0, 0  },
+			{"set-ssp-policy",     required_argument, 0, 0  },
 			{"pk",                 no_argument,       0, 0  },
 			{"kek",                no_argument,       0, 0  },
 			{"db",                 no_argument,       0, 0  },
@@ -1942,11 +1953,21 @@ main (int argc, char *argv[])
 			} else if (strcmp (option, "set-sbat-policy") == 0) {
 				command |= SET_SBAT;
 				if (strcmp (optarg, "latest") == 0)
-					sbat_policy = 1;
+					policy = 1;
 				else if (strcmp (optarg, "previous") == 0)
-					sbat_policy = 2;
+					policy = 2;
 				else if (strcmp (optarg, "delete") == 0)
-					sbat_policy = 3;
+					policy = 3;
+				else
+					command |= HELP;
+			} else if (strcmp (option, "set-ssp-policy") == 0) {
+				command |= SET_SSP;
+				if (strcmp (optarg, "latest") == 0)
+					policy = 1;
+				else if (strcmp (optarg, "previous") == 0)
+					policy = 2;
+				else if (strcmp (optarg, "delete") == 0)
+					policy = 3;
 				else
 					command |= HELP;
 			} else if (strcmp (option, "pk") == 0) {
@@ -2265,7 +2286,8 @@ main (int argc, char *argv[])
 			ret = print_var_content ("SbatLevelRT", efi_guid_shim);
 			break;
 		case SET_SBAT:
-			ret = manage_sbat(sbat_policy);
+		case SET_SSP:
+			ret = manage_policy(command, policy);
 			break;
 		default:
 			print_help ();
