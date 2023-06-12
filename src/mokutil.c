@@ -133,8 +133,10 @@ print_help ()
 	printf ("  --import-hash <hash>\t\t\tImport a hash into MOK or MOKX\n");
 	printf ("  --delete-hash <hash>\t\t\tDelete a hash in MOK or MOKX\n");
 	printf ("  --set-verbosity <true/false>\t\tSet the verbosity bit for shim\n");
-	printf ("  --set-fallback-verbosity <true/false>\t\tSet the verbosity bit for fallback\n");
-	printf ("  --set-fallback-noreboot <true/false>\t\tPrevent fallback from automatically rebooting\n");
+	printf ("  --set-fallback-verbosity <true/false>"
+			"\tSet the verbosity bit for fallback\n");
+	printf ("  --set-fallback-noreboot <true/false>"
+			"\tPrevent fallback from automatically rebooting\n");
 	printf ("  --trust-mok\t\t\t\tTrust MOK keys within the kernel keyring\n");
 	printf ("  --untrust-mok\t\t\t\tDo not trust MOK keys\n");
 	printf ("  --set-sbat-policy <latest/previous>"
