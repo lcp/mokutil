@@ -33,13 +33,14 @@
 #define __MOKUTIL_H__
 
 #include <ctype.h>
-#include <wchar.h>
 
 #include "signature.h"
 
 typedef unsigned long efi_status_t;
 typedef uint8_t efi_bool_t;
-typedef wchar_t efi_char16_t;		/* UNICODE character */
+#ifndef efi_char16_t
+typedef uint16_t efi_char16_t;		/* UNICODE character */
+#endif
 
 typedef enum {
 	DELETE_MOK = 0,
