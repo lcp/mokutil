@@ -1817,11 +1817,6 @@ main (int argc, char *argv[])
 	force_ca_check = 0;
 	check_keyring = 1;
 
-	if (!efi_variables_supported ()) {
-		fprintf (stderr, "EFI variables are not supported on this system\n");
-		exit (1);
-	}
-
 	while (1) {
 		static struct option long_options[] = {
 			{"help",               no_argument,       0, 'h'},
@@ -2118,6 +2113,11 @@ main (int argc, char *argv[])
 
 	if (pw_hash_file && use_root_pw)
 		command |= HELP;
+
+	if (!(command & HELP) && !efi_variables_supported ()) {
+		fprintf (stderr, "EFI variables are not supported on this system\n");
+		exit (1);
+	}
 
 	if (db_name != MOK_LIST_RT && !(command & ~MOKX))
 		command |= LIST_ENROLLED;
