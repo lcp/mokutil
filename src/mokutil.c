@@ -2106,6 +2106,7 @@ main (int argc, char *argv[])
 			break;
 		case 'v':
 			printf ("%s\n", VERSION);
+			ret = 0;
 			goto out;
 		case 'h':
 		case '?':
