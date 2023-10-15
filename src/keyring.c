@@ -64,7 +64,7 @@ match_skid_in_trusted_keyring (const char *skid)
 	/* Find the keyring ID of the kernel trusted keys */
 	ring_id = find_key_by_type_and_desc("keyring", ".builtin_trusted_keys", 0);
 	if (ring_id < 0) {
-		fprintf(stderr, "Failed to accesss kernel trusted keyring: %m\n");
+		fprintf(stderr, "Failed to access kernel trusted keyring: %m\n");
 		goto out;
 	}
 
