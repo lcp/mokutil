@@ -2269,6 +2269,7 @@ main (int argc, char *argv[])
 			break;
 		default:
 			print_help ();
+			ret = 0;
 			break;
 	}
 
