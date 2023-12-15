@@ -77,7 +77,7 @@ mokutil \- utility to manipulate machine owner keys
 .br
 \fBmokutil\fR [--list-sbat-revocations]
 .br
-\fBmokutil\fR [--set-sbat-policy (\fIlatest\fR | \fIprevious\fR | \fIdelete\fR)]
+\fBmokutil\fR [--set-sbat-policy (\fIlatest\fR | \fIautomatic\fR | \fIdelete\fR)]
 .br
 \fBmokutil\fR [--timeout \fI-1,0..0x7fff\fR]
 .br
@@ -189,14 +189,14 @@ List the keys in the secure boot blacklist signature store (dbx)
 \fB--list-sbat-revocations\fR
 List the entries in the Secure Boot Advanced Targeting store (SBAT)
 .TP
-\fB--set-sbat-policy (\fIlatest\fR | \fIprevious\fR)\fR
+\fB--set-sbat-policy (\fIlatest\fR | \fIautomatic\fR)\fR
 Set the SbatPolicy UEFI Variable to have shim apply either the latest
-or the previous SBAT revocations.  If UEFI Secure Boot is disabled, then
+or the automatic SBAT revocations.  If UEFI Secure Boot is disabled, then
 shim will automatically delete SBAT revocations
 .TP
-\fB--set-ssp-policy (\fIlatest\fR | \fIprevious\fR | \fIdelete\fR)\fR
+\fB--set-ssp-policy (\fIlatest\fR | \fIautomatic\fR | \fIdelete\fR)\fR
 Set the SspPolicy UEFI Variable to have shim apply either the latest
-or the previous Windows SkuSiPolicy to manage bootmgr revocations. Since
+or the automatic Windows SkuSiPolicy to manage bootmgr revocations. Since
 these are non-native revocations, shim will not automatically delete
 them. If this is needed, spp-policy can be set to delete when Secure
 Boot is disabled. The delete policy is non-persistent.

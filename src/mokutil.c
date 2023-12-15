@@ -139,10 +139,10 @@ print_help ()
 			"\tPrevent fallback from automatically rebooting\n");
 	printf ("  --trust-mok\t\t\t\tTrust MOK keys within the kernel keyring\n");
 	printf ("  --untrust-mok\t\t\t\tDo not trust MOK keys\n");
-	printf ("  --set-sbat-policy <latest/previous>"
-			"\tApply Latest or Previous SBAT revocations\n");
-	printf ("  --set-ssp-policy <latest/previous/delete>\n"
-			"\t\t\t\t\tApply Latest, Previous, or delete SkuSiPolicy\n");
+	printf ("  --set-sbat-policy <latest/automatic>"
+			"\tApply Latest or Automatic SBAT revocations\n");
+	printf ("  --set-ssp-policy <latest/automatic/delete>\n"
+			"\t\t\t\t\tApply Latest, Automatic, or delete SkuSiPolicy\n");
 	printf ("  --pk\t\t\t\t\tList the keys in PK\n");
 	printf ("  --kek\t\t\t\t\tList the keys in KEK\n");
 	printf ("  --db\t\t\t\t\tList the keys in db\n");
@@ -1956,7 +1956,8 @@ main (int argc, char *argv[])
 				command |= SET_SBAT;
 				if (strcmp (optarg, "latest") == 0)
 					policy = 1;
-				else if (strcmp (optarg, "previous") == 0)
+				else if ((strcmp (optarg, "previous") == 0) ||
+					 (strcmp (optarg, "automatic") == 0))
 					policy = 2;
 				else if (strcmp (optarg, "delete") == 0)
 					policy = 3;
@@ -1966,7 +1967,8 @@ main (int argc, char *argv[])
 				command |= SET_SSP;
 				if (strcmp (optarg, "latest") == 0)
 					policy = 1;
-				else if (strcmp (optarg, "previous") == 0)
+				else if ((strcmp (optarg, "previous") == 0) ||
+					 (strcmp (optarg, "automatic") == 0))
 					policy = 2;
 				else if (strcmp (optarg, "delete") == 0)
 					policy = 3;
