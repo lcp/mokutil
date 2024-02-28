@@ -35,32 +35,23 @@
 
 #include "efi_x509.h"
 
-int
-print_x509 (const uint8_t *cert, const int cert_size)
+static int
+x509_calculate_fingerprint(const uint8_t *cert, const int cert_size,
+		unsigned char* ret_fingerprint, unsigned int *ret_md_len)
 {
-	X509 *X509cert;
-	EVP_MD_CTX *ctx;
 	const EVP_MD *md;
-	unsigned int md_len;
-	const unsigned char *in = (const unsigned char *)cert;
-	unsigned char fingerprint[EVP_MAX_MD_SIZE];
-
-	X509cert = d2i_X509 (NULL, &in, cert_size);
-	if (X509cert == NULL) {
-		fprintf (stderr, "Invalid X509 certificate\n");
-		return -1;
-	}
+	EVP_MD_CTX *ctx;
 
 	md = EVP_get_digestbyname ("SHA1");
 	if(md == NULL) {
 		fprintf (stderr, "Failed to get SHA1 digest\n");
-		goto cleanup_cert;
+		goto err;
 	}
 
 	ctx = EVP_MD_CTX_create ();
 	if (ctx == NULL) {
 		fprintf (stderr, "Failed to create digest context\n");
-	        goto cleanup_cert;
+	        goto err;
 	}
 
 	if (!EVP_DigestInit_ex (ctx, md, NULL)) {
@@ -73,23 +64,65 @@ print_x509 (const uint8_t *cert, const int cert_size)
 		goto cleanup_ctx;
 	}
 
-	if (!EVP_DigestFinal_ex (ctx, fingerprint, &md_len)) {
+	if (!EVP_DigestFinal_ex (ctx, ret_fingerprint, ret_md_len)) {
 		fprintf (stderr, "Failed to get digest value\n");
 		goto cleanup_ctx;
 	}
 
-	printf ("SHA1 Fingerprint: ");
-	for (unsigned int i = 0; i < md_len; i++) {
-		printf ("%02x", fingerprint[i]);
-		if (i < md_len - 1)
-			printf (":");
-	}
-	printf ("\n");
-	X509_print_fp (stdout, X509cert);
+	return 0;
 
 cleanup_ctx:
 	EVP_MD_CTX_destroy (ctx);
-cleanup_cert:
+err:
+	return -1;
+}
+
+
+int
+print_x509 (const uint8_t *cert, const int cert_size, int verbose)
+{
+	X509 *X509cert;
+	unsigned int md_len;
+	const unsigned char *in = (const unsigned char *)cert;
+	unsigned char fingerprint[EVP_MAX_MD_SIZE];
+
+	if (x509_calculate_fingerprint(cert, cert_size, fingerprint, &md_len) < 0)
+		return -1;
+
+	X509cert = d2i_X509 (NULL, &in, cert_size);
+	if (X509cert == NULL) {
+		fprintf (stderr, "Invalid X509 certificate\n");
+		return -1;
+	}
+
+	if (verbose) {
+		printf ("SHA1 Fingerprint: ");
+		for (unsigned int i = 0; i < md_len; i++) {
+			printf ("%02x", fingerprint[i]);
+			if (i < md_len - 1)
+				printf (":");
+		}
+		printf ("\n");
+		X509_print_fp (stdout, X509cert);
+	} else {
+		X509_NAME* nm = X509_get_subject_name(X509cert);
+		int r = X509_NAME_get_index_by_NID(nm, NID_commonName, -1);
+
+		for (unsigned int i = 0; i < 5; i++)
+			printf ("%02x", fingerprint[i]);
+		fputs(" ", stdout);
+
+		if (r == -1)
+			X509_NAME_print_ex_fp(stdout, nm, 0, XN_FLAG_ONELINE & ~ASN1_STRFLGS_ESC_MSB & ~XN_FLAG_SPC_EQ);
+		else {
+			X509_NAME_ENTRY *e;
+			e = X509_NAME_get_entry(nm, r);
+			ASN1_STRING *val = X509_NAME_ENTRY_get_data(e);
+			ASN1_STRING_print_ex_fp(stdout, val, ASN1_STRFLGS_RFC2253 & ~ASN1_STRFLGS_ESC_MSB);
+		}
+		fputs("\n", stdout);
+	}
+
 	X509_free (X509cert);
 
 	return 0;

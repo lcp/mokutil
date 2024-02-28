@@ -97,6 +97,10 @@
 
 static int force_ca_check;
 static int check_keyring;
+static int opt_verbose_listing;
+static int opt_list_all;
+
+static const char* const db_names[] = { "MokListRT", "MokListXRT", "PK", "KEK", "db", "dbx" };
 
 typedef struct {
 	uint32_t mok_toggle_state;
@@ -156,6 +160,8 @@ print_help ()
 	printf ("  --mokx\t\t\t\tManipulate the MOK blacklist\n");
 	printf ("  --ca-check\t\t\t\tCheck if CA of the key is enrolled/blocked\n");
 	printf ("  --ignore-keyring\t\t\tDon't check if the key is the kernel keyring\n");
+	printf ("  --verbose-listing\t\t\tWhen listing keys print them with more detail\n");
+	printf ("  --all, -a\t\t\tWhen listing keys print all databases\n");
 }
 
 static int
@@ -172,22 +178,24 @@ list_keys (const uint8_t *data, const size_t data_size)
 	for (unsigned int i = 0; i < mok_num; i++) {
 		char *owner_str = NULL;
 		int ret;
-		printf ("[key %d]\n", i+1);
+		if (opt_verbose_listing) {
+			printf ("[key %d]\n", i+1);
 
-		ret = efi_guid_to_str(&list[i].owner, &owner_str);
-		if (ret > 0) {
-			printf ("Owner: %s\n", owner_str);
-			free (owner_str);
+			ret = efi_guid_to_str(&list[i].owner, &owner_str);
+			if (ret > 0) {
+				printf ("Owner: %s\n", owner_str);
+				free (owner_str);
+			}
 		}
 
 		efi_guid_t sigtype = list[i].header->SignatureType;
 		if (efi_guid_cmp (&sigtype, &efi_guid_x509_cert) == 0) {
-			print_x509 (list[i].mok, list[i].mok_size);
+			print_x509 (list[i].mok, list[i].mok_size, opt_verbose_listing);
 		} else {
 			print_hash_array (&sigtype,
-					  list[i].mok, list[i].mok_size);
+					  list[i].mok, list[i].mok_size, opt_verbose_listing);
 		}
-		if (i < mok_num - 1)
+		if (opt_verbose_listing && i < mok_num - 1)
 			printf ("\n");
 	}
 
@@ -1220,6 +1228,8 @@ export_db_keys (const DBName db_name)
 		case DBX:
 			guid = efi_guid_security;
 			break;
+		case _DB_NAME_MAX:
+			return -1;
 	};
 
 	db_var_name = get_db_var_name(db_name);
@@ -1774,6 +1784,8 @@ list_db (const DBName db_name)
 			return list_keys_in_var ("db", efi_guid_security);
 		case DBX:
 			return list_keys_in_var ("dbx", efi_guid_security);
+		case _DB_NAME_MAX:
+			return -1;
 	}
 
 	return -1;
@@ -1873,11 +1885,13 @@ main (int argc, char *argv[])
 			{"ca-check",           no_argument,       0, 0  },
 			{"ignore-keyring",     no_argument,       0, 0  },
 			{"version",            no_argument,       0, 'v'},
+			{"verbose-listing",    no_argument,       0, 0  },
+			{"all",                no_argument,       0, 'a'},
 			{0, 0, 0, 0}
 		};
 
 		int option_index = 0;
-		c = getopt_long (argc, argv, "cd:f:g::hi:lmpt:xDNPXv",
+		c = getopt_long (argc, argv, "acd:f:g::hi:lmpt:xDNPXv",
 				 long_options, &option_index);
 
 		if (c == -1)
@@ -2009,8 +2023,13 @@ main (int argc, char *argv[])
 				force_ca_check = 1;
 			} else if (strcmp (option, "ignore-keyring") == 0) {
 				check_keyring = 0;
+			} else if (strcmp (option, "verbose-listing") == 0) {
+				opt_verbose_listing = 1;
 			}
 
+			break;
+		case 'a':
+			opt_list_all = 1;
 			break;
 		case 'l':
 			command |= LIST_ENROLLED;
@@ -2170,7 +2189,18 @@ main (int argc, char *argv[])
 	switch (command) {
 		case LIST_ENROLLED:
 		case LIST_ENROLLED | MOKX:
-			ret = list_db (db_name);
+			if (opt_list_all) {
+				ret = 0;
+				for (DBName db = MOK_LIST_RT; db < _DB_NAME_MAX; ++db) {
+					int r;
+					printf("[%s]\n", db_names[db]);
+					r = list_db (db);
+					if (r)
+						ret = r;
+				}
+			} else {
+				ret = list_db (db_name);
+			}
 			break;
 		case LIST_NEW:
 			ret = list_keys_in_var ("MokNew", efi_guid_shim);

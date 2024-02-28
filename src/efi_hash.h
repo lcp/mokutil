@@ -40,7 +40,7 @@
 uint32_t efi_hash_size (const efi_guid_t *hash_type);
 uint32_t signature_size (const efi_guid_t *hash_type);
 int print_hash_array (const efi_guid_t *hash_type, const void *hash_array,
-		      const uint32_t array_size);
+		      const uint32_t array_size, int verbose);
 int match_hash_array (const efi_guid_t *hash_type, const void *hash,
 		      const void *hash_array, const uint32_t array_size);
 int identify_hash_type (const char *hash_str, efi_guid_t *type);
