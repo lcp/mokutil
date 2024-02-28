@@ -67,7 +67,7 @@ signature_size (const efi_guid_t *hash_type)
 
 int
 print_hash_array (const efi_guid_t *hash_type, const void *hash_array,
-		  const uint32_t array_size)
+		  const uint32_t array_size, int verbose)
 {
 	uint32_t hash_size, remain;
 	uint32_t sig_size;
@@ -90,27 +90,40 @@ print_hash_array (const efi_guid_t *hash_type, const void *hash_array,
 	hash_size = efi_hash_size (hash_type);
 	sig_size = hash_size + sizeof(efi_guid_t);
 
-	printf ("  [%s]\n", name);
-	free(name);
+	if (verbose)
+		printf ("  [%s]\n", name);
+
 	remain = array_size;
 	hash = (uint8_t *)hash_array;
 
 	while (remain > 0) {
 		if (remain < sig_size) {
 			fprintf (stderr, "invalid array size\n");
-			return -1;
+			goto err;
 		}
 
-		printf ("  ");
-		hash += sizeof(efi_guid_t);
-		for (unsigned int i = 0; i<hash_size; i++)
-			printf ("%02x", *(hash + i));
-		printf ("\n");
+		if (verbose) {
+			printf ("  ");
+			hash += sizeof(efi_guid_t);
+			for (unsigned int i = 0; i<hash_size; i++)
+				printf ("%02x", *(hash + i));
+			printf ("\n");
+		} else {
+			hash += sizeof(efi_guid_t);
+			for (unsigned int i = 0; i<5; i++)
+				printf ("%02x", *(hash + i));
+			printf (" (%s)\n", name);
+		}
+
 		hash += hash_size;
 		remain -= sig_size;
 	}
 
 	return 0;
+
+err:
+	free(name);
+	return -1;
 }
 
 /* match the hash in the hash array and return the index if matched */

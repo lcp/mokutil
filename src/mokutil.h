@@ -56,6 +56,7 @@ typedef enum {
 	KEK,
 	DB,
 	DBX,
+	_DB_NAME_MAX,
 } DBName;
 
 typedef struct {
