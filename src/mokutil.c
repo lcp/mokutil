@@ -397,7 +397,8 @@ get_pw_hash_from_file (const char *file, pw_crypt_t *pw_crypt)
 	bzero (string, BUF_SIZE);
 
 	while (read_len < BUF_SIZE) {
-		ssize_t rc = read (fd, string + read_len, BUF_SIZE - read_len);
+		ssize_t rc = read (fd, string + read_len,
+				   BUF_SIZE - read_len - 1);
 		if (rc < 0) {
 			if (errno == EINTR || errno == EAGAIN)
 				continue;
@@ -411,11 +412,6 @@ get_pw_hash_from_file (const char *file, pw_crypt_t *pw_crypt)
 		read_len += rc;
 	}
 	close (fd);
-
-	if (string[read_len] != '\0') {
-		fprintf (stderr, "corrupted string\n");
-		return -1;
-	}
 
 	if (decode_pass (string, pw_crypt) < 0) {
 		fprintf (stderr, "Failed to parse the string\n");
