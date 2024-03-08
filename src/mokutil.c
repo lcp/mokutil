@@ -117,21 +117,21 @@ print_help ()
 	printf ("Options:\n");
 	printf ("  --help, -h\t\t\t\tShow help\n");
 	printf ("  --list-enrolled, -l\t\t\tList the enrolled keys\n");
-	printf ("  --list-new, -N\t\t\t\tList the keys to be enrolled\n");
-	printf ("  --list-delete, -D\t\t\t\tList the keys to be deleted\n");
+	printf ("  --list-new, -N\t\t\tList the keys to be enrolled\n");
+	printf ("  --list-delete, -D\t\t\tList the keys to be deleted\n");
 	printf ("  --import, -i <der file...>\t\tImport keys\n");
 	printf ("  --delete, -D <der file...>\t\tDelete specific keys\n");
 	printf ("  --revoke-import\t\t\tRevoke the import request\n");
 	printf ("  --revoke-delete\t\t\tRevoke the delete request\n");
 	printf ("  --export, -x\t\t\t\tExport keys to files\n");
-	printf ("  --password, -p\t\t\t\tSet MOK password\n");
+	printf ("  --password, -p\t\t\tSet MOK password\n");
 	printf ("  --clear-password, -c\t\t\tClear MOK password\n");
 	printf ("  --disable-validation\t\t\tDisable signature validation\n");
 	printf ("  --enable-validation\t\t\tEnable signature validation\n");
 	printf ("  --sb-state\t\t\t\tShow SecureBoot State\n");
-	printf ("  --test-key, -t <der file>\t\t\tTest if the key is enrolled or not\n");
+	printf ("  --test-key, -t <der file>\t\tTest if the key is enrolled or not\n");
 	printf ("  --reset\t\t\t\tReset MOK list\n");
-	printf ("  --generate-hash[=password], -g\t\tGenerate the password hash\n");
+	printf ("  --generate-hash[=password], -g\tGenerate the password hash\n");
 	printf ("  --ignore-db\t\t\t\tIgnore DB for validation\n");
 	printf ("  --use-db\t\t\t\tUse DB for validation\n");
 	printf ("  --import-hash <hash>\t\t\tImport a hash into MOK or MOKX\n");
@@ -162,7 +162,7 @@ print_help ()
 	printf ("  --ca-check\t\t\t\tCheck if CA of the key is enrolled/blocked\n");
 	printf ("  --ignore-keyring\t\t\tDon't check if the key is the kernel keyring\n");
 	printf ("  --verbose-listing\t\t\tWhen listing keys print them with more detail\n");
-	printf ("  --all, -a\t\t\tWhen listing keys print all databases\n");
+	printf ("  --all, -a\t\t\t\tWhen listing keys print all databases\n");
 }
 
 static int
