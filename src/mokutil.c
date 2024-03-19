@@ -161,7 +161,7 @@ print_help ()
 	printf ("  --mokx, -X\t\t\t\tManipulate the MOK blacklist\n");
 	printf ("  --ca-check\t\t\t\tCheck if CA of the key is enrolled/blocked\n");
 	printf ("  --ignore-keyring\t\t\tDon't check if the key is the kernel keyring\n");
-	printf ("  --verbose-listing\t\t\tWhen listing keys print them with more detail\n");
+	printf ("  --short\t\t\t\tWhen listing keys print them in a concise form\n");
 	printf ("  --all, -a\t\t\t\tWhen listing keys print all databases\n");
 }
 
@@ -1837,6 +1837,7 @@ main (int argc, char *argv[])
 
 	force_ca_check = 0;
 	check_keyring = 1;
+	opt_verbose_listing = 1;
 
 	while (1) {
 		static struct option long_options[] = {
@@ -1882,7 +1883,7 @@ main (int argc, char *argv[])
 			{"ca-check",           no_argument,       0, 0  },
 			{"ignore-keyring",     no_argument,       0, 0  },
 			{"version",            no_argument,       0, 'v'},
-			{"verbose-listing",    no_argument,       0, 0  },
+			{"short",              no_argument,       0, 0  },
 			{"all",                no_argument,       0, 'a'},
 			{0, 0, 0, 0}
 		};
@@ -2020,8 +2021,8 @@ main (int argc, char *argv[])
 				force_ca_check = 1;
 			} else if (strcmp (option, "ignore-keyring") == 0) {
 				check_keyring = 0;
-			} else if (strcmp (option, "verbose-listing") == 0) {
-				opt_verbose_listing = 1;
+			} else if (strcmp (option, "short") == 0) {
+				opt_verbose_listing = 0;
 			}
 
 			break;
