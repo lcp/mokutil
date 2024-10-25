@@ -2156,13 +2156,24 @@ main (int argc, char *argv[])
 	if (pw_hash_file && use_root_pw)
 		command |= HELP;
 
-	if (!(command & HELP) && !efi_variables_supported ()) {
-		fprintf (stderr, "EFI variables are not supported on this system\n");
-		exit (1);
-	}
 
 	if (db_name != MOK_LIST_RT && !(command & ~MOKX))
 		command |= LIST_ENROLLED;
+
+	/* no matter if mokutil is supported (EFI) or not (BIOS) in the system, print
+	   the help menu if no command line arguments provided or explicit help
+	   requested */
+	if (!command || (command & HELP)) {
+		print_help ();
+		ret = 0;
+		goto out;
+	}
+
+	/* check if mock is supported on the system */
+	if (!efi_variables_supported ()) {
+		fprintf (stderr, "EFI variables are not supported on this system\n");
+		exit (1);
+	}
 
 	sb_check = !(command & HELP || command & TEST_KEY ||
 		     command & VERBOSITY || command & TIMEOUT ||
