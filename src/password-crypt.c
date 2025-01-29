@@ -46,9 +46,6 @@
 #define SHA256_DEFAULT_ROUNDS 5000
 #define SHA512_DEFAULT_ROUNDS 5000
 
-static const char b64t[64] =
-"./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-
 static const char md5_prefix[] = "$1$";
 
 static const char sha256_prefix[] = "$5$";
@@ -355,12 +352,6 @@ decode_pass (const char *crypt_pass, pw_crypt_t *pw_crypt)
 	}
 
 	return -1;
-}
-
-char
-int_to_b64 (const int i)
-{
-	return b64t[i & 0x3f];
 }
 
 int
