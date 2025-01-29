@@ -68,7 +68,6 @@ uint16_t get_pw_salt_size (const HashMethod method);
 int get_pw_hash_size (const HashMethod method);
 const char *get_crypt_prefix (const HashMethod method);
 int decode_pass (const char *crypt_pass, pw_crypt_t *pw_crypt);
-char int_to_b64 (const int i);
 int b64_to_int (const char c);
 
 #endif /* __PASSWORD_CRYPT_H__ */
