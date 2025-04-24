@@ -1567,7 +1567,7 @@ test_key (const MokRequest req, const char *key_file)
 
 	if (is_valid_request (&efi_guid_x509_cert, key, read_size, req)) {
 		printf ("%s is not enrolled\n", key_file);
-		ret = 0;
+		ret = 1;
 	} else {
 		print_skip_message (key_file, key, read_size, req);
 		ret = 1;
