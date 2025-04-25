@@ -40,6 +40,8 @@ mokutil \- utility to manipulate machine owner keys
 .br
 \fBmokutil\fR [--sb-state]
 .br
+\fBmokutil\fR [--is-sb-enabled]
+.br
 \fBmokutil\fR [--test-key \fIkeyfile\fR | -t \fIkeyfile\fR]
         ([--mokx | -X] | [--ca-check] | [--ignore-keyring])
 .br
@@ -132,6 +134,9 @@ Enable the validation process in shim
 .TP
 \fB--sb-state\fR
 Show SecureBoot State
+.TP
+\fB--is-sb-enabled\fR
+Indicates if SecureBoot is enabled
 .TP
 \fB-t, --test-key\fR
 Test if the key is enrolled or not
