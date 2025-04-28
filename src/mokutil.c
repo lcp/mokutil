@@ -2169,7 +2169,7 @@ main (int argc, char *argv[])
 		goto out;
 	}
 
-	/* check if mock is supported on the system */
+	/* check if EFI variable is supported on the system */
 	if (!efi_variables_supported ()) {
 		fprintf (stderr, "EFI variables are not supported on this system\n");
 		exit (1);
