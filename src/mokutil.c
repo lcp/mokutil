@@ -1590,7 +1590,7 @@ test_key (const MokRequest req, const char *key_file)
 		ret = 1;
 	} else {
 		print_skip_message (key_file, key, read_size, req);
-		ret = 1;
+		ret = 0;
 	}
 
 error:
