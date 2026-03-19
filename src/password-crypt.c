@@ -33,7 +33,6 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <openssl/md5.h>
 #include <openssl/sha.h>
 #include "password-crypt.h"
 
@@ -46,8 +45,6 @@
 #define SHA256_DEFAULT_ROUNDS 5000
 #define SHA512_DEFAULT_ROUNDS 5000
 
-static const char md5_prefix[] = "$1$";
-
 static const char sha256_prefix[] = "$5$";
 static const char sha512_prefix[] = "$6$";
 
@@ -57,7 +54,6 @@ static const char bf_y_prefix[] = "$2y$";
 
 static const char sha_rounds_prefix[] = "rounds=";
 
-static int restore_md5_array (const char *string, uint8_t *hash);
 static int restore_sha256_array (const char *string, uint8_t *hash);
 static int restore_sha512_array (const char *string, uint8_t *hash);
 
@@ -78,12 +74,6 @@ gen_salt_size (uint16_t min, uint16_t max)
 uint16_t
 get_pw_salt_size (const HashMethod method) {
 	switch (method) {
-	case TRADITIONAL_DES:
-		return T_DES_SALT_MAX;
-	case EXTEND_BSDI_DES:
-		return E_BSI_DES_SALT_MAX;
-	case MD5_BASED:
-		return MD5_SALT_MAX;
 	case SHA256_BASED:
 	case SHA512_BASED:
 		return gen_salt_size (8, 16);
@@ -98,12 +88,6 @@ int
 get_pw_hash_size (const HashMethod method)
 {
 	switch (method) {
-	case TRADITIONAL_DES:
-		return TRAD_DES_HASH_SIZE;
-	case EXTEND_BSDI_DES:
-		return BSDI_DES_HASH_SIZE;
-	case MD5_BASED:
-		return MD5_DIGEST_LENGTH;
 	case SHA256_BASED:
 		return SHA256_DIGEST_LENGTH;
 	case SHA512_BASED:
@@ -119,12 +103,6 @@ const char *
 get_crypt_prefix (const HashMethod method)
 {
 	switch (method) {
-	case TRADITIONAL_DES:
-		return ""; /* per "man crypt" */
-	case EXTEND_BSDI_DES:
-		return "_"; /* per "man crypt" */
-	case MD5_BASED:
-		return "$1$";
 	case SHA256_BASED:
 		return "$5$";
 	case SHA512_BASED:
@@ -134,53 +112,6 @@ get_crypt_prefix (const HashMethod method)
 	}
 
 	return NULL;
-}
-
-static int
-decode_trad_des_pass (const char *string, pw_crypt_t *pw_crypt)
-{
-	/* Expected string: [./0-9A-Za-z]{13} */
-	pw_crypt->iter_count = 25;
-	pw_crypt->salt_size = 2;
-	memcpy (pw_crypt->salt, string, 2);
-	pw_crypt->salt[2] = '\0';
-	memcpy (pw_crypt->hash, string, TRAD_DES_HASH_SIZE);
-	pw_crypt->hash[TRAD_DES_HASH_SIZE] = '\0';
-
-	return 0;
-}
-
-static int
-decode_md5_pass (const char *string, pw_crypt_t *pw_crypt)
-{
-	/* Expected string: [./0-9A-Za-z]{1,8}\$[./0-9A-Za-z]{22} */
-	char *tmp, *ptr = (char *)string;
-	char b64_hash[MD5_B64_LENGTH + 1];
-	int count = 0;
-
-	pw_crypt->iter_count = 1000;
-
-	/* get salt */
-	for (tmp = ptr; *tmp != '$'; tmp++) {
-		if (*tmp == '\0')
-			return -1;
-		count++;
-	}
-	count = MIN(count, MD5_SALT_MAX);
-	memcpy (pw_crypt->salt, ptr, count);
-	pw_crypt->salt_size = count;
-	ptr = tmp + 1;
-
-	/* get hash */
-	if (strlen(ptr) != MD5_B64_LENGTH)
-		return -1;
-	memcpy (b64_hash, ptr, MD5_B64_LENGTH);
-	b64_hash[MD5_B64_LENGTH] = '\0';
-
-	if (restore_md5_array (b64_hash, pw_crypt->hash) < 0)
-		return -1;
-
-	return 0;
 }
 
 static int
@@ -324,11 +255,6 @@ decode_pass (const char *crypt_pass, pw_crypt_t *pw_crypt)
 	if (!pw_crypt)
 		return -1;
 
-	if (strncmp (crypt_pass, md5_prefix, 3) == 0) {
-		pw_crypt->method = MD5_BASED;
-		return decode_md5_pass (crypt_pass + strlen (md5_prefix), pw_crypt);
-	}
-
 	if (strncmp (crypt_pass, sha256_prefix, 3) == 0) {
 		pw_crypt->method = SHA256_BASED;
 		return decode_sha256_pass (crypt_pass + strlen (sha256_prefix), pw_crypt);
@@ -344,11 +270,6 @@ decode_pass (const char *crypt_pass, pw_crypt_t *pw_crypt)
 	    strncmp (crypt_pass, bf_y_prefix, 4) == 0) {
 		pw_crypt->method = BLOWFISH_BASED;
 		return decode_blowfish_pass (crypt_pass, pw_crypt);
-	}
-
-	if (strlen (crypt_pass) == TRAD_DES_HASH_SIZE) {
-		pw_crypt->method = TRADITIONAL_DES;
-		return decode_trad_des_pass (crypt_pass, pw_crypt);
 	}
 
 	return -1;
@@ -392,42 +313,6 @@ split_24bit (const char *string, uint8_t *hash, int start, int n,
 	hash[b0] = (uint8_t)(tmp & 0xff);
 	hash[b1] = (uint8_t)((tmp >> 8) & 0xff);
 	hash[b2] = (uint8_t)((tmp >> 16) & 0xff);
-
-	return 0;
-}
-
-static int
-restore_md5_array (const char *string, uint8_t *hash)
-{
-	uint32_t tmp = 0;
-	int value1, value2;
-
-	if (strlen (string) != MD5_B64_LENGTH)
-		return -1;
-
-	if (split_24bit (string, hash,  0, 4, 0, 6, 12) < 0)
-		return -1;
-
-	if (split_24bit (string, hash,  4, 4, 1, 7, 13) < 0)
-		return -1;
-
-	if (split_24bit (string, hash,  8, 4, 2, 8, 14) < 0)
-		return -1;
-
-	if (split_24bit (string, hash, 12, 4, 3, 9, 15) < 0)
-		return -1;
-
-	if (split_24bit (string, hash, 16, 4, 4, 10, 5) < 0)
-		return -1;
-
-	value1 = b64_to_int (string[21]);
-	if (value1 < 0)
-		return -1;
-	value2 = b64_to_int (string[20]);
-	if (value2 < 0)
-		return -1;
-	tmp = (value1 << 6) | value2;
-	hash[11] = (uint8_t)tmp;
 
 	return 0;
 }

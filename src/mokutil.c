@@ -495,6 +495,14 @@ update_request (void *new_list, const int list_len, const MokRequest req,
 			fprintf (stderr, "Failed to get root password hash\n");
 			goto error;
 		}
+		switch (pw_crypt.method) {
+		case SHA256_BASED:
+		case SHA512_BASED:
+			break;
+		default:
+			fprintf (stderr, "root password uses unsupported algorithm\n");
+			goto error;
+		}
 	} else {
 		if (get_password (&password, &pw_len, PASSWORD_MIN, PASSWORD_MAX) < 0) {
 			fprintf (stderr, "Abort\n");

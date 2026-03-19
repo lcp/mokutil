@@ -34,18 +34,12 @@
 #include <stdint.h>
 
 /* The max salt size (in characters [./0-9A-Za-z]) */
-#define T_DES_SALT_MAX 2
-#define E_BSI_DES_SALT_MAX 4
-#define MD5_SALT_MAX 8
 #define SHA256_SALT_MAX 16
 #define SHA512_SALT_MAX 16
 #define BLOWFISH_SALT_MAX 22
 
 typedef enum {
-	TRADITIONAL_DES = 0,
-	EXTEND_BSDI_DES,
-	MD5_BASED,
-	SHA256_BASED,
+	SHA256_BASED = 0,
 	SHA512_BASED,
 	BLOWFISH_BASED
 } HashMethod;
@@ -60,7 +54,6 @@ typedef struct {
 
 #define PASSWORD_CRYPT_SIZE sizeof(pw_crypt_t)
 
-#define MD5_B64_LENGTH 22
 #define SHA256_B64_LENGTH 43
 #define SHA512_B64_LENGTH 86
 
