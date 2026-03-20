@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [ ci-test ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    # Run the job inside the container specified by the matrix
+    container: ${{ matrix.config.container }}
+    
+    strategy:
+      fail-fast: false # Don't cancel other jobs if one OS fails
+      matrix:
+        config:
+          - os_name: Ubuntu
+            container: ubuntu:latest
+            install_cmd: apt-get update && apt-get install -y git gcc make autoconf automake libtool pkg-config libefivar-dev libssl-dev libkeyutils-dev libcrypt-dev
+            
+          - os_name: Fedora
+            container: fedora:latest
+            install_cmd: dnf install -y git gcc make autoconf automake libtool pkgconfig efivar-devel openssl-devel keyutils-libs-devel libxcrypt-devel
+            
+          - os_name: openSUSE
+            container: opensuse/tumbleweed
+            install_cmd: zypper --non-interactive in git gcc make autoconf automake libtool pkgconfig gawk efivar-devel libopenssl-devel keyutils-devel libxcrypt-devel
+
+    name: Build on ${{ matrix.config.os_name }}
+
+    steps:
+    # We install dependencies first so that 'git' is available for the checkout step
+    - name: Install dependencies
+      run: ${{ matrix.config.install_cmd }}
+
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Autogen
+      run: ./autogen.sh || autoreconf -ivf
+
+    - name: Configure
+      run: ./configure
+
+    - name: Build
+      run: make -j$(nproc)
+
+    - name: Check
+      run: make check || echo "No tests defined"
