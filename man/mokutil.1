@@ -4,13 +4,13 @@
 mokutil \- utility to manipulate machine owner keys
 
 .SH SYNOPSIS
-\fBmokutil\fR [--list-enrolled | -l]
+\fBmokutil\fR [--list-enrolled | -l] [--short]
         ([--mokx | -X])
 .br
-\fBmokutil\fR [--list-new | -N]
+\fBmokutil\fR [--list-new | -N] [--short]
         ([--mokx | -X])
 .br
-\fBmokutil\fR [--list-delete | -D]
+\fBmokutil\fR [--list-delete | -D] [--short]
         ([--mokx | -X])
 .br
 \fBmokutil\fR [--import \fIkeylist\fR| -i \fIkeylist\fR]
@@ -69,13 +69,13 @@ mokutil \- utility to manipulate machine owner keys
 .br
 \fBmokutil\fR [--set-fallback-noreboot (\fItrue\fR | \fIfalse\fR)]
 .br
-\fBmokutil\fR [--pk]
+\fBmokutil\fR [--pk] [--short]
 .br
-\fBmokutil\fR [--kek]
+\fBmokutil\fR [--kek] [--short]
 .br
-\fBmokutil\fR [--db]
+\fBmokutil\fR [--db] [--short]
 .br
-\fBmokutil\fR [--dbx]
+\fBmokutil\fR [--dbx] [--short]
 .br
 \fBmokutil\fR [--list-sbat-revocations]
 .br
@@ -215,6 +215,9 @@ databases.
 .TP
 \fB--ignore-keyring\fR
 Ignore the kernel builtin trusted keys keyring check when enrolling a key into MokList
+.TP
+\fB--short\fR
+List only the Common Name (CN) and the first 5 octets of the SHA1 fingerprint.
 .TP
 \fB--trust-mok\fR
 Trust MOK keys within the kernel keyring
