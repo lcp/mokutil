@@ -79,6 +79,10 @@ get_pw_salt_size (const HashMethod method) {
 		return gen_salt_size (8, 16);
 	case BLOWFISH_BASED:
 		return BLOWFISH_SALT_MAX;
+	case TRADITIONAL_DES:
+	case EXTEND_BSDI_DES:
+	case MD5_BASED:
+		return -1;
 	}
 
 	return -1;
@@ -94,6 +98,10 @@ get_pw_hash_size (const HashMethod method)
 		return SHA512_DIGEST_LENGTH;
 	case BLOWFISH_BASED:
 		return BLOWFISH_HASH_SIZE;
+	case TRADITIONAL_DES:
+	case EXTEND_BSDI_DES:
+	case MD5_BASED:
+		return -1;
 	}
 
 	return -1;
@@ -109,6 +117,10 @@ get_crypt_prefix (const HashMethod method)
 		return "$6$";
 	case BLOWFISH_BASED:
 		return "$2y$10$"; /* FIXME change the count */
+	case TRADITIONAL_DES:
+	case EXTEND_BSDI_DES:
+	case MD5_BASED:
+		return NULL;
 	}
 
 	return NULL;

@@ -38,8 +38,16 @@
 #define SHA512_SALT_MAX 16
 #define BLOWFISH_SALT_MAX 22
 
+/*
+ * These numeric values are stored in the MokAuth EFI variable and
+ * consumed by MokManager. These need to be in sync with what's in
+ * MokManager code.
+ */
 typedef enum {
-	SHA256_BASED = 0,
+	TRADITIONAL_DES = 0, /* unsupported, kept for ABI compatibility*/
+	EXTEND_BSDI_DES, /* unsupported, kept for ABI compatibility*/
+	MD5_BASED, /* unsupported, kept for ABI compatibility*/
+	SHA256_BASED,
 	SHA512_BASED,
 	BLOWFISH_BASED
 } HashMethod;
