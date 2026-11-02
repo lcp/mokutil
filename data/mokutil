@@ -5,31 +5,81 @@ _mokutil()
 	local cur=${COMP_WORDS[COMP_CWORD]}
 
 	if [[ "$cur" == -* ]]; then
-		#COMPREPLY=( $( compgen -W "--help --list-enrolled --list-new --list-delete --import --delete --revoke-import --revoke-delete --export --password --clear-password --disable-validation --enable-validation --sb-state --test-key --reset --generate-hash --hash-file --root-pw --simple-hash" -- $cur ) )
-		COMPREPLY=( $( compgen -W '$( _parse_help "$1" --long-help ) -h -l -N -D -i -d -x -p -c -t -f -g -P -s -X' -- "$cur" ) )
+		COMPREPLY=( $( compgen -W "
+			--help
+			--version
+			--list-enrolled
+			--list-new
+			--list-delete
+			--import
+			--delete
+			--revoke-import
+			--revoke-delete
+			--export
+			--password
+			--clear-password
+			--disable-validation
+			--enable-validation
+			--sb-state
+			--is-sb-enabled
+			--test-key
+			--reset
+			--hash-file
+			--generate-hash
+			--root-pw
+			--ignore-db
+			--use-db
+			--mok
+			--mokx
+			--import-hash
+			--delete-hash
+			--set-verbosity
+			--set-fallback-verbosity
+			--set-fallback-noreboot
+			--trust-mok
+			--untrust-mok
+			--set-sbat-policy
+			--set-ssp-policy
+			--pk
+			--kek
+			--db
+			--dbx
+			--list-sbat-revocations
+			--sbat
+			--timeout
+			--ca-check
+			--ignore-keyring
+			--short
+			--all
+			-a -c -d -f -g -h -i -l -m -p -t -x -D -N -P -X -v
+		" -- "$cur" ) )
 		[[ $COMPREPLY == *= ]] && compopt -o nospace
 		return 0
 	fi
 
 	case "${COMP_WORDS[COMP_CWORD-1]}" in
 	--import|-i|--delete|-d|--test-key|-t|--hash-file|-f)
-		_filedir
+		if declare -F _filedir >/dev/null; then
+			_filedir
+		else
+			COMPREPLY=( $( compgen -f -- "$cur" ) )
+		fi
 		return 0
 		;;
 	--import-hash|--delete-hash)
 		COMPREPLY=( $( compgen -W "" ) )
 		return 0
 		;;
-	--set-verbosity)
-		COMPREPLY=( $( compgen -W "true false") )
+	--set-verbosity|--set-fallback-verbosity|--set-fallback-noreboot)
+		COMPREPLY=( $( compgen -W "true false" -- "$cur" ) )
 		return 0
 		;;
-	--set-fallback-verbosity)
-		COMPREPLY=( $( compgen -W "true false") )
+	--set-sbat-policy)
+		COMPREPLY=( $( compgen -W "latest automatic" -- "$cur" ) )
 		return 0
 		;;
-	--set-fallback-noreboot)
-		COMPREPLY=( $( compgen -W "true false") )
+	--set-ssp-policy)
+		COMPREPLY=( $( compgen -W "latest automatic delete" -- "$cur" ) )
 		return 0
 		;;
 	--generate-hash|-g)
