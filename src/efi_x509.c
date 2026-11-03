@@ -105,7 +105,7 @@ print_x509 (const uint8_t *cert, const int cert_size, int verbose)
 		printf ("\n");
 		X509_print_fp (stdout, X509cert);
 	} else {
-		X509_NAME* nm = X509_get_subject_name(X509cert);
+		const X509_NAME* nm = X509_get_subject_name(X509cert);
 		int r = X509_NAME_get_index_by_NID(nm, NID_commonName, -1);
 
 		for (unsigned int i = 0; i < 5; i++)
@@ -115,9 +115,9 @@ print_x509 (const uint8_t *cert, const int cert_size, int verbose)
 		if (r == -1)
 			X509_NAME_print_ex_fp(stdout, nm, 0, XN_FLAG_ONELINE & ~ASN1_STRFLGS_ESC_MSB & ~XN_FLAG_SPC_EQ);
 		else {
-			X509_NAME_ENTRY *e;
+			const X509_NAME_ENTRY *e;
 			e = X509_NAME_get_entry(nm, r);
-			ASN1_STRING *val = X509_NAME_ENTRY_get_data(e);
+			const ASN1_STRING *val = X509_NAME_ENTRY_get_data(e);
 			ASN1_STRING_print_ex_fp(stdout, val, ASN1_STRFLGS_RFC2253 & ~ASN1_STRFLGS_ESC_MSB);
 		}
 		fputs("\n", stdout);
